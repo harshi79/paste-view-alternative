@@ -40,12 +40,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PastePage({ params }: Props) {
   const { id } = await params;
   const db = await getDb();
-  await purgeExpired(db);
 
-  const [paste] = await db.select().from(pastes).where(eq(pastes.id, id)).limit(1);
+  // Paste lookup, lazy expiry purge, and session lookup are independent —
+  // run them in parallel instead of three sequential round-trips.
+  const [[paste], , session] = await Promise.all([
+    db.select().from(pastes).where(eq(pastes.id, id)).limit(1),
+    purgeExpired(db),
+    getSessionUser(),
+  ]);
   if (!paste) notFound();
 
-  const session = await getSessionUser();
   const isOwner = !!session && session.user.id === paste.userId;
 
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
@@ -59,7 +63,7 @@ export default async function PastePage({ params }: Props) {
           </p>
           <Link
             href="/"
-            className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110"
+            className="btn-primary mt-6 px-6 py-2.5 text-sm font-bold"
           >
             New paste
           </Link>
@@ -68,9 +72,12 @@ export default async function PastePage({ params }: Props) {
     );
   }
 
-  const authorRow = paste.userId
-    ? (
-        await db
+  const locked = !!paste.passwordHash && !isOwner;
+
+  // Author lookup + view increment happen concurrently.
+  const [authorRows] = await Promise.all([
+    paste.userId
+      ? db
           .select({
             username: users.username,
             displayName: profiles.displayName,
@@ -81,11 +88,10 @@ export default async function PastePage({ params }: Props) {
           .leftJoin(profiles, eq(users.id, profiles.userId))
           .where(eq(users.id, paste.userId))
           .limit(1)
-      )[0] ?? null
-    : null;
-
-  const locked = !!paste.passwordHash && !isOwner;
-  if (!locked) await incrementPasteViews(paste.id);
+      : Promise.resolve([]),
+    locked ? Promise.resolve() : incrementPasteViews(paste.id),
+  ]);
+  const authorRow = authorRows[0] ?? null;
 
   const rawUrl = `/p/${paste.id}/raw`;
   const isRich = paste.format === 'rich';
@@ -93,7 +99,7 @@ export default async function PastePage({ params }: Props) {
 
   return (
     <div className="pt-8">
-      <div className="animate-fade-up mb-4 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-white/10 bg-night-800/60 p-5 backdrop-blur">
+      <div className="card animate-fade-up mb-4 flex flex-wrap items-start justify-between gap-4 p-5">
         <div className="min-w-0">
           <h1
             className="break-words text-2xl font-extrabold tracking-tight text-white"
@@ -111,24 +117,24 @@ export default async function PastePage({ params }: Props) {
                 {authorRow.displayName || authorRow.username}
               </Link>
             ) : (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs">
+              <span className="chip">
                 Guest
               </span>
             )}
             <span>{timeAgo(paste.createdAt)}</span>
             <span>{formatViews(paste.views)} views</span>
             {paste.visibility === 'unlisted' && (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs">
+              <span className="chip">
                 Unlisted
               </span>
             )}
             {paste.passwordHash && (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs">
+              <span className="chip">
                 🔒 Protected
               </span>
             )}
             {isRich && (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs">
+              <span className="chip">
                 Rich
               </span>
             )}
@@ -145,7 +151,7 @@ export default async function PastePage({ params }: Props) {
           {!locked && (
             <a
               href={rawUrl}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"
+              className="btn-ghost px-3 py-1.5 text-xs font-semibold"
             >
               Raw
             </a>
@@ -153,7 +159,7 @@ export default async function PastePage({ params }: Props) {
           {!locked && (
             <a
               href={`${rawUrl}?download=1`}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"
+              className="btn-ghost px-3 py-1.5 text-xs font-semibold"
             >
               Download
             </a>

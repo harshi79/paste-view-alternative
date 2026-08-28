@@ -30,9 +30,9 @@ const FEATURES = [
 ];
 
 export default async function HomePage() {
-  const session = await getSessionUser();
   const db = await getDb();
-  await purgeExpired(db);
+  // Session + lazy expiry purge are independent — run them together.
+  const [session] = await Promise.all([getSessionUser(), purgeExpired(db)]);
 
   return (
     <div className="pt-10 sm:pt-14">
@@ -64,7 +64,7 @@ export default async function HomePage() {
         {FEATURES.map((f, i) => (
           <div
             key={f.title}
-            className="animate-fade-up rounded-2xl border border-white/10 bg-night-800/50 p-5 backdrop-blur"
+            className="card animate-fade-up p-5"
             style={{ animationDelay: `${i * 70}ms` }}
           >
             <div className="mb-2 text-2xl">{f.icon}</div>

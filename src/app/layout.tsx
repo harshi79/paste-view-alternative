@@ -21,9 +21,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="font-sans antialiased relative">
         {/* ambient background glows */}
         <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute -top-32 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-brand-600/20 blur-[140px]" />
-          <div className="absolute bottom-0 right-0 h-[320px] w-[420px] rounded-full bg-cyan-500/10 blur-[120px]" />
-          <div className="absolute top-1/3 -left-24 h-[300px] w-[300px] rounded-full bg-fuchsia-500/10 blur-[110px]" />
+          <div className="absolute -top-32 left-1/2 h-[440px] w-[680px] -translate-x-1/2 rounded-full bg-brand-600/[0.16] blur-[110px]" />
+          <div className="absolute bottom-0 right-0 h-[300px] w-[400px] rounded-full bg-cyan-500/[0.08] blur-[100px]" />
+          <div className="absolute top-1/3 -left-24 h-[280px] w-[280px] rounded-full bg-fuchsia-500/[0.08] blur-[90px]" />
         </div>
 
         <Nav

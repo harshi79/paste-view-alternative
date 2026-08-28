@@ -71,15 +71,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!uid) return null;
 
     const db = await getDb();
-    const [user] = await db.select().from(users).where(eq(users.id, uid)).limit(1);
-    if (!user) return null;
-    const [profile] = await db
-      .select()
-      .from(profiles)
-      .where(eq(profiles.userId, uid))
+    // Single joined round-trip (used to be two sequential queries).
+    const [row] = await db
+      .select({ user: users, profile: profiles })
+      .from(users)
+      .innerJoin(profiles, eq(profiles.userId, users.id))
+      .where(eq(users.id, uid))
       .limit(1);
-    if (!profile) return null;
-    return { user, profile };
+    if (!row) return null;
+    return { user: row.user, profile: row.profile };
   } catch {
     return null;
   }

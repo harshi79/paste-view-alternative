@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import TagBadge from '@/components/TagBadge';
 
 type Tag = { id: string; label: string; color: string; effect: string };
 
@@ -14,15 +15,7 @@ const EFFECTS = [
   { id: 'gold', label: 'Gold' },
 ];
 
-const EFFECT_BG: Record<string, string> = {
-  '': 'bg-white/5',
-  shimmer: 'bg-gradient-to-r from-brand-500 to-cyan-300 text-white',
-  neon: 'bg-cyan-500/30 text-cyan-100',
-  rainbow:
-    'bg-gradient-to-r from-rose-400 via-amber-300 via-emerald-300 via-cyan-300 to-violet-400 text-white',
-  fire: 'bg-gradient-to-r from-amber-500 to-rose-600 text-white',
-  gold: 'bg-gradient-to-r from-amber-700 to-yellow-200 text-amber-950',
-};
+const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
 
 export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
   const router = useRouter();
@@ -32,6 +25,12 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
   const [effect, setEffect] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  // inline edit state ("redo" a tag without deleting it)
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editColor, setEditColor] = useState('#a78bfa');
+  const [editEffect, setEditEffect] = useState('');
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +52,39 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
     router.refresh();
   }
 
+  function startEdit(t: Tag) {
+    setEditId(t.id);
+    setEditLabel(t.label);
+    setEditColor(t.color);
+    setEditEffect(t.effect);
+    setError('');
+  }
+
+  async function saveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editId) return;
+    setBusy(true);
+    setError('');
+    const res = await fetch('/api/admin/tags', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editId, label: editLabel, color: editColor, effect: editEffect }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (!res.ok) {
+      setError(data.error || 'Could not save changes.');
+      return;
+    }
+    setTags((ts) =>
+      ts
+        .map((t) => (t.id === editId ? data.tag : t))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    );
+    setEditId(null);
+    router.refresh();
+  }
+
   async function remove(id: string) {
     if (!confirm('Delete this tag? It will be removed from every user.')) return;
     setBusy(true);
@@ -60,13 +92,10 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
     setBusy(false);
     if (res.ok) {
       setTags((t) => t.filter((x) => x.id !== id));
+      if (editId === id) setEditId(null);
       router.refresh();
     }
   }
-
-  const input =
-    'w-full rounded-xl border border-white/10 bg-night-800 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/20';
-  const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
@@ -76,45 +105,98 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
             No tags yet. Create your first one on the right.
           </p>
         ) : (
-          tags.map((t) => (
-            <div
-              key={t.id}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-night-800/60 p-4"
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${EFFECT_BG[t.effect] ?? 'bg-white/10 text-zinc-200'}`}
-                  style={
-                    t.effect === ''
-                      ? { background: `${t.color}22`, color: t.color, border: `1px solid ${t.color}55` }
-                      : undefined
-                  }
-                >
-                  {t.label}
-                </span>
-                <span className="font-mono text-xs text-zinc-500">
-                  {t.color} · {t.effect || 'no effect'}
-                </span>
-              </div>
-              <button
-                onClick={() => remove(t.id)}
-                disabled={busy}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+          tags.map((t) =>
+            editId === t.id ? (
+              <form
+                key={t.id}
+                onSubmit={saveEdit}
+                className="card space-y-3 border-amber-400/30 p-4"
               >
-                Delete
-              </button>
-            </div>
-          ))
+                <div className="flex flex-wrap items-center gap-3">
+                  <TagBadge label={editLabel || 'Preview'} color={editColor} effect={editEffect} />
+                  <span className="text-xs text-zinc-500">live preview</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
+                  <input
+                    className="input"
+                    value={editLabel}
+                    maxLength={40}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    placeholder="Label"
+                  />
+                  <input
+                    type="color"
+                    className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent"
+                    value={editColor}
+                    onChange={(e) => setEditColor(e.target.value)}
+                  />
+                  <select
+                    className="input sm:w-36"
+                    value={editEffect}
+                    onChange={(e) => setEditEffect(e.target.value)}
+                  >
+                    {EFFECTS.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {error && <p className="text-sm text-red-400">{error}</p>}
+                <div className="flex gap-2">
+                  <button type="submit" className="btn-primary px-4 py-2 text-xs" disabled={busy || !editLabel.trim()}>
+                    {busy ? 'Saving…' : 'Save changes'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost px-4 py-2 text-xs"
+                    onClick={() => setEditId(null)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div
+                key={t.id}
+                className="card flex items-center justify-between gap-3 p-4"
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <TagBadge label={t.label} color={t.color} effect={t.effect} />
+                  <span className="font-mono text-xs text-zinc-500">
+                    {t.color} · {t.effect || 'no effect'}
+                  </span>
+                </div>
+                <div className="flex flex-none gap-2">
+                  <button
+                    onClick={() => startEdit(t)}
+                    disabled={busy}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-brand-400/40 hover:bg-brand-500/10 hover:text-brand-200 disabled:opacity-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => remove(t.id)}
+                    disabled={busy}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ),
+          )
         )}
       </div>
 
-      <form onSubmit={create} className="rounded-2xl border border-white/10 bg-night-800/60 p-5">
+      <form onSubmit={create} className="card h-fit p-5">
         <h2 className="mb-4 font-bold text-white">New tag</h2>
         <div className="space-y-3">
           <div>
             <label className={labelCls}>Label</label>
             <input
-              className={input}
+              className="input"
               value={label}
               maxLength={40}
               placeholder="e.g. Founder"
@@ -135,7 +217,7 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
           </div>
           <div>
             <label className={labelCls}>Effect</label>
-            <select className={input} value={effect} onChange={(e) => setEffect(e.target.value)}>
+            <select className="input" value={effect} onChange={(e) => setEffect(e.target.value)}>
               {EFFECTS.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.label}
@@ -143,11 +225,17 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
               ))}
             </select>
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Preview
+            </p>
+            <TagBadge label={label || 'New tag'} color={color} effect={effect} />
+          </div>
+          {error && !editId && <p className="text-sm text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={busy || !label}
-            className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/30 hover:brightness-110 disabled:opacity-50"
+            className="btn-primary w-full font-bold"
           >
             {busy ? 'Saving…' : 'Create tag'}
           </button>
