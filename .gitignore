@@ -1,0 +1,19 @@
+# deps
+node_modules/
+
+# next
+.next/
+out/
+
+# local embedded database (dev fallback when DATABASE_URL is not set)
+.pglite-data/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# misc
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
