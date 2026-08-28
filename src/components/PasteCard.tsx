@@ -40,7 +40,7 @@ export default function PasteCard({ paste }: { paste: PasteCardData }) {
   return (
     <Link
       href={`/p/${paste.id}`}
-      className="group animate-pop flex flex-col gap-2 rounded-2xl border border-white/10 bg-night-800/60 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:bg-night-800 hover:shadow-lg hover:shadow-brand-600/10"
+      className="card group animate-pop flex flex-col gap-2 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:shadow-lg hover:shadow-brand-600/10"
     >
       <div className="flex items-start justify-between gap-2">
         <h3

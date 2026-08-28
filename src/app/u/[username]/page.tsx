@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes, profiles, users } from '@/lib/db/schema';
 import { getSessionUser, getUserTags, isAdmin } from '@/lib/auth';
@@ -11,6 +11,7 @@ import NameDisplay, { type NameEffect } from '@/components/NameDisplay';
 import Avatar from '@/components/Avatar';
 import PasteCard from '@/components/PasteCard';
 import AdminTags from '@/components/AdminTags';
+import TagBadge from '@/components/TagBadge';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,40 +55,42 @@ export default async function ProfilePage({ params }: Props) {
     views: 0,
   };
 
-  const session = await getSessionUser();
-  const isOwner = session?.user.id === user.id;
-  const adminStatus = await isAdmin();
-  const userTags = await getUserTags(user.id);
+  // Run everything independent in parallel — one DB round-trip window
+  // instead of four sequential ones. Visibility/expiry filtering happens
+  // in JS so the pastes query doesn't have to wait for the session.
+  const [session, adminStatus, userTags, userPastes] = await Promise.all([
+    getSessionUser(),
+    isAdmin(),
+    getUserTags(user.id),
+    db
+      .select()
+      .from(pastes)
+      .where(eq(pastes.userId, user.id))
+      .orderBy(desc(pastes.pinned), desc(pastes.createdAt))
+      .limit(100),
+  ]);
 
-  const userPastes = await db
-    .select()
-    .from(pastes)
-    .where(
-      isOwner
-        ? eq(pastes.userId, user.id)
-        : and(
-            eq(pastes.userId, user.id),
-            eq(pastes.visibility, 'public'),
-            or(isNull(pastes.expiresAt), sql`${pastes.expiresAt} > now()`),
-          ),
-    )
-    .orderBy(desc(pastes.pinned), desc(pastes.createdAt))
-    .limit(50);
+  const isOwner = session?.user.id === user.id;
 
   const nowVisible = userPastes.filter(
-    (p) => !p.expiresAt || p.expiresAt.getTime() > Date.now(),
+    (p) =>
+      (!p.expiresAt || p.expiresAt.getTime() > Date.now()) &&
+      (isOwner || p.visibility === 'public'),
   );
   const pinned = nowVisible.filter((p) => p.pinned);
   const rest = nowVisible.filter((p) => !p.pinned);
 
-  if (!isOwner) {
-    await db
-      .update(profiles)
-      .set({ views: sql`${profiles.views} + 1` })
-      .where(eq(profiles.userId, user.id));
-  }
+  // Count the profile view (visitors only) while badges are computed.
+  const [, badges] = await Promise.all([
+    isOwner
+      ? Promise.resolve()
+      : db
+          .update(profiles)
+          .set({ views: sql`${profiles.views} + 1` })
+          .where(eq(profiles.userId, user.id)),
+    computeBadges(user, profile, nowVisible),
+  ]);
 
-  const badges = await computeBadges(user, profile, nowVisible);
   const totalViews = nowVisible.reduce((s, p) => s + p.views, 0);
 
   return (
@@ -133,18 +136,33 @@ export default async function ProfilePage({ params }: Props) {
               />
             </div>
             <div className="pb-1">
-              <h1 className="text-2xl font-black tracking-tight sm:text-4xl">
-                <NameDisplay
-                  text={profile.displayName || user.username}
-                  from={profile.nameFrom}
-                  to={profile.nameTo}
-                  style={profile.nameStyle as 'solid' | 'gradient'}
-                  effect={profile.nameEffect as NameEffect}
-                  speed={profile.effectSpeed}
-                  intensity={profile.effectIntensity}
-                />
-              </h1>
-              <p className="mt-1 text-sm text-zinc-400">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="text-2xl font-black leading-none tracking-tight sm:text-4xl">
+                  <NameDisplay
+                    text={profile.displayName || user.username}
+                    from={profile.nameFrom}
+                    to={profile.nameTo}
+                    style={profile.nameStyle as 'solid' | 'gradient'}
+                    effect={profile.nameEffect as NameEffect}
+                    speed={profile.effectSpeed}
+                    intensity={profile.effectIntensity}
+                  />
+                </h1>
+                {userTags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {userTags.map((t) => (
+                      <TagBadge
+                        key={t.id}
+                        label={t.label}
+                        color={t.color}
+                        effect={t.effect}
+                        size="sm"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="mt-1.5 text-sm text-zinc-400">
                 @{user.username} · joined {formatDate(user.createdAt)}
               </p>
             </div>
@@ -152,42 +170,19 @@ export default async function ProfilePage({ params }: Props) {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {userTags.map((t) => (
-            <span
-              key={t.id}
-              className="rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
-              style={{
-                background:
-                  t.effect === 'rainbow'
-                    ? 'linear-gradient(100deg,#f87171,#fbbf24,#4ade80,#22d3ee,#a78bfa,#f472b6)'
-                    : t.effect === 'gold'
-                      ? 'linear-gradient(100deg,#b45309,#fde68a,#b45309)'
-                      : `linear-gradient(100deg, ${t.color}, ${t.color}aa)`,
-                boxShadow: `0 4px 14px ${t.color}55`,
-              }}
-            >
-              {t.label}
-            </span>
-          ))}
           {badges.map((b) => (
             <span
               key={b.id}
-              className="rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
               style={{ background: `linear-gradient(100deg, ${b.from}, ${b.to})` }}
               title={b.label}
             >
               {b.emoji} {b.label}
             </span>
           ))}
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            {formatViews(profile.views)} profile views
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            {nowVisible.length} pastes
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            {formatViews(totalViews)} paste views
-          </span>
+          <span className="chip">{formatViews(profile.views)} profile views</span>
+          <span className="chip">{nowVisible.length} pastes</span>
+          <span className="chip">{formatViews(totalViews)} paste views</span>
         </div>
 
         {profile.bioEnabled && profile.bio && (

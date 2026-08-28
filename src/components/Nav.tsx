@@ -47,7 +47,7 @@ export default function Nav({ session }: { session: NavUser }) {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-night-950/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-night-950/80 backdrop-blur-md">
       <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="group flex items-center gap-2.5">
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-cyan-400 text-base font-black text-night-950 shadow-lg shadow-brand-600/30 transition-transform group-hover:scale-110">
@@ -130,10 +130,7 @@ export default function Nav({ session }: { session: NavUser }) {
               >
                 Log in
               </Link>
-              <Link
-                href="/register"
-                className="rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition-transform hover:scale-[1.03]"
-              >
+              <Link href="/register" className="btn-primary text-sm">
                 Sign up
               </Link>
             </div>

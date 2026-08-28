@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import TagBadge from '@/components/TagBadge';
 
 type UserRow = { id: string; username: string; createdAt: Date };
 type Tag = { id: string; label: string; color: string; effect: string };
@@ -20,13 +21,26 @@ export default function UsersAdminClient({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [assigned, setAssigned] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetch('/api/admin/tags')
       .then((r) => (r.ok ? r.json() : { tags: [] }))
-      .then((d) => setTags(d.tags));
+      .then((d) => setTags(d.tags ?? []));
   }, []);
+
+  // Keep the list in sync when the server re-renders with new props
+  // (e.g. after a search navigation).
+  useEffect(() => {
+    setUsers(initial);
+  }, [initial]);
+
+  const activeUser = useMemo(
+    () => users.find((u) => u.id === activeId) ?? null,
+    [users, activeId],
+  );
 
   async function search(e: React.FormEvent) {
     e.preventDefault();
@@ -39,52 +53,62 @@ export default function UsersAdminClient({
   async function openUser(id: string) {
     setActiveId(id);
     setAssigned(new Set());
-    setBusy(true);
+    setError('');
+    setLoadingUser(true);
     try {
       const res = await fetch(`/api/admin/users/${id}/tags`);
       if (res.ok) {
         const data = await res.json();
         setAssigned(new Set(data.tagIds ?? []));
+      } else {
+        setError('Could not load this user’s tags.');
       }
     } finally {
-      setBusy(false);
+      setLoadingUser(false);
     }
   }
 
   async function toggle(tagId: string, want: boolean) {
     if (!activeId) return;
-    setBusy(true);
+    setBusyId(tagId);
+    setError('');
+    // Optimistic update, rolled back if the request fails.
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      if (want) next.add(tagId);
+      else next.delete(tagId);
+      return next;
+    });
     const res = await fetch(`/api/admin/users/${activeId}/tags`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tagId, assign: want }),
     });
-    setBusy(false);
-    if (res.ok) {
-      const next = new Set(assigned);
-      if (want) next.add(tagId);
-      else next.delete(tagId);
-      setAssigned(next);
-    }
+    setBusyId(null);
+    if (res.ok) return;
+    setAssigned((prev) => {
+      const next = new Set(prev);
+      if (want) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+    setError('Change failed — please try again.');
   }
 
-  const input =
-    'w-full rounded-xl border border-white/10 bg-night-800 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/20';
+  const activeTags = tags.filter((t) => assigned.has(t.id));
+  const availableTags = tags.filter((t) => !assigned.has(t.id));
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
       <div>
         <form onSubmit={search} className="mb-3 flex gap-2">
           <input
-            className={input}
+            className="input"
             placeholder="Search by username…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <button
-            type="submit"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-200 hover:bg-white/10"
-          >
+          <button type="submit" className="btn-ghost">
             Search
           </button>
         </form>
@@ -122,44 +146,81 @@ export default function UsersAdminClient({
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-night-800/60 p-5">
-        <h2 className="mb-3 font-bold text-white">
-          {activeId ? 'Tags for selected user' : 'Select a user'}
-        </h2>
+      <div className="card h-fit p-5 lg:sticky lg:top-20">
         {!activeId ? (
-          <p className="text-sm text-zinc-500">Pick a user on the left to assign or remove tags.</p>
+          <>
+            <h2 className="font-bold text-white">Tag manager</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Pick a user on the left to review, give, or remove their tags.
+            </p>
+          </>
         ) : (
-          <div className="space-y-2">
-            {tags.length === 0 ? (
+          <>
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="font-bold text-white">
+                <span className="font-mono">@{activeUser?.username ?? '…'}</span>
+              </h2>
+              {activeUser && (
+                <Link
+                  href={`/u/${activeUser.username}`}
+                  className="text-xs text-brand-300 hover:text-brand-200"
+                >
+                  open profile →
+                </Link>
+              )}
+            </div>
+
+            {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+
+            {loadingUser ? (
+              <p className="text-sm text-zinc-500">Loading tags…</p>
+            ) : tags.length === 0 ? (
               <p className="text-sm text-zinc-500">No tags exist. Create some in the Tags page.</p>
             ) : (
-              tags.map((t) => {
-                const on = assigned.has(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => toggle(t.id, !on)}
-                    disabled={busy}
-                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-sm transition disabled:opacity-50 ${
-                      on ? 'border-amber-400/50 bg-amber-500/10' : 'border-white/10 bg-white/5 hover:border-white/25'
-                    }`}
-                  >
-                    <span
-                      className="rounded-full px-3 py-0.5 text-xs font-bold"
-                      style={{
-                        background: `${t.color}22`,
-                        color: t.color,
-                        border: `1px solid ${t.color}55`,
-                      }}
-                    >
-                      {t.label}
-                    </span>
-                    <span className="text-xs text-zinc-400">{on ? 'Remove' : 'Assign'}</span>
-                  </button>
-                );
-              })
+              <>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Current tags
+                </p>
+                {activeTags.length === 0 ? (
+                  <p className="text-xs text-zinc-600">This user has no tags yet.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeTags.map((t) => (
+                      <TagBadge
+                        key={t.id}
+                        label={t.label}
+                        color={t.color}
+                        effect={t.effect}
+                        disabled={busyId === t.id}
+                        onRemove={() => toggle(t.id, false)}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <p className="mb-1.5 mt-5 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                  Give a tag
+                </p>
+                {availableTags.length === 0 ? (
+                  <p className="text-xs text-zinc-600">All tags are already assigned.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {availableTags.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => toggle(t.id, true)}
+                        disabled={busyId !== null}
+                        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm transition hover:border-white/25 disabled:opacity-50"
+                      >
+                        <TagBadge label={t.label} color={t.color} effect={t.effect} />
+                        <span className="text-xs text-zinc-400">+ Assign</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>

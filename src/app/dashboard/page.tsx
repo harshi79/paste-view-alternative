@@ -37,17 +37,17 @@ export default async function DashboardPage({ searchParams }: Props) {
           </p>
         </div>
         <div className="flex gap-3">
-          <div className="rounded-2xl border border-white/10 bg-night-800/60 px-5 py-3 text-center">
+          <div className="card px-5 py-3 text-center">
             <p className="text-2xl font-black text-white">{rows.length}</p>
             <p className="text-xs text-zinc-500">pastes</p>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-night-800/60 px-5 py-3 text-center">
+          <div className="card px-5 py-3 text-center">
             <p className="text-2xl font-black text-white">{formatViews(totalViews)}</p>
             <p className="text-xs text-zinc-500">total views</p>
           </div>
           <Link
             href={`/u/${user.username}`}
-            className="hidden rounded-2xl border border-white/10 bg-night-800/60 px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-brand-400/40 sm:block"
+            className="card hidden px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-brand-400/40 sm:block"
           >
             View profile
           </Link>

@@ -13,13 +13,14 @@ export default async function AdminHome() {
   await requireAdmin();
   const db = await getDb();
 
-  const [u] = await db.select({ n: sql<number>`count(*)` }).from(users);
-  const [p] = await db.select({ n: sql<number>`count(*)` }).from(pastes);
-  const [t] = await db.select({ n: sql<number>`count(*)` }).from(tags);
-  const [s] = await db.select({ n: sql<number>`count(*)` }).from(stickers);
-  const [v] = await db
-    .select({ n: sql<number>`coalesce(sum(${pastes.views}), 0)` })
-    .from(pastes);
+  // All five stats queries are independent — fetch them in parallel.
+  const [[u], [p], [t], [s], [v]] = await Promise.all([
+    db.select({ n: sql<number>`count(*)` }).from(users),
+    db.select({ n: sql<number>`count(*)` }).from(pastes),
+    db.select({ n: sql<number>`count(*)` }).from(tags),
+    db.select({ n: sql<number>`count(*)` }).from(stickers),
+    db.select({ n: sql<number>`coalesce(sum(${pastes.views}), 0)` }).from(pastes),
+  ]);
 
   return (
     <div className="pt-10">
@@ -39,21 +40,21 @@ export default async function AdminHome() {
       <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link
           href="/admin/users"
-          className="rounded-2xl border border-white/10 bg-night-800/60 p-5 transition hover:border-brand-400/40"
+          className="card p-5 transition hover:border-brand-400/40"
         >
           <h3 className="font-bold text-white">Users</h3>
           <p className="mt-1 text-sm text-zinc-400">Search accounts and assign tags.</p>
         </Link>
         <Link
           href="/admin/tags"
-          className="rounded-2xl border border-white/10 bg-night-800/60 p-5 transition hover:border-brand-400/40"
+          className="card p-5 transition hover:border-brand-400/40"
         >
           <h3 className="font-bold text-white">Tags</h3>
           <p className="mt-1 text-sm text-zinc-400">Create the tags you can award.</p>
         </Link>
         <Link
           href="/admin/stickers"
-          className="rounded-2xl border border-white/10 bg-night-800/60 p-5 transition hover:border-brand-400/40"
+          className="card p-5 transition hover:border-brand-400/40"
         >
           <h3 className="font-bold text-white">Stickers</h3>
           <p className="mt-1 text-sm text-zinc-400">
@@ -67,7 +68,7 @@ export default async function AdminHome() {
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-night-800/60 p-4">
+    <div className="card p-4">
       <p className="text-xs uppercase tracking-wider text-zinc-500">{label}</p>
       <p className="mt-1 text-2xl font-black text-white">{value.toLocaleString()}</p>
     </div>
