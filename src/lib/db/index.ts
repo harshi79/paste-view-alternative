@@ -74,6 +74,12 @@ async function createDb(): Promise<DB> {
   }
 
   const { PGlite } = await import('@electric-sql/pglite');
+  if (process.env.VERCEL) {
+    throw new Error(
+      'DATABASE_URL is required on Vercel (the embedded dev database needs a writable filesystem). ' +
+        'Add your Neon connection string in Vercel → Settings → Environment Variables.',
+    );
+  }
   const client = new PGlite(path.join(process.cwd(), '.pglite-data'));
   return drizzlePglite(client, { schema }) as unknown as DB;
 }
