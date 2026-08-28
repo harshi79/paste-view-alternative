@@ -10,9 +10,13 @@ import DashboardList from '@/components/DashboardList';
 export const metadata: Metadata = { title: 'My pastes' };
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+type Props = { searchParams: Promise<{ created?: string }> };
+
+export default async function DashboardPage({ searchParams }: Props) {
   const { user, profile } = await requireUser();
   const db = await getDb();
+
+  const { created } = await searchParams;
 
   const rows = await db
     .select()
@@ -28,7 +32,8 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white">My pastes</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            Everything you&apos;ve pasted — guests can paste too, but only accounts get history.
+            Everything you have pasted. Guests can paste without an account, but only accounts
+            keep a history.
           </p>
         </div>
         <div className="flex gap-3">
@@ -44,10 +49,20 @@ export default async function DashboardPage() {
             href={`/u/${user.username}`}
             className="hidden rounded-2xl border border-white/10 bg-night-800/60 px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-brand-400/40 sm:block"
           >
-            View profile →
+            View profile
           </Link>
         </div>
       </div>
+
+      {created && rows.find((r) => r.id === created) && (
+        <div className="animate-pop mb-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-200">
+          <p className="font-semibold">Paste created.</p>
+          <p className="mt-1 text-emerald-300/80">
+            Use the <span className="font-mono">Copy link</span> button on the new row below to share
+            it. The link is never shown in plain text on this page.
+          </p>
+        </div>
+      )}
 
       <DashboardList
         pastes={rows.map((p) => ({
@@ -62,6 +77,7 @@ export default async function DashboardPage() {
           createdAt: p.createdAt.toISOString(),
         }))}
         displayName={profile.displayName || user.username}
+        highlightId={created ?? null}
       />
     </div>
   );

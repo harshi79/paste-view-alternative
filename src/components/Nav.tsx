@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type NavUser = {
   username: string;
@@ -12,15 +12,28 @@ export type NavUser = {
 
 export default function Nav({ session }: { session: NavUser }) {
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
 
   async function logout() {
     setBusy(true);
     await fetch('/api/auth/logout', { method: 'POST' });
+    setBusy(false);
+    setOpen(false);
     router.push('/');
     router.refresh();
-    setBusy(false);
   }
 
   const links = [
@@ -28,7 +41,7 @@ export default function Nav({ session }: { session: NavUser }) {
     ...(session
       ? [
           { href: '/dashboard', label: 'My pastes' },
-          { href: '/settings', label: 'Customize' },
+          { href: '/settings', label: 'Profile' },
         ]
       : []),
   ];
@@ -64,11 +77,11 @@ export default function Nav({ session }: { session: NavUser }) {
           ))}
 
           {session ? (
-            <div className="ml-1 flex items-center gap-2">
-              <Link
-                href={`/u/${session.username}`}
+            <div className="relative ml-1" ref={menuRef}>
+              <button
+                onClick={() => setOpen((v) => !v)}
                 className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-sm font-medium text-zinc-200 transition-colors hover:border-white/25"
-                title={`@${session.username}`}
+                title="Account menu"
               >
                 {session.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -85,15 +98,29 @@ export default function Nav({ session }: { session: NavUser }) {
                 <span className="hidden max-w-[120px] truncate sm:block">
                   {session.displayName || session.username}
                 </span>
-              </Link>
-              <button
-                onClick={logout}
-                disabled={busy}
-                className="rounded-lg px-2.5 py-2 text-sm text-zinc-500 transition-colors hover:text-white disabled:opacity-50"
-                title="Log out"
-              >
-                Log out
+                <span className="text-zinc-500">▾</span>
               </button>
+
+              {open && (
+                <div className="animate-pop absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-white/10 bg-night-900/95 p-1.5 shadow-2xl shadow-black/60 backdrop-blur-xl">
+                  <div className="border-b border-white/5 px-3 py-2 text-xs text-zinc-500">
+                    Signed in as{' '}
+                    <span className="font-mono text-zinc-300">@{session.username}</span>
+                  </div>
+                  <MenuLink href={`/u/${session.username}`} label="View profile" />
+                  <MenuLink href="/settings" label="Edit profile" />
+                  <MenuLink href="/dashboard" label="My pastes" />
+                  <MenuLink href="/account" label="Account & rename" />
+                  <div className="my-1 border-t border-white/5" />
+                  <button
+                    onClick={logout}
+                    disabled={busy}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                  >
+                    Log out
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="ml-1 flex items-center gap-2">
@@ -107,12 +134,23 @@ export default function Nav({ session }: { session: NavUser }) {
                 href="/register"
                 className="rounded-lg bg-gradient-to-r from-brand-500 to-brand-600 px-3.5 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-600/30 transition-transform hover:scale-[1.03]"
               >
-                Sign up free
+                Sign up
               </Link>
             </div>
           )}
         </div>
       </nav>
     </header>
+  );
+}
+
+function MenuLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-white/5 hover:text-white"
+    >
+      {label}
+    </Link>
   );
 }

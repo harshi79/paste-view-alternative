@@ -1,16 +1,19 @@
 import { NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { users, profiles } from '@/lib/db/schema';
+import { users, profiles, signupIps } from '@/lib/db/schema';
 import { hashPassword, createSession } from '@/lib/auth';
+import { getClientIp } from '@/lib/ip';
 
 const RESERVED = new Set([
   'api', 'login', 'register', 'dashboard', 'settings', 'p', 'u', 'new',
   'about', 'admin', 'explore', 'recent', 'paste', 'pastes', 'profile',
-  'vibebin', 'help', 'support', 'terms', 'privacy', 'static', '_next', 'favicon.ico',
+  'vibebin', 'help', 'support', 'terms', 'privacy', 'static', '_next',
+  'favicon.ico', 'account', 'logout',
 ]);
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
+const MAX_ACCOUNTS_PER_IP = 3;
 
 export async function POST(req: Request) {
   let body: { username?: string; password?: string };
@@ -37,6 +40,25 @@ export async function POST(req: Request) {
   }
 
   const db = await getDb();
+
+  // Per-IP signup limit. We check the case-sensitive IP string exactly
+  // as it appears in the x-forwarded-for header (first hop). This is the
+  // closest approximation of the "real" client on Vercel.
+  const ip = await getClientIp();
+  if (ip && ip !== '0.0.0.0') {
+    const [countRow] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(signupIps)
+      .where(sql`${signupIps.ip} = ${ip}`);
+    const count = Number(countRow?.n ?? 0);
+    if (count >= MAX_ACCOUNTS_PER_IP) {
+      return NextResponse.json(
+        { error: `You can only create ${MAX_ACCOUNTS_PER_IP} accounts from this network.` },
+        { status: 429 },
+      );
+    }
+  }
+
   const [existing] = await db
     .select({ id: users.id })
     .from(users)
@@ -53,6 +75,9 @@ export async function POST(req: Request) {
     .returning();
 
   await db.insert(profiles).values({ userId: user.id, displayName: user.username });
+  if (ip && ip !== '0.0.0.0') {
+    await db.insert(signupIps).values({ userId: user.id, ip });
+  }
 
   await createSession(user);
   return NextResponse.json({ ok: true, username: user.username });

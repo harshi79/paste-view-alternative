@@ -21,14 +21,22 @@ type Row = {
 export default function DashboardList({
   pastes,
   displayName,
+  highlightId,
 }: {
   pastes: Row[];
   displayName: string;
+  highlightId: string | null;
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const base = typeof window !== 'undefined' ? window.location.origin : '';
+
+  // Build the share URL on-demand so we never render the full text id
+  // in the DOM unprompted.
+  function shareUrl(id: string): string {
+    if (typeof window === 'undefined') return `/p/${id}`;
+    return `${window.location.origin}/p/${id}`;
+  }
 
   async function togglePin(id: string) {
     setBusyId(id);
@@ -64,11 +72,16 @@ export default function DashboardList({
     <div className="animate-fade-up space-y-3">
       {pastes.map((p) => {
         const expired = p.expiresAt && new Date(p.expiresAt).getTime() <= Date.now();
+        const isNew = highlightId === p.id;
         return (
           <div
             key={p.id}
             className={`flex flex-wrap items-center gap-3 rounded-2xl border bg-night-800/60 p-4 transition-colors ${
-              expired ? 'border-red-500/20 opacity-70' : 'border-white/10 hover:border-white/20'
+              isNew
+                ? 'border-emerald-400/40 shadow-lg shadow-emerald-500/10'
+                : expired
+                  ? 'border-red-500/20 opacity-70'
+                  : 'border-white/10 hover:border-white/20'
             } ${busyId === p.id ? 'animate-pulse' : ''}`}
           >
             <div className="min-w-0 flex-1">
@@ -80,6 +93,11 @@ export default function DashboardList({
                   {p.pinned && '📌 '}
                   {p.title}
                 </Link>
+                {isNew && (
+                  <span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                    New
+                  </span>
+                )}
                 {p.visibility === 'unlisted' && (
                   <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
                     Unlisted
@@ -97,16 +115,16 @@ export default function DashboardList({
                 )}
               </div>
               <p className="mt-1 text-xs text-zinc-500">
-                {p.language} · 👁 {formatViews(p.views)} views ·{' '}
+                {p.language} · {formatViews(p.views)} views ·{' '}
                 {new Date(p.createdAt).toLocaleDateString()}{' '}
                 {p.expiresAt && !expired && (
-                  <>· ⏳ expires {new Date(p.expiresAt).toLocaleString()}</>
+                  <>· expires {new Date(p.expiresAt).toLocaleString()}</>
                 )}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <CopyButton text={`${base}/p/${p.id}`} label="Copy link" />
+              <CopyButton text={shareUrl(p.id)} label="Copy link" />
               <button
                 onClick={() => togglePin(p.id)}
                 className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"

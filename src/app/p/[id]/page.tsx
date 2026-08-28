@@ -7,11 +7,14 @@ import { pastes, users, profiles } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
 import { formatViews, timeAgo } from '@/lib/format';
+import { parsePasteContent, isRichDoc } from '@/lib/pasteFormat';
 import PasteViewer from '@/components/PasteViewer';
+import RichPasteView from '@/components/RichPasteView';
 import UnlockForm from '@/components/UnlockForm';
 import OwnerActions from '@/components/OwnerActions';
 import ExpiryCountdown from '@/components/ExpiryCountdown';
 import CopyButton from '@/components/CopyButton';
+import CopyLinkButton from '@/components/CopyLinkButton';
 import Avatar from '@/components/Avatar';
 
 export const dynamic = 'force-dynamic';
@@ -52,8 +55,7 @@ export default async function PastePage({ params }: Props) {
           <p className="text-6xl">⏳</p>
           <h1 className="mt-4 text-2xl font-bold text-white">This paste has expired</h1>
           <p className="mt-2 max-w-md text-zinc-400">
-            It was set to self-destruct and has now been removed. Create a new paste anytime —
-            it&apos;s free.
+            It was set to self-destruct and has now been removed. Create a new paste any time.
           </p>
           <Link
             href="/"
@@ -66,7 +68,6 @@ export default async function PastePage({ params }: Props) {
     );
   }
 
-  // author info (paste may be a guest paste)
   const authorRow = paste.userId
     ? (
         await db
@@ -87,10 +88,11 @@ export default async function PastePage({ params }: Props) {
   if (!locked) await incrementPasteViews(paste.id);
 
   const rawUrl = `/p/${paste.id}/raw`;
+  const isRich = paste.format === 'rich';
+  const parsed = parsePasteContent(paste.format, paste.content);
 
   return (
     <div className="pt-8">
-      {/* header card */}
       <div className="animate-fade-up mb-4 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-white/10 bg-night-800/60 p-5 backdrop-blur">
         <div className="min-w-0">
           <h1
@@ -110,11 +112,11 @@ export default async function PastePage({ params }: Props) {
               </Link>
             ) : (
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs">
-                👤 Guest
+                Guest
               </span>
             )}
             <span>{timeAgo(paste.createdAt)}</span>
-            <span>👁 {formatViews(paste.views)} views</span>
+            <span>{formatViews(paste.views)} views</span>
             {paste.visibility === 'unlisted' && (
               <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs">
                 Unlisted
@@ -125,12 +127,21 @@ export default async function PastePage({ params }: Props) {
                 🔒 Protected
               </span>
             )}
+            {isRich && (
+              <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs">
+                Rich
+              </span>
+            )}
             {paste.expiresAt && <ExpiryCountdown expiresAt={paste.expiresAt.toISOString()} />}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {!locked && <CopyButton text={paste.content} label="Copy content" />}
+          <CopyLinkButton id={paste.id} />
+          {!locked && isRich && isRichDoc(parsed) && (
+            <CopyButton text={extractPlainText(parsed)} label="Copy content" />
+          )}
+          {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" />}
           {!locked && (
             <a
               href={rawUrl}
@@ -151,9 +162,12 @@ export default async function PastePage({ params }: Props) {
         </div>
       </div>
 
-      {/* content */}
       {locked ? (
         <UnlockForm pasteId={paste.id} />
+      ) : isRich && isRichDoc(parsed) ? (
+        <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
+          <RichPasteView doc={parsed} />
+        </div>
       ) : (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
           <PasteViewer content={paste.content} language={paste.language} />
@@ -161,4 +175,13 @@ export default async function PastePage({ params }: Props) {
       )}
     </div>
   );
+}
+
+function extractPlainText(doc: { lines: { text: string }[] }): string {
+  return doc.lines
+    .map((l) => {
+      // strip sticker/emoji replacement tokens from raw text
+      return l.text;
+    })
+    .join('\n');
 }

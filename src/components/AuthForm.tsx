@@ -44,12 +44,12 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               ⚡
             </div>
             <h1 className="text-2xl font-extrabold text-white">
-              {isRegister ? 'Create your free account' : 'Welcome back'}
+              {isRegister ? 'Create an account' : 'Sign in'}
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
               {isRegister
-                ? 'Unlock profiles, banners, name effects & more — 100% free.'
-                : 'Log in to manage your pastes and profile.'}
+                ? 'Free, no email required. Unlocks profile customization and paste history.'
+                : 'Sign in to manage your pastes and profile.'}
             </p>
           </div>
 
@@ -92,7 +92,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               disabled={busy || !username || !password}
               className="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-bold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:opacity-50"
             >
-              {busy ? 'Please wait…' : isRegister ? 'Create account ✨' : 'Log in'}
+              {busy ? 'Please wait…' : isRegister ? 'Create account' : 'Log in'}
             </button>
           </form>
 
@@ -108,7 +108,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               <>
                 New here?{' '}
                 <Link href="/register" className="font-semibold text-brand-300 hover:text-brand-200">
-                  Sign up free
+                  Create an account
                 </Link>
               </>
             )}

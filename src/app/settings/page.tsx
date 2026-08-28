@@ -11,17 +11,9 @@ export default async function SettingsPage() {
   return (
     <div className="pt-10">
       <div className="animate-fade-up mb-8">
-        <h1 className="text-3xl font-black tracking-tight text-white">
-          Profile studio{' '}
-          <span
-            className="effect-gradient-text"
-            style={{ '--name-from': '#a78bfa', '--name-to': '#22d3ee' } as React.CSSProperties}
-          >
-            ✨
-          </span>
-        </h1>
+        <h1 className="text-3xl font-black tracking-tight text-white">Profile settings</h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Make your profile <em>yours</em> — banner, avatar, animated name, links. All free.
+          Configure your avatar, banner, animated name and links. Changes preview live.
         </p>
       </div>
 
@@ -37,7 +29,9 @@ export default async function SettingsPage() {
           nameFrom: profile.nameFrom,
           nameTo: profile.nameTo,
           nameStyle: profile.nameStyle as 'solid' | 'gradient',
-          nameEffect: profile.nameEffect as 'none' | 'typewriter' | 'shimmer' | 'neon' | 'rainbow',
+          nameEffect: profile.nameEffect as 'none' | 'typewriter' | 'shimmer' | 'neon' | 'rainbow' | 'fire' | 'glitch' | 'wave' | 'aurora' | 'gold',
+          effectSpeed: profile.effectSpeed,
+          effectIntensity: profile.effectIntensity,
           accent: profile.accent,
           links: profile.links ?? [],
         }}

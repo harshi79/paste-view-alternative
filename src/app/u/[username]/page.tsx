@@ -4,12 +4,13 @@ import { notFound } from 'next/navigation';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes, profiles, users } from '@/lib/db/schema';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, getUserTags, isAdmin } from '@/lib/auth';
 import { computeBadges } from '@/lib/badges';
 import { formatDate, formatViews } from '@/lib/format';
-import NameDisplay from '@/components/NameDisplay';
+import NameDisplay, { type NameEffect } from '@/components/NameDisplay';
 import Avatar from '@/components/Avatar';
 import PasteCard from '@/components/PasteCard';
+import AdminTags from '@/components/AdminTags';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,6 @@ export default async function ProfilePage({ params }: Props) {
   if (!row) notFound();
 
   const user = row.user;
-  // profile may be missing if seeded oddly; provide defaults
   const profile = row.profile ?? {
     userId: user.id,
     displayName: null,
@@ -47,6 +47,8 @@ export default async function ProfilePage({ params }: Props) {
     nameTo: '#22d3ee',
     nameStyle: 'gradient',
     nameEffect: 'none',
+    effectSpeed: 50,
+    effectIntensity: 60,
     accent: '#8b5cf6',
     links: [],
     views: 0,
@@ -54,8 +56,9 @@ export default async function ProfilePage({ params }: Props) {
 
   const session = await getSessionUser();
   const isOwner = session?.user.id === user.id;
+  const adminStatus = await isAdmin();
+  const userTags = await getUserTags(user.id);
 
-  // visible pastes: public for everyone; owner also sees unlisted
   const userPastes = await db
     .select()
     .from(pastes)
@@ -89,7 +92,6 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <div className="pt-6">
-      {/* Banner */}
       <div className="animate-fade-up relative h-44 overflow-hidden rounded-3xl border border-white/10 sm:h-60">
         {profile.bannerUrl && profile.bannerType === 'video' ? (
           <video
@@ -114,8 +116,10 @@ export default async function ProfilePage({ params }: Props) {
         <div className="absolute inset-0 bg-gradient-to-t from-night-950/90 via-night-950/20 to-transparent" />
       </div>
 
-      {/* Identity */}
-      <div className="animate-fade-up relative -mt-12 px-1 sm:-mt-14 sm:px-6" style={{ animationDelay: '60ms' }}>
+      <div
+        className="animate-fade-up relative -mt-12 px-1 sm:-mt-14 sm:px-6"
+        style={{ animationDelay: '60ms' }}
+      >
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex items-end gap-4">
             <div
@@ -135,7 +139,9 @@ export default async function ProfilePage({ params }: Props) {
                   from={profile.nameFrom}
                   to={profile.nameTo}
                   style={profile.nameStyle as 'solid' | 'gradient'}
-                  effect={profile.nameEffect as 'none' | 'typewriter' | 'shimmer' | 'neon' | 'rainbow'}
+                  effect={profile.nameEffect as NameEffect}
+                  speed={profile.effectSpeed}
+                  intensity={profile.effectIntensity}
                 />
               </h1>
               <p className="mt-1 text-sm text-zinc-400">
@@ -143,19 +149,26 @@ export default async function ProfilePage({ params }: Props) {
               </p>
             </div>
           </div>
-
-          {isOwner && (
-            <Link
-              href="/settings"
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110"
-            >
-              🎨 Customize profile
-            </Link>
-          )}
         </div>
 
-        {/* badges + stats */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          {userTags.map((t) => (
+            <span
+              key={t.id}
+              className="rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
+              style={{
+                background:
+                  t.effect === 'rainbow'
+                    ? 'linear-gradient(100deg,#f87171,#fbbf24,#4ade80,#22d3ee,#a78bfa,#f472b6)'
+                    : t.effect === 'gold'
+                      ? 'linear-gradient(100deg,#b45309,#fde68a,#b45309)'
+                      : `linear-gradient(100deg, ${t.color}, ${t.color}aa)`,
+                boxShadow: `0 4px 14px ${t.color}55`,
+              }}
+            >
+              {t.label}
+            </span>
+          ))}
           {badges.map((b) => (
             <span
               key={b.id}
@@ -167,17 +180,16 @@ export default async function ProfilePage({ params }: Props) {
             </span>
           ))}
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            👁 {formatViews(profile.views)} profile views
+            {formatViews(profile.views)} profile views
           </span>
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            📋 {nowVisible.length} pastes
+            {nowVisible.length} pastes
           </span>
           <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300">
-            ⚡ {formatViews(totalViews)} paste views
+            {formatViews(totalViews)} paste views
           </span>
         </div>
 
-        {/* bio + links */}
         {profile.bioEnabled && profile.bio && (
           <p className="mt-4 max-w-2xl whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-300">
             {profile.bio}
@@ -199,18 +211,24 @@ export default async function ProfilePage({ params }: Props) {
                   color: l.color,
                 }}
               >
-                🔗 {l.label}
+                {l.label}
               </a>
             ))}
           </div>
         )}
+
+        {adminStatus && !isOwner && (
+          <AdminTags
+            userId={user.id}
+            initialTagIds={userTags.map((t) => t.id)}
+          />
+        )}
       </div>
 
-      {/* Pastes */}
       <section className="mt-10">
         {pinned.length > 0 && (
           <>
-            <h2 className="mb-4 text-xl font-extrabold text-white">📌 Pinned</h2>
+            <h2 className="mb-4 text-xl font-extrabold text-white">Pinned</h2>
             <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {pinned.map((p) => (
                 <PasteCard key={p.id} paste={p} />
@@ -226,7 +244,7 @@ export default async function ProfilePage({ params }: Props) {
               <>
                 You haven&apos;t created any pastes yet.{' '}
                 <Link href="/" className="font-semibold text-brand-300 hover:text-brand-200">
-                  Create your first →
+                  Create your first
                 </Link>
               </>
             ) : (
