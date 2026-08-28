@@ -6,11 +6,11 @@ import { getSessionUser } from '@/lib/auth';
 
 export const metadata: Metadata = {
   title: {
-    default: 'VibeBin — Paste it. Share it. Flex it.',
+    default: 'VibeBin — Share pastes and customizable profiles',
     template: '%s · VibeBin',
   },
   description:
-    'A free PasteView alternative: share pastes with syntax highlighting, expiring links and password protection — plus fully customizable profiles with banners, avatars and animated name effects. 100% free.',
+    'A free PasteView alternative: share pastes with syntax highlighting, expiring links, password protection, and rich-text formatting. Customize your profile with animated names, video banners and colored links — all free.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -46,9 +46,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/" className="font-semibold text-zinc-300 hover:text-white">
                 VibeBin
               </Link>{' '}
-              — a free PasteView alternative. Paste it. Share it. Flex it.
+              — a free PasteView alternative.
             </p>
-            <p className="text-zinc-600">No premium paywalls. No accounts required. ✦</p>
+            <p className="text-zinc-600">No premium paywalls · No accounts required for guests</p>
           </div>
         </footer>
       </body>

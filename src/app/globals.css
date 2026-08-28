@@ -22,6 +22,11 @@
   --animate-rainbow: rainbow 6s linear infinite;
   --animate-fade-up: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-pop: pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fire: fire 1.4s ease-in-out infinite;
+  --animate-glitch: glitch 2.4s steps(1) infinite;
+  --animate-wave: wave 4s ease-in-out infinite;
+  --animate-aurora: aurora 12s linear infinite;
+  --animate-gold: gold 3.6s linear infinite;
 }
 
 html {
@@ -93,6 +98,61 @@ body {
   animation: var(--animate-rainbow);
 }
 
+/* Fire — warm flicker using gradient + dropshadow. */
+.effect-fire {
+  background: linear-gradient(180deg, #fff7e6 0%, #fbbf24 30%, #f97316 60%, #b91c1c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 8px rgba(251, 146, 60, 0.55));
+  animation: var(--animate-fire);
+}
+
+/* Glitch — RGB split via text-shadow. */
+.effect-glitch {
+  color: var(--name-from);
+  text-shadow:
+    -1.5px 0 var(--name-to),
+    1.5px 0 #22d3ee,
+    0 0 8px color-mix(in srgb, var(--name-from) 60%, transparent);
+  animation: var(--animate-glitch);
+}
+
+/* Wave — vertical bobbing per letter (handled in the JS effect). */
+.effect-wave {
+  color: var(--name-from);
+  display: inline-block;
+  animation: var(--animate-wave);
+}
+
+/* Aurora — slow hue-shift gradient. */
+.effect-aurora {
+  background: linear-gradient(
+    100deg,
+    #4ade80,
+    #22d3ee,
+    #a78bfa,
+    #f472b6,
+    #4ade80
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 12px rgba(34, 211, 238, 0.35));
+  animation: var(--animate-aurora);
+}
+
+/* Gold — metallic sweep. */
+.effect-gold {
+  background: linear-gradient(100deg, #b45309 0%, #fde68a 30%, #b45309 60%, #fde68a 90%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-gold);
+}
+
 @keyframes shimmer-text {
   from { background-position: 200% 0; }
   to { background-position: -60% 0; }
@@ -136,6 +196,65 @@ body {
 @keyframes pop {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fire {
+  0%, 100% {
+    background-position: 50% 0;
+    text-shadow:
+      0 0 6px rgba(251, 146, 60, 0.55),
+      0 0 14px rgba(239, 68, 68, 0.35);
+  }
+  50% {
+    background-position: 50% 100%;
+    text-shadow:
+      0 0 10px rgba(251, 191, 36, 0.7),
+      0 0 24px rgba(249, 115, 22, 0.45);
+  }
+}
+
+@keyframes glitch {
+  0%, 88%, 100% {
+    text-shadow:
+      -1.5px 0 var(--name-to),
+      1.5px 0 #22d3ee,
+      0 0 8px color-mix(in srgb, var(--name-from) 60%, transparent);
+  }
+  90% {
+    text-shadow:
+      -3px 0 var(--name-to),
+      3px 0 #22d3ee;
+  }
+  92% {
+    text-shadow:
+      2px 0 var(--name-to),
+      -2px 0 #22d3ee;
+  }
+  94% {
+    text-shadow:
+      -1px 1px var(--name-to),
+      1px -1px #22d3ee;
+  }
+  96% {
+    text-shadow:
+      1.5px 0 var(--name-to),
+      -1.5px 0 #22d3ee;
+  }
+}
+
+@keyframes wave {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes aurora {
+  from { background-position: 0% 0; }
+  to { background-position: 300% 0; }
+}
+
+@keyframes gold {
+  from { background-position: 250% 0; }
+  to { background-position: -50% 0; }
 }
 
 .caret {

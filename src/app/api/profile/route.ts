@@ -7,20 +7,26 @@ export const runtime = 'nodejs';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const NAME_STYLES = ['solid', 'gradient'];
-const NAME_EFFECTS = ['none', 'typewriter', 'shimmer', 'neon', 'rainbow'];
+const NAME_EFFECTS = [
+  'none', 'typewriter', 'shimmer', 'neon', 'rainbow',
+  'fire', 'glitch', 'wave', 'aurora', 'gold',
+];
 
-/** Max sizes for data-URL uploads (keeps DB rows lean, works on Neon free tier). */
-const AVATAR_MAX = 200_000; // ~200 KB
-const BANNER_MAX = 600_000; // ~600 KB
+function clamp(n: number, lo: number, hi: number): number {
+  if (!Number.isFinite(n)) return lo;
+  return Math.max(lo, Math.min(hi, Math.round(n)));
+}
 
-function isRemoteOrDataUrl(value: string, max: number): boolean {
-  if (value.startsWith('data:image/') && value.length <= max) return true;
-  if (value.startsWith('data:video/mp4')) return false; // videos must be hosted URLs
+/** In v2 the API only accepts remote URLs (no data: uploads). */
+function normalizeUrl(value: string, opts: { allowEmpty: boolean }): string | null {
+  const v = value.trim();
+  if (!v) return opts.allowEmpty ? '' : null;
   try {
-    const u = new URL(value);
-    return u.protocol === 'https:' || u.protocol === 'http:';
+    const u = new URL(v);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    return v;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -46,29 +52,20 @@ export async function PATCH(req: Request) {
   const nameTo = HEX.test(String(body.nameTo)) ? String(body.nameTo) : '#22d3ee';
   const accent = HEX.test(String(body.accent)) ? String(body.accent) : '#8b5cf6';
   const bannerType = body.bannerType === 'video' ? 'video' : 'image';
+  const effectSpeed = clamp(Number(body.effectSpeed ?? 50), 0, 100);
+  const effectIntensity = clamp(Number(body.effectIntensity ?? 60), 0, 100);
 
-  const avatarUrlRaw = String(body.avatarUrl ?? '').trim();
-  const avatarUrl = avatarUrlRaw
-    ? isRemoteOrDataUrl(avatarUrlRaw, AVATAR_MAX)
-      ? avatarUrlRaw
-      : null
-    : null;
-  if (avatarUrlRaw && !avatarUrl) {
+  const avatarUrl = normalizeUrl(String(body.avatarUrl ?? ''), { allowEmpty: true });
+  if (body.avatarUrl && avatarUrl === null) {
     return NextResponse.json(
-      { error: 'Avatar must be an https:// URL or a small uploaded image (≤200 KB).' },
+      { error: 'Avatar must be an http(s):// URL.' },
       { status: 400 },
     );
   }
-
-  const bannerUrlRaw = String(body.bannerUrl ?? '').trim();
-  const bannerUrl = bannerUrlRaw
-    ? isRemoteOrDataUrl(bannerUrlRaw, BANNER_MAX)
-      ? bannerUrlRaw
-      : null
-    : null;
-  if (bannerUrlRaw && !bannerUrl) {
+  const bannerUrl = normalizeUrl(String(body.bannerUrl ?? ''), { allowEmpty: true });
+  if (body.bannerUrl && bannerUrl === null) {
     return NextResponse.json(
-      { error: 'Banner must be an https:// URL (images ≤600 KB) or an mp4 video URL.' },
+      { error: 'Banner must be an http(s):// URL.' },
       { status: 400 },
     );
   }
@@ -92,13 +89,15 @@ export async function PATCH(req: Request) {
     displayName,
     bio,
     bioEnabled,
-    avatarUrl,
-    bannerUrl,
+    avatarUrl: avatarUrl || null,
+    bannerUrl: bannerUrl || null,
     bannerType,
     nameFrom,
     nameTo,
     nameStyle,
     nameEffect,
+    effectSpeed,
+    effectIntensity,
     accent,
     links,
   };
