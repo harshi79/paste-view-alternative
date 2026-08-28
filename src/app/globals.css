@@ -1,0 +1,218 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+
+  --color-night-950: #06060c;
+  --color-night-900: #0a0a14;
+  --color-night-800: #10101d;
+  --color-night-700: #181829;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+
+  --animate-float: float 9s ease-in-out infinite;
+  --animate-caret: caret 1.05s steps(1) infinite;
+  --animate-shimmer-text: shimmer-text 3.2s linear infinite;
+  --animate-neon-pulse: neon-pulse 2.2s ease-in-out infinite;
+  --animate-rainbow: rainbow 6s linear infinite;
+  --animate-fade-up: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pop: pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-night-950);
+  color: #e7e7f0;
+  min-height: 100dvh;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.45);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ------------------------------------------------------------------ */
+/* Name effects                                                        */
+/* ------------------------------------------------------------------ */
+
+.effect-gradient-text {
+  background-image: linear-gradient(100deg, var(--name-from), var(--name-to));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.effect-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--name-from) 20%,
+    var(--name-to) 40%,
+    #ffffff 50%,
+    var(--name-to) 60%,
+    var(--name-from) 80%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-shimmer-text);
+}
+
+.effect-neon {
+  color: var(--name-from);
+  animation: var(--animate-neon-pulse);
+}
+
+.effect-rainbow {
+  background-image: linear-gradient(
+    100deg,
+    #f87171,
+    #fbbf24,
+    #4ade80,
+    #22d3ee,
+    #a78bfa,
+    #f472b6,
+    #f87171
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: var(--animate-rainbow);
+}
+
+@keyframes shimmer-text {
+  from { background-position: 200% 0; }
+  to { background-position: -60% 0; }
+}
+
+@keyframes neon-pulse {
+  0%, 100% {
+    text-shadow:
+      0 0 6px color-mix(in srgb, var(--name-from) 90%, transparent),
+      0 0 18px color-mix(in srgb, var(--name-from) 55%, transparent),
+      0 0 42px color-mix(in srgb, var(--name-to) 40%, transparent);
+  }
+  50% {
+    text-shadow:
+      0 0 2px color-mix(in srgb, var(--name-from) 80%, transparent),
+      0 0 8px color-mix(in srgb, var(--name-from) 30%, transparent),
+      0 0 18px color-mix(in srgb, var(--name-to) 18%, transparent);
+  }
+}
+
+@keyframes rainbow {
+  from { background-position: 0% 0; }
+  to { background-position: 300% 0; }
+}
+
+@keyframes caret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.caret {
+  display: inline-block;
+  width: 2px;
+  margin-left: 1px;
+  background: var(--name-to, #a78bfa);
+  animation: var(--animate-caret);
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* highlight.js — custom theme tuned for VibeBin                       */
+/* ------------------------------------------------------------------ */
+
+.hljs {
+  color: #dbe1f1;
+  background: transparent;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #6b7394;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-formula {
+  color: #ff7b9c;
+}
+.hljs-name,
+.hljs-tag {
+  color: #7ee0ff;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-meta .hljs-string {
+  color: #a5e075;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: #ffbc7d;
+}
+.hljs-title,
+.hljs-section,
+.hljs-title.function_ {
+  color: #82aaff;
+}
+.hljs-title.class_,
+.hljs-type,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-params {
+  color: #ffd479;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #c792ea;
+}
+.hljs-meta {
+  color: #61afef;
+}
+.hljs-deletion {
+  color: #ff6b6b;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
