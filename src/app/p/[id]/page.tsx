@@ -55,6 +55,18 @@ export default async function PastePage({ params }: Props) {
 
   const isOwner = !!session && session.user.id === paste.userId;
 
+  // Count this page view (skip for the author so their own visits don't
+  // inflate the counter, and skip password-protected pastes — the real
+  // view happens once the visitor unlocks it below).
+  if (!isOwner && !paste.passwordHash) {
+    await incrementPasteViews(paste.id);
+    // Re-read to show the updated view count.
+    const [[updated]] = await Promise.all([
+      db.select().from(pastes).where(eq(pastes.id, id)).limit(1),
+    ]);
+    if (updated) paste.views = updated.views;
+  }
+
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
     return (
       <div className="grid min-h-[55vh] place-items-center pt-16 text-center">
@@ -77,8 +89,10 @@ export default async function PastePage({ params }: Props) {
 
   const locked = !!paste.passwordHash && !isOwner;
 
-  // Author lookup, view increment, sticker pack and the like state are
+  // Author lookup, sticker pack and the like state are
   // independent — run them concurrently (one DB round-trip window).
+  // View increment is handled above for public pastes, and on unlock
+  // for password-protected ones (see UnlockForm).
   const [authorRows, stickerRows, likeState] = await Promise.all([
     paste.userId
       ? db
