@@ -12,6 +12,7 @@ type Row = {
   language: string;
   visibility: string;
   views: number;
+  likesCount: number;
   pinned: boolean;
   hasPassword: boolean;
   expiresAt: string | null;
@@ -115,7 +116,8 @@ export default function DashboardList({
                 )}
               </div>
               <p className="mt-1 text-xs text-zinc-500">
-                {p.language} · {formatViews(p.views)} views ·{' '}
+                {p.language} · {formatViews(p.views)} views
+                <span aria-hidden> · </span>♥ {p.likesCount.toLocaleString()} likes ·{' '}
                 {new Date(p.createdAt).toLocaleDateString()}{' '}
                 {p.expiresAt && !expired && (
                   <>· expires {new Date(p.expiresAt).toLocaleString()}</>

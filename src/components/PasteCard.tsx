@@ -7,6 +7,7 @@ export type PasteCardData = {
   titleColor: string | null;
   language: string;
   views: number;
+  likesCount?: number;
   createdAt: Date;
   pinned?: boolean;
   expiresAt?: Date | null;
@@ -58,6 +59,7 @@ export default function PasteCard({ paste }: { paste: PasteCardData }) {
           {paste.language}
         </span>
         <span>👁 {formatViews(paste.views)}</span>
+        {!!paste.likesCount && <span>♥ {paste.likesCount.toLocaleString()}</span>}
         <span>{timeAgo(paste.createdAt)}</span>
         {paste.expiresAt && <span title="Expires">⏳ expires</span>}
         {paste.author && (

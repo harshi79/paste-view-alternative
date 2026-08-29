@@ -1,0 +1,95 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+
+type Props = {
+  pasteId: string;
+  initialCount: number;
+  initialLiked: boolean;
+};
+
+function Heart({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill={filled ? 'currentColor' : 'none'}
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        d="M10 16.6 3.6 10.4a3.9 3.9 0 0 1 0-5.5 3.85 3.85 0 0 1 5.45 0l.95.95.95-.95a3.85 3.85 0 0 1 5.45 0 3.9 3.9 0 0 1 0 5.5L10 16.6Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Like / unlike toggle for a paste. One vote per user (or per anonymous
+ * IP hash) — the server owns the state; this component just renders it
+ * optimistically and reconciles. No dislike: the button is a single
+ * heart that fills when liked.
+ */
+export default function LikeButton({ pasteId, initialCount, initialLiked }: Props) {
+  const [count, setCount] = useState(initialCount);
+  const [liked, setLiked] = useState(initialLiked);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [, startTransition] = useTransition();
+
+  async function toggle() {
+    if (busy) return;
+    setError('');
+    setBusy(true);
+    // Optimistic flip — the server response reconciles the real count.
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setCount((c) => Math.max(0, c + (nextLiked ? 1 : -1)));
+    try {
+      const res = await fetch(`/api/pastes/${pasteId}/like`, {
+        method: nextLiked ? 'POST' : 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update like.');
+      startTransition(() => {
+        setLiked(data.liked);
+        setCount(data.count);
+      });
+    } catch (e) {
+      // Revert on failure.
+      setLiked(liked);
+      setCount((c) => Math.max(0, c + (liked ? 1 : -1)));
+      setError(e instanceof Error ? e.message : 'Could not update like.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-pressed={liked}
+        aria-label={liked ? 'Unlike this paste' : 'Like this paste'}
+        title={liked ? 'Unlike' : 'Like'}
+        disabled={busy}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${
+          liked
+            ? 'border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25'
+            : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:border-rose-400/40 hover:text-rose-300'
+        }`}
+      >
+        <Heart filled={liked} />
+        <span aria-live="polite">{count.toLocaleString()}</span>
+      </button>
+      {error && (
+        <span role="status" className="max-w-[160px] text-[11px] text-red-400">
+          {error}
+        </span>
+      )}
+    </span>
+  );
+}

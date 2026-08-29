@@ -94,6 +94,7 @@ export default async function ProfilePage({ params }: Props) {
   ]);
 
   const totalViews = nowVisible.reduce((s, p) => s + p.views, 0);
+  const totalLikes = nowVisible.reduce((s, p) => s + (p.likesCount ?? 0), 0);
 
   return (
     <div className="pt-6">
@@ -206,6 +207,7 @@ export default async function ProfilePage({ params }: Props) {
           <span className="chip">{formatViews(profile.views)} profile views</span>
           <span className="chip">{nowVisible.length} pastes</span>
           <span className="chip">{formatViews(totalViews)} paste views</span>
+          <span className="chip">♥ {formatViews(totalLikes)} likes</span>
         </div>
 
         {profile.bioEnabled && profile.bio && (

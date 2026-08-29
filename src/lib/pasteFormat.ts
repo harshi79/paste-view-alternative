@@ -66,12 +66,27 @@ export function parsePasteContent(format: string, content: string): RichDoc | st
 }
 
 const FONT_OPTIONS = [
+  { id: 'normal', label: 'Normal', css: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' },
   { id: 'sans', label: 'Sans', css: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
   { id: 'mono', label: 'Mono', css: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace' },
   { id: 'serif', label: 'Serif', css: 'ui-serif, Georgia, Cambria, "Times New Roman", serif' },
   { id: 'rounded', label: 'Rounded', css: '"Nunito", "SF Pro Rounded", system-ui, sans-serif' },
   { id: 'condensed', label: 'Narrow', css: '"Roboto Condensed", "Arial Narrow", sans-serif' },
   { id: 'display', label: 'Display', css: '"Bebas Neue", "Anton", Impact, sans-serif' },
+  { id: 'times', label: 'Times', css: '"Times New Roman", Times, serif' },
+  { id: 'georgia', label: 'Georgia', css: 'Georgia, Cambria, "Times New Roman", serif' },
+  { id: 'palatino', label: 'Palatino', css: '"Palatino Linotype", Palatino, "Book Antiqua", serif' },
+  { id: 'typewriter', label: 'Typewriter', css: '"Courier New", Courier, monospace' },
+  { id: 'comic', label: 'Comic', css: '"Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive' },
+  { id: 'handwritten', label: 'Handwritten', css: '"Segoe Script", "Bradley Hand", "Brush Script MT", cursive' },
+  { id: 'verdana', label: 'Verdana', css: 'Verdana, Geneva, Tahoma, sans-serif' },
+  { id: 'trebuchet', label: 'Trebuchet', css: '"Trebuchet MS", "Lucida Grande", sans-serif' },
+  { id: 'arial', label: 'Arial', css: 'Arial, Helvetica, sans-serif' },
+  { id: 'tahoma', label: 'Tahoma', css: 'Tahoma, Geneva, Verdana, sans-serif' },
+  { id: 'calibri', label: 'Calibri', css: 'Calibri, "Segoe UI", Arial, sans-serif' },
+  { id: 'impact', label: 'Impact', css: 'Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif' },
+  { id: 'franklin', label: 'Franklin', css: '"Franklin Gothic Medium", "Arial Narrow", sans-serif' },
+  { id: 'fantasy', label: 'Fantasy', css: 'Papyrus, Copperplate, fantasy' },
 ] as const;
 
 export type FontId = (typeof FONT_OPTIONS)[number]['id'];

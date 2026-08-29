@@ -82,8 +82,24 @@ const SCHEMA_STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'plain'`,
+  // v4 — like counter (likes rows are the source of truth for dedupe).
+  `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS likes_count integer NOT NULL DEFAULT 0`,
   `CREATE INDEX IF NOT EXISTS pastes_user_idx ON pastes (user_id)`,
   `CREATE INDEX IF NOT EXISTS pastes_created_idx ON pastes (created_at)`,
+
+  // Likes — a paste can be liked or unliked (no dislikes).
+  // One like per signed-in user, one per anonymous IP (salted hash).
+  `CREATE TABLE IF NOT EXISTS likes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    paste_id text NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    ip_hash text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS likes_paste_idx ON likes (paste_id)`,
+  `CREATE INDEX IF NOT EXISTS likes_user_idx ON likes (user_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS likes_paste_user_idx ON likes (paste_id, user_id) WHERE user_id IS NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS likes_paste_ip_idx ON likes (paste_id, ip_hash) WHERE ip_hash IS NOT NULL`,
 
   // Per-IP signup tracking (max 3 accounts per IP).
   `CREATE TABLE IF NOT EXISTS signup_ips (
