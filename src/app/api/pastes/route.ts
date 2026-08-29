@@ -21,9 +21,7 @@ export async function POST(req: Request) {
   const language = String(body.language ?? 'plaintext');
   const visibility = body.visibility === 'unlisted' ? 'unlisted' : 'public';
   const expiresIn = String(body.expiresIn ?? 'never');
-  // Trim: a stray whitespace/autofill residue must never lock a paste.
-  // A real paste password has no meaningful leading/trailing spaces.
-  const password = body.password ? String(body.password).trim() : '';
+  const password = body.password ? String(body.password) : '';
   const titleColor =
     typeof body.titleColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.titleColor)
       ? body.titleColor
