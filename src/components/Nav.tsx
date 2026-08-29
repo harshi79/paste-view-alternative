@@ -8,6 +8,7 @@ export type NavUser = {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  statusEmoji?: string | null;
 } | null;
 
 export default function Nav({ session }: { session: NavUser }) {
@@ -96,6 +97,7 @@ export default function Nav({ session }: { session: NavUser }) {
                   </span>
                 )}
                 <span className="hidden max-w-[120px] truncate sm:block">
+                  {session.statusEmoji && <span className="mr-1">{session.statusEmoji}</span>}
                   {session.displayName || session.username}
                 </span>
                 <span className="text-zinc-500">▾</span>

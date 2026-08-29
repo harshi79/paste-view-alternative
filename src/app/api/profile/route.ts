@@ -46,6 +46,9 @@ export async function PATCH(req: Request) {
   const displayName = String(body.displayName ?? '').trim().slice(0, 40) || null;
   const bio = String(body.bio ?? '').slice(0, 1000);
   const bioEnabled = body.bioEnabled !== false;
+  // Emoji status: a short emoji + optional one-line status text.
+  const statusEmoji = String(body.statusEmoji ?? '').trim().slice(0, 8);
+  const statusText = String(body.statusText ?? '').trim().slice(0, 60);
   const nameStyle = NAME_STYLES.includes(String(body.nameStyle)) ? String(body.nameStyle) : 'gradient';
   const nameEffect = NAME_EFFECTS.includes(String(body.nameEffect)) ? String(body.nameEffect) : 'none';
   const nameFrom = HEX.test(String(body.nameFrom)) ? String(body.nameFrom) : '#a78bfa';
@@ -100,6 +103,8 @@ export async function PATCH(req: Request) {
     effectIntensity,
     accent,
     links,
+    statusEmoji,
+    statusText,
   };
 
   await db

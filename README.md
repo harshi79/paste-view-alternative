@@ -7,12 +7,16 @@ custom colors and links, badges) is free for everyone.
 ## Features
 
 ### Pastes
+- One unified paste page with a clear **Basic / Rich** toggle at the top — the same form, options
+  and permission rules in both modes
 - Create pastes as a **guest** (no account needed) or as a member
-- **Plain text** or **rich text** editor: per-line font, size and color, plus inline emoji and
-  custom stickers
+- **Basic**: plain text / code with **syntax highlighting** for 19 languages and line numbers
+- **Rich**: per-line font, size and color, inline emoji and custom **sticker/GIF** rendering
+- Sticker shortcodes (`:wave:` / `;fire;`) are converted automatically to the real sticker or
+  emoji — no manual attachments, no shortcode text in the result, animated stickers render in the
+  composer preview and the rendered paste
 - Auto-detects every URL / email / phone number in a paste and makes it clickable — no link
   previews are ever generated
-- **Syntax highlighting** for 19 languages, with line numbers
 - **Expiration**: 10 min → 1 month (auto-purged)
 - **Password protection** (content is only fetched after unlock)
 - **Public / unlisted** visibility
@@ -31,11 +35,18 @@ custom colors and links, badges) is free for everyone.
 - Profile view counter, about-me toggle
 - Live preview while editing
 - **Tags awarded by the admin** show on your profile
+- **Emoji status**: pick an emoji from the selector or type your own, plus an optional status
+  line — shown beside your name and before `@username` on desktop and mobile, editable/removable
+  from the profile settings
 
 ### Account
 - Username is locked after 24 hours (one rename allowed within that window)
 - Per-IP signup limit: **3 accounts per IP**
 - Separate **Account & rename** page (`/account`) with logout
+- **Password management**: Forgot-password flow on the login screen (one-time 30-minute reset
+  link/code — accounts have no email, so the link is delivered to the requesting device), plus a
+  change-password form on `/account` that confirms the current password. Expired, invalid and
+  already-used reset links are rejected safely.
 
 ### Admin
 - Hidden at `/admin`, gated by the `ADMIN_PASSWORD` env var (not committed to git)
@@ -84,20 +95,25 @@ mentions its name, and Vercel injects the real value at runtime.
 src/
   app/
     page.tsx              home + paste composer
-    p/[id]/               paste view (password gate, expiry, owner actions)
-    p/[id]/raw/           raw text / download
-    u/[username]/         public profile (banner, effects, badges, tags, pastes)
-    dashboard/            my pastes (stats, pin, delete, share link)
-    settings/             profile studio (tabbed: profile / name / links)
-    account/              rename + logout
-    admin/                admin panel (overview, users, tags, stickers)
-    admin/login/          password gate
-    api/                  auth, pastes, profile, admin, stickers endpoints
-  components/             UI components (editor, viewer, name effects, admin…)
+    p/[id]/             paste view (password gate, expiry, owner actions)
+    p/[id]/raw/         raw text / download
+    u/[username]/       public profile (banner, effects, emoji status, badges, tags, pastes)
+    dashboard/          my pastes (stats, pin, delete, share link)
+    settings/           profile studio (tabbed: profile / name / links, emoji status)
+    account/            rename, change password + logout
+    forgot-password/    request a one-time reset link/code
+    reset-password/     set a new password with the one-time code
+    admin/              admin panel (overview, users, tags, stickers)
+    admin/login/        password gate
+    api/                auth (+ forgot/reset), account/password, pastes, profile, admin, stickers
+  components/             UI components (editor, viewers, name effects, admin…)
   lib/
     auth.ts               sessions (jose JWT cookies) + admin auth + rename policy
+    passwordReset.ts      one-time reset tokens (sha256, 30 min TTL, single-use)
+    highlight.ts          server-side highlight.js (only the 18 exposed languages)
+    stickerPack.ts        cached client sticker-pack loader
     db/                   schema, driver switch (Neon ⇄ PGlite), seed
-    pasteFormat.ts        rich-text format + link detection
+    pasteFormat.ts        rich-text format, link detection, sticker shortcodes
     ip.ts                 client IP resolver
     pastes.ts             expiry, id generation
 middleware.ts             edge guard for /dashboard /settings /account /admin

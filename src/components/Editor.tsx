@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LANGUAGES } from '@/lib/languages';
 import { EXPIRY_OPTIONS } from '@/lib/expiry';
@@ -8,22 +8,25 @@ import {
   type RichDoc,
   type RichLine,
   type FontId,
-  type InlineMark,
   FONTS,
   DEFAULT_FONT,
-  detectLinks,
-  EMOJI_SHORTCUTS,
+  buildInlineMarks,
 } from '@/lib/pasteFormat';
+import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
+import { splitLine, lineFont } from './richRender';
+import StickerImage from './StickerImage';
 
 type Props = { username: string | null };
-
-type Sticker = { token: string; url: string | null; emoji: string | null; label: string };
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 40] as const;
 const COLORS = [
   '#dbe1f1', '#ffffff', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24',
   '#f87171', '#f472b6', '#a3e635', '#60a5fa', '#fb7185', '#facc15',
 ] as const;
+
+function emptyDoc(): RichDoc {
+  return { v: 1, lines: [{ text: '' }] };
+}
 
 export default function Editor({ username }: Props) {
   const router = useRouter();
@@ -39,72 +42,88 @@ export default function Editor({ username }: Props) {
   const [busy, setBusy] = useState(false);
 
   // rich-text state
-  const [rich, setRich] = useState<RichDoc>({ v: 1, lines: [{ text: '' }] });
-  const [stickerPack, setStickerPack] = useState<Sticker[]>([]);
+  const [rich, setRich] = useState<RichDoc>(emptyDoc);
+  const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
   const [activeLine, setActiveLine] = useState(0);
   const [showStickers, setShowStickers] = useState(false);
   const [stickerQuery, setStickerQuery] = useState('');
   const [format, setFormat] = useState<'plain' | 'rich'>('plain');
 
-  // load sticker pack once
-  useEffect(() => {
-    fetch('/api/stickers')
-      .then((r) => (r.ok ? r.json() : { stickers: [] }))
-      .then((d) => setStickerPack(d.stickers ?? []))
-      .catch(() => {});
+  const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const packLoaded = useRef(false);
+  const stickerTokenSet = useMemo(() => new Set(stickerPack.map((s) => s.token)), [stickerPack]);
+
+  /** Loads the sticker pack on first need (panel open or rich mode). */
+  const ensureStickerPack = useCallback(() => {
+    if (packLoaded.current) return;
+    packLoaded.current = true;
+    loadStickerPack()
+      .then((pack) => {
+        setStickerPack(pack);
+        // Mark any tokens already typed/loaded in every line.
+        setRich((doc) => ({
+          ...doc,
+          lines: doc.lines.map((line) => ({
+            ...line,
+            marks: buildInlineMarks(line.text ?? '', new Set(pack.map((s) => s.token))),
+          })),
+        }));
+      })
+      .catch(() => {
+        packLoaded.current = false;
+      });
   }, []);
 
-  // auto-detect links whenever user stops typing in rich mode
-  const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  useEffect(() => {
+    if (format === 'rich') ensureStickerPack();
+  }, [format, ensureStickerPack]);
 
   function updateLine(i: number, patch: Partial<RichLine>) {
     setRich((doc) => {
       const lines = doc.lines.slice();
+      if (i < 0 || i >= lines.length) return doc;
       lines[i] = { ...lines[i], ...patch };
       return { ...doc, lines };
     });
   }
 
-  function insertText(i: number, text: string) {
+  /** Recomputes links + sticker/emoji marks for one line from its text. */
+  function syncLineMarks(i: number, text: string) {
+    const marks = buildInlineMarks(text, stickerTokenSet);
     setRich((doc) => {
       const lines = doc.lines.slice();
-      const before = lines[i] ?? { text: '' };
-      const next: RichLine = { ...before, text: before.text + text };
-      lines[i] = next;
+      if (i < 0 || i >= lines.length) return doc;
+      lines[i] = { ...lines[i], text, marks };
       return { ...doc, lines };
     });
   }
 
-  function splitLine(i: number, at: number) {
+  function splitLineAt(i: number, at: number) {
     setRich((doc) => {
       const lines = doc.lines.slice();
       const line = lines[i];
-      if (!line) return doc;
+      if (!line || at < 0 || at > line.text.length) return doc;
       const left: RichLine = { ...line, text: line.text.slice(0, at) };
       const right: RichLine = {
         text: line.text.slice(at),
         font: line.font,
         size: line.size,
         color: line.color,
-        marks: line.marks
-          ?.map((m) => ({ ...m }))
-          .filter((m) => m.start >= at)
-          .map((m) => ({ ...m, start: m.start - at, end: m.end - at })),
       };
-      // re-keep left-marks too
-      left.marks = line.marks
-        ?.map((m) => ({ ...m }))
-        .filter((m) => m.end <= at);
+      left.marks = undefined;
+      right.marks = undefined;
       lines.splice(i, 1, left, right);
       return { ...doc, lines };
     });
+    // Marks for both halves are recomputed on the next input; compute now.
+    const text = rich.lines[i]?.text ?? '';
+    syncLineMarks(i, text.slice(0, at));
+    syncLineMarks(i + 1, text.slice(at));
   }
 
   function handleLineInput(i: number, e: React.FormEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const text = el.innerText;
-    updateLine(i, { text });
-    autoLinks(i, text);
+    const text = e.currentTarget.innerText ?? '';
+    syncLineMarks(i, text);
   }
 
   function handleLineKey(i: number, e: React.KeyboardEvent<HTMLDivElement>) {
@@ -112,63 +131,35 @@ export default function Editor({ username }: Props) {
       e.preventDefault();
       const sel = window.getSelection();
       const at = sel?.focusOffset ?? (rich.lines[i]?.text.length ?? 0);
-      splitLine(i, at);
-      // focus the new line
+      splitLineAt(i, at);
       requestAnimationFrame(() => {
         const next = lineRefs.current[i + 1];
-        next?.focus();
+        if (next) {
+          next.focus();
+          const s = window.getSelection();
+          if (s) {
+            const range = document.createRange();
+            range.selectNodeContents(next);
+            range.collapse(false);
+            s.removeAllRanges();
+            s.addRange(range);
+          }
+        }
         setActiveLine(i + 1);
       });
     }
   }
 
-  function autoLinks(i: number, text: string) {
-    const detected = detectLinks(text);
-    setRich((doc) => {
-      const lines = doc.lines.slice();
-      const line = lines[i];
-      if (!line) return doc;
-      // drop existing link marks
-      const otherMarks = (line.marks ?? []).filter((m) => m.kind !== 'link');
-      lines[i] = { ...line, marks: [...otherMarks, ...detected] };
-      return { ...doc, lines };
-    });
-  }
-
-  function applyStickerToActiveLine(token: string, fallback: string) {
+  function applyStickerToActiveLine(token: string) {
     const i = activeLine;
     const line = rich.lines[i] ?? { text: '' };
-    const pos = line.text.length;
-    updateLine(i, {
-      text: line.text + fallback,
-      marks: [
-        ...(line.marks ?? []),
-        { start: pos, end: pos + fallback.length, kind: 'sticker', value: token },
-      ],
-    });
+    const text = line.text + token;
+    syncLineMarks(i, text);
     setShowStickers(false);
     setStickerQuery('');
-    lineRefs.current[i]?.focus();
-  }
-
-  function applyEmojiShortcut(i: number, text: string) {
-    // expand :shortcuts: at the end of the line into a single emoji
-    const match = text.match(/:[a-z0-9+_-]+:$/i);
-    if (!match) return;
-    const token = match[0];
-    const replacement = EMOJI_SHORTCUTS[token];
-    if (!replacement) return;
-    const at = text.length - token.length;
-    const newText = text.slice(0, at) + replacement;
-    const newMarks = (rich.lines[i]?.marks ?? [])
-      .filter((m) => m.end <= at)
-      .concat({
-        start: at,
-        end: at + replacement.length,
-        kind: 'emoji',
-        value: replacement,
-      });
-    updateLine(i, { text: newText, marks: newMarks });
+    requestAnimationFrame(() => {
+      lineRefs.current[i]?.focus();
+    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -239,12 +230,22 @@ export default function Editor({ username }: Props) {
       .slice(0, 24);
   }, [stickerQuery, stickerPack]);
 
+  const switching = (mode: 'plain' | 'rich') => {
+    setFormat(mode);
+    if (mode === 'rich') ensureStickerPack();
+  };
+
+  const modeBtn = (active: boolean) =>
+    `relative flex flex-col items-center gap-0.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+      active ? 'bg-brand-500/15 text-white shadow-inner' : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+    }`;
+
   return (
     <form
       onSubmit={submit}
       className="animate-fade-up rounded-2xl border border-white/10 bg-night-800/60 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-6"
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold text-white">Create a new paste</h2>
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
           {username ? (
@@ -255,6 +256,38 @@ export default function Editor({ username }: Props) {
             'as guest — no account needed'
           )}
         </span>
+      </div>
+
+      {/* Unified mode toggle — one paste area, two content modes. */}
+      <div
+        role="tablist"
+        aria-label="Paste mode"
+        className="mb-5 grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-night-900/80 p-1.5"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={format === 'plain'}
+          onClick={() => switching('plain')}
+          className={modeBtn(format === 'plain')}
+        >
+          <span className="text-base font-bold">📝 Basic</span>
+          <span className="text-[11px] font-normal text-zinc-500">
+            Plain text & code · syntax highlighting
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={format === 'rich'}
+          onClick={() => switching('rich')}
+          className={modeBtn(format === 'rich')}
+        >
+          <span className="text-base font-bold">✨ Rich</span>
+          <span className="text-[11px] font-normal text-zinc-500">
+            Fonts, colors, emoji & animated stickers
+          </span>
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -272,29 +305,6 @@ export default function Editor({ username }: Props) {
           />
         </div>
 
-        {/* Mode tabs */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setFormat('plain')}
-            className={`${chip} ${format === 'plain' ? chipActive : ''}`}
-          >
-            📝 Plain
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormat('rich')}
-            className={`${chip} ${format === 'rich' ? chipActive : ''}`}
-          >
-            ✨ Rich
-          </button>
-          <span className="ml-auto text-xs text-zinc-500">
-            {format === 'rich'
-              ? `${rich.lines.reduce((s, l) => s + l.text.length, 0).toLocaleString()} chars · links auto-clickable`
-              : `${content.length.toLocaleString()} / 100,000`}
-          </span>
-        </div>
-
         {format === 'plain' ? (
           <div>
             <label className={label} htmlFor="content">
@@ -310,8 +320,8 @@ export default function Editor({ username }: Props) {
               spellCheck={false}
             />
             <p className="mt-1 text-xs text-zinc-500">
-              Any http(s) / www / email link in your paste will be clickable automatically. No link
-              previews are generated.
+              {content.length.toLocaleString()} / 100,000 characters · any http(s) / www / email
+              link will be clickable automatically. No link previews are generated.
             </p>
           </div>
         ) : (
@@ -369,31 +379,46 @@ export default function Editor({ username }: Props) {
                   suppressContentEditableWarning
                   spellCheck={false}
                   onInput={(e) => handleLineInput(i, e)}
-                  onKeyDown={(e) => {
-                    handleLineKey(i, e);
-                    // also check emoji shortcodes
-                    setTimeout(() => applyEmojiShortcut(i, lineRefs.current[i]?.innerText ?? ''), 0);
-                  }}
+                  onKeyDown={(e) => handleLineKey(i, e)}
                   onFocus={() => setActiveLine(i)}
                   className="min-h-[1.6em] rounded px-1 outline-none focus:bg-white/5"
                   style={{
-                    fontFamily: FONTS.find((f) => f.id === (line.font ?? DEFAULT_FONT))?.css,
+                    fontFamily: lineFont(line),
                     fontSize: `${line.size ?? 14}px`,
                     color: line.color ?? '#dbe1f1',
                   }}
-                />
+                >
+                  {line.text ?? ''}
+                </div>
               ))}
+            </div>
+
+            {/* Live preview — stickers/GIFs/emoji render exactly like the result. */}
+            <div className="mt-2 rounded-xl border border-white/10 bg-night-900/60 p-3">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                Live preview — how it will render
+              </p>
+              <div className="leading-7">
+                {rich.lines.map((line, i) => (
+                  <PreviewLine key={i} line={line} pack={stickerPack} />
+                ))}
+              </div>
             </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
               <button
                 type="button"
                 className={chip}
-                onClick={() => setShowStickers((v) => !v)}
+                onClick={() => {
+                  setShowStickers((v) => !v);
+                  ensureStickerPack();
+                }}
               >
                 😺 Stickers & emoji
               </button>
-              <span>Type :fire: :rocket: etc. for emoji · paste a URL for clickable links</span>
+              <span>
+                Type :wave: / ;happy; for stickers & emoji · paste a URL for clickable links
+              </span>
             </div>
 
             {showStickers && (
@@ -413,12 +438,18 @@ export default function Editor({ username }: Props) {
                         type="button"
                         key={s.token}
                         title={`${s.token} — ${s.label || ''}`}
-                        onClick={() => applyStickerToActiveLine(s.token, s.token)}
+                        onClick={() => applyStickerToActiveLine(s.token)}
                         className="flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-lg hover:border-brand-400/60"
                       >
                         {s.url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.url} alt={s.label || s.token} className="h-8 w-8 object-contain" />
+                          <img
+                            src={s.url}
+                            alt={s.label || s.token}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-8 w-8 object-contain"
+                          />
                         ) : (
                           <span>{s.emoji ?? s.token}</span>
                         )}
@@ -518,6 +549,14 @@ export default function Editor({ username }: Props) {
           )}
         </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+          <span>
+            {format === 'rich'
+              ? `${rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0).toLocaleString()} chars · links auto-clickable`
+              : `${content.length.toLocaleString()} / 100,000`}
+          </span>
+        </div>
+
         {error && (
           <p className="animate-pop rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
             {error}
@@ -536,5 +575,29 @@ export default function Editor({ username }: Props) {
         </p>
       </div>
     </form>
+  );
+}
+
+/** Renders one rich line as it will appear in the final paste. */
+function PreviewLine({ line, pack }: { line: RichLine; pack: StickerEntry[] }) {
+  const segments = splitLine(line, {
+    renderSticker: (m, slice) => <StickerImage token={m.value} fallback={slice} pack={pack} />,
+    renderEmoji: (m) => (
+      <span className="text-[1.05em]" title={m.value}>
+        {m.value}
+      </span>
+    ),
+  });
+  return (
+    <div
+      className="whitespace-pre-wrap break-words"
+      style={{
+        fontFamily: lineFont(line),
+        fontSize: line.size ? `${line.size}px` : '14px',
+        color: line.color ?? '#dbe1f1',
+      }}
+    >
+      {segments}
+    </div>
   );
 }

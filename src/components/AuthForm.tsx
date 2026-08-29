@@ -68,9 +68,19 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Password
-              </label>
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  Password
+                </label>
+                {!isRegister && (
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs font-medium text-brand-300 hover:text-brand-200"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </div>
               <input
                 type="password"
                 value={password}

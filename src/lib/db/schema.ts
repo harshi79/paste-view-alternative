@@ -59,7 +59,28 @@ export const profiles = pgTable('profiles', {
   accent: text('accent').notNull().default('#8b5cf6'),
   links: jsonb('links').$type<ProfileLink[]>().notNull().default([]),
   views: integer('views').notNull().default(0),
+  // Custom emoji + short status text shown beside the name / username.
+  statusEmoji: text('status_emoji').notNull().default(''),
+  statusText: text('status_text').notNull().default(''),
 });
+
+// ------------------------------------------------------------------
+// Password resets — one-time, expiring, opaque tokens (sha256 stored).
+// ------------------------------------------------------------------
+export const passwordResets = pgTable(
+  'password_resets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('password_resets_user_idx').on(t.userId)],
+);
 
 // ------------------------------------------------------------------
 // Pastes — content may be plain text OR rich-text JSON (the new

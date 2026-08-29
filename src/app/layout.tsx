@@ -33,6 +33,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   username: session.user.username,
                   displayName: session.profile?.displayName ?? null,
                   avatarUrl: session.profile?.avatarUrl ?? null,
+                  statusEmoji: session.profile?.statusEmoji ?? null,
                 }
               : null
           }

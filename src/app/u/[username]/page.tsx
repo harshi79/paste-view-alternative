@@ -53,6 +53,8 @@ export default async function ProfilePage({ params }: Props) {
     accent: '#8b5cf6',
     links: [],
     views: 0,
+    statusEmoji: '',
+    statusText: '',
   };
 
   // Run everything independent in parallel — one DB round-trip window
@@ -107,7 +109,12 @@ export default async function ProfilePage({ params }: Props) {
           />
         ) : profile.bannerUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={profile.bannerUrl} alt="" className="h-full w-full object-cover" />
+          <img
+            src={profile.bannerUrl}
+            alt=""
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div
             className="h-full w-full"
@@ -138,6 +145,14 @@ export default async function ProfilePage({ params }: Props) {
             <div className="pb-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="text-2xl font-black leading-none tracking-tight sm:text-4xl">
+                  {profile.statusEmoji && (
+                    <span
+                      className="mr-2 inline-block align-[-0.12em] text-[0.85em]"
+                      title={profile.statusText || 'Status'}
+                    >
+                      {profile.statusEmoji}
+                    </span>
+                  )}
                   <NameDisplay
                     text={profile.displayName || user.username}
                     from={profile.nameFrom}
@@ -163,7 +178,15 @@ export default async function ProfilePage({ params }: Props) {
                 )}
               </div>
               <p className="mt-1.5 text-sm text-zinc-400">
+                {profile.statusEmoji ? (
+                  <span className="mr-1" aria-hidden>
+                    {profile.statusEmoji}
+                  </span>
+                ) : null}
                 @{user.username} · joined {formatDate(user.createdAt)}
+                {profile.statusText ? (
+                  <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span>
+                ) : null}
               </p>
             </div>
           </div>

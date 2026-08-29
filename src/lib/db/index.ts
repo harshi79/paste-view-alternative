@@ -52,6 +52,19 @@ const SCHEMA_STATEMENTS = [
   // New columns added in v2 — backfill for existing deployments.
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_speed integer NOT NULL DEFAULT 50`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_intensity integer NOT NULL DEFAULT 60`,
+  // v3 — emoji status beside the name / username.
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status_emoji text NOT NULL DEFAULT ''`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status_text text NOT NULL DEFAULT ''`,
+
+  `CREATE TABLE IF NOT EXISTS password_resets (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash text NOT NULL UNIQUE,
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets (user_id)`,
 
   `CREATE TABLE IF NOT EXISTS pastes (
     id text PRIMARY KEY,

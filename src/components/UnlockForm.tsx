@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import PasteViewer from './PasteViewer';
+import dynamic from 'next/dynamic';
+
+// Loaded only after the visitor unlocks a protected paste — keeps
+// highlight.js out of the initial bundle of the paste page.
+const PasteViewerClient = dynamic(() => import('./PasteViewerClient'), {
+  ssr: false,
+  loading: () => <div className="py-10 text-center text-sm text-zinc-500">Unlocking…</div>,
+});
 
 /** Password gate for protected pastes — content is only fetched after unlock. */
 export default function UnlockForm({ pasteId }: { pasteId: string }) {
@@ -29,7 +36,7 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
   }
 
   if (unlocked) {
-    return <PasteViewer content={unlocked.content} language={unlocked.language} />;
+    return <PasteViewerClient content={unlocked.content} language={unlocked.language} />;
   }
 
   return (

@@ -34,6 +34,8 @@ export default async function SettingsPage() {
           effectIntensity: profile.effectIntensity,
           accent: profile.accent,
           links: profile.links ?? [],
+          statusEmoji: profile.statusEmoji ?? '',
+          statusText: profile.statusText ?? '',
         }}
       />
     </div>

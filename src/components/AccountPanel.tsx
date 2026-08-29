@@ -26,6 +26,12 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
 
   const alreadyRenamed = !!initial.usernameChangedAt;
   const createdAt = new Date(initial.createdAt);
@@ -64,6 +70,36 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/');
     router.refresh();
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPwError('');
+    setPwMsg('');
+    if (newPassword !== confirmPassword) {
+      setPwError('New passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPwError('New password must be at least 6 characters.');
+      return;
+    }
+    setPwBusy(true);
+    const res = await fetch('/api/account/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    const data = await res.json();
+    setPwBusy(false);
+    if (!res.ok) {
+      setPwError(data.error || 'Could not change the password.');
+      return;
+    }
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPwMsg('Password updated. Use the new password next time you sign in.');
   }
 
   const input =
@@ -121,6 +157,51 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
           {error && (
             <p className="mt-3 text-sm text-red-400">{error}</p>
           )}
+        </div>
+
+        <div className={card}>
+          <h2 className="mb-4 font-bold text-white">Password</h2>
+          <p className="mb-4 text-sm text-zinc-400">
+            Confirm your current password to set a new one. Forgot it? Use the reset link on the
+            login screen.
+          </p>
+          <form onSubmit={changePassword} className="space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <input
+                type="password"
+                className={input}
+                placeholder="Current password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+              <input
+                type="password"
+                className={input}
+                placeholder="New password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <input
+                type="password"
+                className={input}
+                placeholder="Confirm new password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            {pwError && <p className="text-sm text-red-400">{pwError}</p>}
+            {pwMsg && <p className="animate-pop text-sm text-emerald-400">{pwMsg}</p>}
+            <button
+              type="submit"
+              disabled={pwBusy || !currentPassword || !newPassword || !confirmPassword}
+              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+            >
+              {pwBusy ? 'Updating…' : 'Change password'}
+            </button>
+          </form>
         </div>
 
         <div className={card}>

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
-import { purgeExpired } from '@/lib/pastes';
+import { purgeExpiredIfDue } from '@/lib/pastes';
 import Editor from '@/components/Editor';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +31,8 @@ const FEATURES = [
 
 export default async function HomePage() {
   const db = await getDb();
-  // Session + lazy expiry purge are independent — run them together.
-  const [session] = await Promise.all([getSessionUser(), purgeExpired(db)]);
+  // Session + throttled lazy expiry purge are independent — run them together.
+  const [session] = await Promise.all([getSessionUser(), purgeExpiredIfDue(db)]);
 
   return (
     <div className="pt-10 sm:pt-14">

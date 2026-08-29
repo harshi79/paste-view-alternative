@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { pastes, users, profiles } from '@/lib/db/schema';
+import { pastes, users, profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
 import { formatViews, timeAgo } from '@/lib/format';
@@ -74,8 +74,9 @@ export default async function PastePage({ params }: Props) {
 
   const locked = !!paste.passwordHash && !isOwner;
 
-  // Author lookup + view increment happen concurrently.
-  const [authorRows] = await Promise.all([
+  // Author lookup, view increment, and the sticker pack are independent —
+  // run them concurrently.
+  const [authorRows, stickerRows] = await Promise.all([
     paste.userId
       ? db
           .select({
@@ -89,7 +90,16 @@ export default async function PastePage({ params }: Props) {
           .where(eq(users.id, paste.userId))
           .limit(1)
       : Promise.resolve([]),
-    locked ? Promise.resolve() : incrementPasteViews(paste.id),
+    locked
+      ? Promise.resolve([])
+      : db
+          .select({
+            token: stickers.token,
+            url: stickers.url,
+            emoji: stickers.emoji,
+            label: stickers.label,
+          })
+          .from(stickers),
   ]);
   const authorRow = authorRows[0] ?? null;
 
@@ -172,7 +182,7 @@ export default async function PastePage({ params }: Props) {
         <UnlockForm pasteId={paste.id} />
       ) : isRich && isRichDoc(parsed) ? (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
-          <RichPasteView doc={parsed} />
+          <RichPasteView doc={parsed} stickers={stickerRows} />
         </div>
       ) : (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>

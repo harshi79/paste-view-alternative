@@ -21,7 +21,20 @@ type ProfileState = {
   effectIntensity: number;
   accent: string;
   links: LinkItem[];
+  statusEmoji: string;
+  statusText: string;
 };
+
+// Curated emoji set for the status picker (faces, hearts, animals, symbols).
+const STATUS_EMOJIS = [
+  '😀', '😎', '🥳', '🤩', '😇', '🤠', '🫡', '😴',
+  '🔥', '⚡', '✨', '🌟', '💫', '☄️', '🌈', '🌊',
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '💯',
+  '👍', '👋', '🤝', '🙌', '👀', '💪', '🤙', '🫶',
+  '🚀', '🎮', '🎧', '🎨', '📚', '☕', '🍕', '🎉',
+  '🐱', '🐶', '🦊', '🐼', '🦄', '🐸', '🐝', '🦋',
+  '⚽', '🏆', '🎯', '🧠', '💡', '🔒', '🗿', '🌙',
+] as const;
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -38,6 +51,7 @@ export default function ProfileCustomizer({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'profile' | 'name' | 'links'>('profile');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   function set<K extends keyof ProfileState>(key: K, value: ProfileState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -140,6 +154,84 @@ export default function ProfileCustomizer({
                   />
                   Show “About me” on my profile
                 </label>
+              </div>
+            </div>
+
+            <hr className="my-5 border-white/5" />
+
+            <div>
+              <h2 className="mb-1 font-bold text-white">Emoji status</h2>
+              <p className="mb-3 text-xs text-zinc-500">
+                A custom emoji shown beside your name and username. Pick from the selector or type
+                your own — remove it any time.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className={`${input} w-20 shrink-0 text-center text-xl`}
+                  value={state.statusEmoji}
+                  maxLength={8}
+                  placeholder="😎"
+                  aria-label="Status emoji"
+                  onChange={(e) => set('statusEmoji', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className={tabBtn(false)}
+                  onClick={() => setShowEmojiPicker((v) => !v)}
+                >
+                  {showEmojiPicker ? 'Hide emoji picker' : 'Choose emoji'}
+                </button>
+                {state.statusEmoji && (
+                  <button
+                    type="button"
+                    onClick={() => set('statusEmoji', '')}
+                    className="text-xs text-zinc-400 hover:text-white"
+                  >
+                    remove emoji
+                  </button>
+                )}
+              </div>
+
+              {showEmojiPicker && (
+                <div className="animate-pop mt-3 grid max-w-md grid-cols-8 gap-1 rounded-xl border border-white/10 bg-night-900/70 p-2">
+                  {STATUS_EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => {
+                        set('statusEmoji', e);
+                        setShowEmojiPicker(false);
+                      }}
+                      className={`grid h-9 w-9 place-items-center rounded-lg text-lg transition hover:bg-white/10 ${
+                        state.statusEmoji === e ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-3">
+                <label className={label}>Status text (optional)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    className={input}
+                    maxLength={60}
+                    placeholder="What are you up to?"
+                    value={state.statusText}
+                    onChange={(e) => set('statusText', e.target.value)}
+                  />
+                  {state.statusText && (
+                    <button
+                      type="button"
+                      onClick={() => set('statusText', '')}
+                      className="shrink-0 text-xs text-zinc-400 hover:text-white"
+                    >
+                      clear
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -444,6 +536,11 @@ export default function ProfileCustomizer({
               </span>
             )}
             <h3 className="mt-3 text-2xl font-black tracking-tight">
+              {state.statusEmoji && (
+                <span className="mr-1.5 inline-block align-[-0.12em] text-[0.85em]">
+                  {state.statusEmoji}
+                </span>
+              )}
               <NameDisplay
                 text={state.displayName || username}
                 from={state.nameFrom}
@@ -454,7 +551,11 @@ export default function ProfileCustomizer({
                 intensity={state.effectIntensity}
               />
             </h3>
-            <p className="mt-0.5 text-xs text-zinc-500">@{username}</p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {state.statusEmoji && <span className="mr-1">{state.statusEmoji}</span>}
+              @{username}
+              {state.statusText && <span className="text-zinc-600"> · {state.statusText}</span>}
+            </p>
             {state.bioEnabled && state.bio && (
               <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-300">{state.bio}</p>
             )}
