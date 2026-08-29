@@ -134,6 +134,7 @@ export default function Editor({ username }: Props) {
   const [language, setLanguage] = useState('plaintext');
   const [visibility, setVisibility] = useState<'public' | 'unlisted'>('public');
   const [expiresIn, setExpiresIn] = useState('never');
+  const [passwordProtectionEnabled, setPasswordProtectionEnabled] = useState(false);
   const [password, setPassword] = useState('');
   const [titleColor, setTitleColor] = useState('');
   const [showOptions, setShowOptions] = useState(false);
@@ -471,6 +472,10 @@ export default function Editor({ username }: Props) {
       setError('Paste content is required.');
       return;
     }
+    if (passwordProtectionEnabled && !password) {
+      setError('Enter a password or turn off password protection.');
+      return;
+    }
     setBusy(true);
     try {
       const body: Record<string, unknown> = {
@@ -483,7 +488,10 @@ export default function Editor({ username }: Props) {
         language,
         visibility,
         expiresIn,
-        password: password || undefined,
+        // Password protection is strictly opt-in. Keeping this explicit also
+        // prevents a browser/password manager autofill from locking a paste.
+        passwordProtected: passwordProtectionEnabled,
+        password: passwordProtectionEnabled ? password : undefined,
         titleColor: titleColor || undefined,
       };
       const res = await fetch('/api/pastes', {
@@ -541,6 +549,7 @@ export default function Editor({ username }: Props) {
   return (
     <form
       onSubmit={submit}
+      autoComplete="off"
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault();
@@ -730,18 +739,51 @@ export default function Editor({ username }: Props) {
               </select>
             </div>
             <div>
-              <label className={fieldLabel} htmlFor="password">
-                Password
+              <span className={fieldLabel}>Access</span>
+              <label
+                htmlFor="password-protection"
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-colors hover:bg-white/[0.06]"
+              >
+                <input
+                  id="password-protection"
+                  type="checkbox"
+                  checked={passwordProtectionEnabled}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    setPasswordProtectionEnabled(enabled);
+                    if (!enabled) setPassword('');
+                  }}
+                  className="h-4 w-4 shrink-0 accent-violet-500"
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-zinc-200">Password protection</span>
+                  <span className="block text-xs text-zinc-500">
+                    {passwordProtectionEnabled
+                      ? 'On — visitors must enter the password'
+                      : 'Off — anyone can view this paste'}
+                  </span>
+                </span>
               </label>
-              <input
-                id="password"
-                type="password"
-                className="input"
-                placeholder="None"
-                value={password}
-                maxLength={64}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              {passwordProtectionEnabled && (
+                <div className="animate-pop mt-3">
+                  <label className={fieldLabel} htmlFor="paste-access-key">
+                    Paste password
+                  </label>
+                  <input
+                    id="paste-access-key"
+                    name="paste-access-key"
+                    type="password"
+                    className="input"
+                    placeholder="Choose a password"
+                    value={password}
+                    maxLength={64}
+                    autoComplete="new-password"
+                    data-1p-ignore
+                    data-lpignore="true"
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              )}
             </div>
             <div className="sm:col-span-2">
               <label className={fieldLabel} htmlFor="title-color">
@@ -1020,7 +1062,12 @@ export default function Editor({ username }: Props) {
               : `${content.length.toLocaleString()} / 100,000 chars`}
           </span>
           <span className="hidden h-3 w-px bg-white/10 sm:block" />
-          <span className="hidden sm:inline">
+          <span>
+            {visibility === 'public' ? 'Public' : 'Unlisted'} ·{' '}
+            {passwordProtectionEnabled ? 'Password protected' : 'No password'}
+          </span>
+          <span className="hidden h-3 w-px bg-white/10 sm:block" />
+          <span className="hidden md:inline">
             {format === 'rich'
               ? 'URLs auto-link · no previews generated'
               : 'links auto-link · no previews generated'}
