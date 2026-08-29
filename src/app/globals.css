@@ -295,6 +295,13 @@ body {
   margin: 0 0.08em;
 }
 
+/* Empty rich lines in the composer show a quiet placeholder. */
+.rich-line:empty::before {
+  content: attr(data-placeholder);
+  color: #52525f;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------------ */
 /* Tag chips — admin-awarded user tags (Founder, Verified, …).        */
 /* Two layers: an outer 1px gradient ring + a dark glass body, so a   */
