@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes } from '@/lib/db/schema';
 import { verifyPassword } from '@/lib/auth';
+import { incrementPasteViews } from '@/lib/pastes';
 
 export const runtime = 'nodejs';
 
@@ -38,6 +39,8 @@ export async function POST(req: Request, { params }: Props) {
     return NextResponse.json({ error: 'This paste has expired.' }, { status: 410 });
   }
   if (!paste.passwordHash) {
+    // Unprotected pastes are counted on the page itself; this endpoint
+    // should only be called for protected ones, so bail without counting.
     return NextResponse.json({ content: paste.content, language: paste.language });
   }
 
@@ -45,6 +48,9 @@ export async function POST(req: Request, { params }: Props) {
   if (!ok) {
     return NextResponse.json({ error: 'Wrong password.' }, { status: 401 });
   }
+
+  // The visitor successfully unlocked the paste — count this as a view.
+  await incrementPasteViews(id);
 
   return NextResponse.json({ content: paste.content, language: paste.language });
 }

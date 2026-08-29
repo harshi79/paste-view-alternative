@@ -2,6 +2,7 @@ import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
 import { customAlphabet } from 'nanoid';
 import { getDb, type DB } from './db';
 import { pastes } from './db/schema';
+import { getClientIp } from './ip';
 
 const nanoid = customAlphabet('0123456789abcdefghjkmnpqrstuvwxyz', 8);
 
@@ -31,7 +32,7 @@ export async function purgeExpired(db: DB) {
 }
 
 const PURGE_INTERVAL_MS = 5 * 60 * 1000;
-const g = globalThis as unknown as { __vibepurge?: number };
+const purgeG = globalThis as unknown as { __vibepurge?: number };
 
 /**
  * Purge is idempotent, so running it on every page view is wasted work —
@@ -39,10 +40,10 @@ const g = globalThis as unknown as { __vibepurge?: number };
  * also filtered lazily on read by the viewer).
  */
 export async function purgeExpiredIfDue(db: DB): Promise<void> {
-  const last = g.__vibepurge ?? 0;
+  const last = purgeG.__vibepurge ?? 0;
   const now = Date.now();
   if (now - last < PURGE_INTERVAL_MS) return;
-  g.__vibepurge = now;
+  purgeG.__vibepurge = now;
   await purgeExpired(db);
 }
 
@@ -50,8 +51,39 @@ export function isExpired(p: { expiresAt: Date | null }): boolean {
   return !!p.expiresAt && p.expiresAt.getTime() <= Date.now();
 }
 
+// Lightweight dedup: prevents the same IP from double-counting a paste
+// within a 3-second window (covers rapid refreshes / double-taps).
+const dedupG = globalThis as unknown as { __vibeviewDedup?: Map<string, number> };
+const VIEW_DEDUP_MS = 3000;
+
+function dedupKey(pasteId: string, ip: string): string {
+  return `${pasteId}:${ip}`;
+}
+
+/**
+ * Increment the view counter for a paste, with a short dedup window so
+ * rapid refreshes from the same visitor don't inflate the count.
+ */
 export async function incrementPasteViews(id: string) {
   const db = await getDb();
+
+  // getClientIp() uses next/headers which is only available inside
+  // request handlers. In other contexts (tests, scripts) it will throw
+  // — fall back to a placeholder so the view counter still fires.
+  let visitorIp = '0.0.0.0';
+  try {
+    visitorIp = await getClientIp();
+  } catch {
+    // not in a request context — keep the fallback
+  }
+
+  const now = Date.now();
+  const map = dedupG.__vibeviewDedup ?? (dedupG.__vibeviewDedup = new Map());
+  const key = dedupKey(id, visitorIp);
+  const last = map.get(key) ?? 0;
+  if (now - last < VIEW_DEDUP_MS) return;
+  map.set(key, now);
+
   await db
     .update(pastes)
     .set({ views: sql`${pastes.views} + 1` })

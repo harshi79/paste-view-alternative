@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes } from '@/lib/db/schema';
-import { purgeExpired } from '@/lib/pastes';
+import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -21,6 +21,9 @@ export async function GET(req: Request, { params }: Props) {
   if (paste.passwordHash) {
     return new Response('this paste is password protected', { status: 403 });
   }
+
+  // Count the raw view too, so "Raw" and "Download" links contribute.
+  await incrementPasteViews(paste.id);
 
   const url = new URL(req.url);
   const headers: Record<string, string> = {
