@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './db';
 import { likes, pastes } from './db/schema';
 
@@ -40,18 +40,26 @@ function actorWhere(actor: LikeActor) {
   return eq(likes.ipHash, actor.ipHash ?? '');
 }
 
-/** Current state for the paste — idempotent read used on page render. */
+/**
+ * Current state for the paste — idempotent read used on page render.
+ * Pass `countOverride` when the caller already loaded the paste row
+ * (the paste page does) to avoid a duplicate indexed read.
+ */
 export async function getLikeState(
   pasteId: string,
   actor: LikeActor,
+  countOverride?: number,
 ): Promise<{ count: number; liked: boolean }> {
   const db = await getDb();
-  const [paste] = await db
-    .select({ likesCount: pastes.likesCount })
-    .from(pastes)
-    .where(eq(pastes.id, pasteId))
-    .limit(1);
-  const count = Math.max(0, paste?.likesCount ?? 0);
+  let count = countOverride ?? 0;
+  if (countOverride === undefined) {
+    const [paste] = await db
+      .select({ likesCount: pastes.likesCount })
+      .from(pastes)
+      .where(eq(pastes.id, pasteId))
+      .limit(1);
+    count = Math.max(0, paste?.likesCount ?? 0);
+  }
   const [row] = await db
     .select({ id: likes.id })
     .from(likes)
@@ -84,17 +92,14 @@ export async function likePaste(
         .limit(1);
       return { count: paste?.likesCount ?? 0, liked: true };
     }
-    let inserted = false;
-    try {
-      const [row] = await tx
-        .insert(likes)
-        .values({ pasteId, userId: actor.userId ?? null, ipHash: actor.ipHash ?? null })
-        .returning({ id: likes.id });
-      inserted = !!row;
-    } catch {
-      // Unique-index violation → someone else's request won the race.
-      inserted = false;
-    }
+    // ON CONFLICT DO NOTHING collapses double-tap races without raising
+    // an error (a failed statement would poison the whole transaction).
+    const [row] = await tx
+      .insert(likes)
+      .values({ pasteId, userId: actor.userId ?? null, ipHash: actor.ipHash ?? null })
+      .onConflictDoNothing()
+      .returning({ id: likes.id });
+    const inserted = !!row;
     if (inserted) {
       await tx
         .update(pastes)

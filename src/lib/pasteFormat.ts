@@ -165,7 +165,9 @@ export function inlineCount(line: RichLine): { chars: number; tokens: number } {
 // raw shortcode.
 // ------------------------------------------------------------------
 
-const STICKER_TOKEN_RE = /:([a-z0-9_+]{1,32}):|;([a-z0-9_+]{1,32});/gi;
+// Must stay consistent with the admin route/server validation
+// (^:[a-z0-9_+-]+:$) so hyphenated tokens like :anime-wave: convert too.
+const STICKER_TOKEN_RE = /:([a-z0-9_+-]{1,32}):|;([a-z0-9_+-]{1,32});/gi;
 
 export type TokenHit = { start: number; end: number; token: string };
 

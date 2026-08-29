@@ -132,7 +132,8 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
         const data = await res.json();
         const results: AnimeGif[] = (data.results ?? []).map((r: Record<string, unknown>) => ({
           url: String(r.url),
-          category: (String(r.url).split('/')[6] ?? 'anime'),
+          // /api/v2/<category>/<file> → category is pathname[3]
+          category: new URL(String(r.url)).pathname.split('/')[3] ?? 'anime',
           anime_name: typeof r.anime_name === 'string' ? r.anime_name : undefined,
         }));
         setCategory('');

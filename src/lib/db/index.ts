@@ -79,6 +79,7 @@ const SCHEMA_STATEMENTS = [
     expires_at timestamptz,
     pinned boolean NOT NULL DEFAULT false,
     views integer NOT NULL DEFAULT 0,
+    likes_count integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'plain'`,

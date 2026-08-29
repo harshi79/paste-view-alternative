@@ -105,7 +105,9 @@ export default async function PastePage({ params }: Props) {
           .from(stickers),
     (async () => {
       const ip = await getClientIp();
-      return getLikeState(paste.id, likeActor(session?.user.id, ip));
+      // Paste row is already loaded above — pass its counter to avoid a
+      // duplicate read; only the "did I like it" lookup runs.
+      return getLikeState(paste.id, likeActor(session?.user.id, ip), paste.likesCount ?? 0);
     })(),
   ]);
   const authorRow = authorRows[0] ?? null;

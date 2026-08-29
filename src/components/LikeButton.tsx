@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 
 type Props = {
   pasteId: string;
@@ -37,7 +37,6 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
   const [liked, setLiked] = useState(initialLiked);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [, startTransition] = useTransition();
 
   async function toggle() {
     if (busy) return;
@@ -53,10 +52,8 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update like.');
-      startTransition(() => {
-        setLiked(data.liked);
-        setCount(data.count);
-      });
+      setLiked(data.liked);
+      setCount(data.count);
     } catch (e) {
       // Revert on failure.
       setLiked(liked);
