@@ -5,6 +5,9 @@ import Nav from '@/components/Nav';
 import Logo from '@/components/Logo';
 import { getSessionUser } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: {
     default: 'VibeBin — Share pastes and customizable profiles',

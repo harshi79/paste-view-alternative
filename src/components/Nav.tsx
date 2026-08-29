@@ -34,8 +34,7 @@ export default function Nav({ session }: { session: NavUser }) {
     await fetch('/api/auth/logout', { method: 'POST' });
     setBusy(false);
     setOpen(false);
-    router.push('/');
-    router.refresh();
+    window.location.href = '/';
   }
 
   const links = [

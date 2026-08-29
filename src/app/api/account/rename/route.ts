@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, createSession } from '@/lib/auth';
 
 const RESERVED = new Set([
   'api', 'login', 'register', 'dashboard', 'settings', 'p', 'u', 'new',
@@ -68,6 +68,8 @@ export async function POST(req: Request) {
     .update(users)
     .set({ username: newName, usernameChangedAt: new Date() })
     .where(eq(users.id, session.user.id));
+
+  await createSession({ id: session.user.id, username: newName });
 
   return NextResponse.json({ ok: true, username: newName });
 }

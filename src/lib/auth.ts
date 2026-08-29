@@ -1,4 +1,4 @@
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
@@ -27,6 +27,29 @@ function secret(): Uint8Array {
   return new TextEncoder().encode(raw);
 }
 
+async function getCookieOptions(maxAge: number) {
+  let isHttps = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
+  try {
+    const h = await headers();
+    const proto = h.get('x-forwarded-proto');
+    const host = h.get('host') || '';
+    if (proto === 'https' || host.includes('e2b.app') || host.includes('vercel.app')) {
+      isHttps = true;
+    }
+  } catch {
+    // headers() might not be available in non-request contexts
+  }
+
+  return {
+    httpOnly: true,
+    sameSite: (isHttps ? 'none' : 'lax') as 'none' | 'lax',
+    secure: isHttps,
+    partitioned: isHttps,
+    maxAge,
+    path: '/',
+  };
+}
+
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 10);
 }
@@ -43,18 +66,14 @@ export async function createSession(user: { id: string; username: string }) {
     .sign(secret());
 
   const store = await cookies();
-  store.set(COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: MAX_AGE,
-    path: '/',
-  });
+  const options = await getCookieOptions(MAX_AGE);
+  store.set(COOKIE, token, options);
 }
 
 export async function destroySession() {
   const store = await cookies();
   store.delete(COOKIE);
+  store.set(COOKIE, '', { maxAge: 0, path: '/' });
 }
 
 export type SessionUser = { user: User; profile: Profile };
@@ -71,15 +90,36 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     if (!uid) return null;
 
     const db = await getDb();
-    // Single joined round-trip (used to be two sequential queries).
     const [row] = await db
       .select({ user: users, profile: profiles })
       .from(users)
-      .innerJoin(profiles, eq(profiles.userId, users.id))
+      .leftJoin(profiles, eq(profiles.userId, users.id))
       .where(eq(users.id, uid))
       .limit(1);
-    if (!row) return null;
-    return { user: row.user, profile: row.profile };
+    if (!row || !row.user) return null;
+
+    const profile: Profile = row.profile ?? {
+      userId: row.user.id,
+      displayName: null,
+      bio: '',
+      bioEnabled: true,
+      avatarUrl: null,
+      bannerUrl: null,
+      bannerType: 'image',
+      nameFrom: '#a78bfa',
+      nameTo: '#22d3ee',
+      nameStyle: 'gradient',
+      nameEffect: 'none',
+      effectSpeed: 50,
+      effectIntensity: 60,
+      accent: '#8b5cf6',
+      links: [],
+      views: 0,
+      statusEmoji: '',
+      statusText: '',
+    };
+
+    return { user: row.user, profile };
   } catch {
     return null;
   }
@@ -114,18 +154,14 @@ export async function createAdminSession() {
     .setExpirationTime(`${ADMIN_MAX_AGE}s`)
     .sign(secret());
   const store = await cookies();
-  store.set(ADMIN_COOKIE, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: ADMIN_MAX_AGE,
-    path: '/',
-  });
+  const options = await getCookieOptions(ADMIN_MAX_AGE);
+  store.set(ADMIN_COOKIE, token, options);
 }
 
 export async function destroyAdminSession() {
   const store = await cookies();
   store.delete(ADMIN_COOKIE);
+  store.set(ADMIN_COOKIE, '', { maxAge: 0, path: '/' });
 }
 
 export async function isAdmin(): Promise<boolean> {
