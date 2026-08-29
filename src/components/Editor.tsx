@@ -16,6 +16,9 @@ import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
 import { splitLine, lineFont } from './richRender';
 import StickerImage from './StickerImage';
 import { nekoTokenSet, type NekoGif } from '@/lib/neko';
+import { customAlphabet } from 'nanoid';
+
+const gifId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
 
 type Props = { username: string | null };
 
@@ -141,6 +144,8 @@ export default function Editor({ username }: Props) {
   const [rich, setRich] = useState<RichDoc>(emptyDoc);
   const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
   const [nekoGifs, setNekoGifs] = useState<NekoGif[]>([]);
+  const [gifResults, setGifResults] = useState<Array<{ url: string; preview: string | null; label: string }>>([]);
+  const [searchingGifs, setSearchingGifs] = useState(false);
   const [activeLine, setActiveLine] = useState(0);
   const [showStickers, setShowStickers] = useState(false);
   const [stickerTab, setStickerTab] = useState<'pack' | 'anime'>('pack');
@@ -193,9 +198,47 @@ export default function Editor({ username }: Props) {
       });
   }, []);
 
+  /** Fetches GIF search results from /api/gifs for the current query. */
+  const handleGifSearch = useCallback(
+    async (q: string) => {
+      const query = q.trim();
+      if (!query) {
+        setGifResults([]);
+        setSearchingGifs(false);
+        return;
+      }
+      setSearchingGifs(true);
+      try {
+        const res = await fetch(`/api/gifs?q=${encodeURIComponent(query)}`);
+        const data = (await res.json()) as {
+          gifs?: Array<{ url: string; preview: string | null; label: string }>;
+        };
+        setGifResults(Array.isArray(data.gifs) ? data.gifs : []);
+      } catch {
+        setGifResults([]);
+      } finally {
+        setSearchingGifs(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (format === 'rich') ensureStickerPack();
   }, [format, ensureStickerPack]);
+
+  // Debounced GIF search while the Anime GIFs tab is open.
+  useEffect(() => {
+    if (stickerTab !== 'anime' || !showStickers) return;
+    const q = stickerQuery.trim();
+    if (!q) {
+      setGifResults([]);
+      setSearchingGifs(false);
+      return;
+    }
+    const t = setTimeout(() => handleGifSearch(q), 350);
+    return () => clearTimeout(t);
+  }, [stickerQuery, stickerTab, showStickers, handleGifSearch]);
 
   function updateLine(i: number, patch: Partial<RichLine>) {
     setRich((doc) => {
@@ -208,7 +251,11 @@ export default function Editor({ username }: Props) {
 
   /** Recomputes links + sticker/emoji marks for one line from its text. */
   function syncLineMarks(i: number, text: string) {
-    const marks = buildInlineMarks(text, stickerTokenSet);
+    // Any token that has an explicit url stored on the line counts as a
+    // sticker (covers live/search GIFs inserted via stickerUrls).
+    const extra = new Set<string>();
+    for (const key of Object.keys(rich.lines[i]?.stickerUrls ?? {})) extra.add(key);
+    const marks = buildInlineMarks(text, stickerTokenSet, extra);
     setRich((doc) => {
       const lines = doc.lines.slice();
       if (i < 0 || i >= lines.length) return doc;
@@ -361,9 +408,54 @@ export default function Editor({ username }: Props) {
     setActiveLine(i);
   }
 
+  /**
+   * Inserts a searched GIF into the active line at the caret by giving it a
+   * fresh shortcode token and recording its url on the line, so it renders
+   * as an inline image in the paste (see stickerUrls + buildInlineMarks).
+   */
+  function insertGifUrl(url: string) {
+    const token = `:gif-${gifId()}:`;
+    const i = activeLine;
+    const el = lineRefs.current[i];
+    const currentText = el ? readLineText(el) : (rich.lines[i]?.text ?? '');
+    let at = currentText.length;
+    if (el && document.activeElement === el) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (el.contains(range.startContainer)) {
+          at = offsetWithin(el, range.startContainer, range.startOffset);
+        }
+      }
+    }
+    const newText = currentText.slice(0, at) + token + currentText.slice(at);
+    setRich((doc) => {
+      const lines = doc.lines.slice();
+      if (i < 0 || i >= lines.length) return doc;
+      const s = { ...(lines[i].stickerUrls || {}) };
+      s[token] = url;
+      lines[i] = { ...lines[i], stickerUrls: s };
+      return { ...doc, lines };
+    });
+    syncLineMarks(i, newText);
+    if (el) {
+      el.textContent = newText;
+      placeCaretAt(el, at + token.length);
+      el.focus();
+    }
+    setShowStickers(false);
+    setStickerQuery('');
+    setGifResults([]);
+    setActiveLine(i);
+  }
+
   function switchStickerTab(tab: 'pack' | 'anime') {
     setStickerTab(tab);
-    if (tab === 'anime') ensureNekoGifs();
+    if (tab === 'anime') {
+      ensureNekoGifs();
+      // Keep the search results in sync with the current query on tab open.
+      handleGifSearch(stickerQuery);
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -423,17 +515,13 @@ export default function Editor({ username }: Props) {
 
   const filteredStickers = useMemo(() => {
     const q = stickerQuery.toLowerCase().trim();
-    const pool =
-      stickerTab === 'anime'
-        ? nekoGifs.map((g) => ({ token: g.token, url: g.url, emoji: g.emoji, label: g.label }))
-        : stickerPack;
-    if (!q) return pool.slice(0, 30);
-    return pool
+    if (!q) return stickerPack.slice(0, 30);
+    return stickerPack
       .filter(
         (s) => s.token.toLowerCase().includes(q) || (s.label ?? '').toLowerCase().includes(q),
       )
       .slice(0, 30);
-  }, [stickerQuery, stickerPack, nekoGifs, stickerTab]);
+  }, [stickerQuery, stickerPack]);
 
   const switching = (mode: 'plain' | 'rich') => {
     setFormat(mode);
@@ -815,8 +903,65 @@ export default function Editor({ username }: Props) {
               value={stickerQuery}
               onChange={(e) => setStickerQuery(e.target.value)}
             />
-            {stickerTab === 'anime' && nekoGifs.length === 0 && !stickerQuery ? (
-              <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
+            {stickerTab === 'anime' ? (
+              stickerQuery.trim() ? (
+                searchingGifs ? (
+                  <p className="mt-4 text-sm text-zinc-500">Searching GIFs…</p>
+                ) : gifResults.length === 0 ? (
+                  <p className="mt-4 text-sm text-zinc-500">No GIFs found — try another term.</p>
+                ) : (
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                    {gifResults.map((g) => (
+                      <button
+                        type="button"
+                        key={g.url}
+                        title={g.label}
+                        onClick={() => insertGifUrl(g.url)}
+                        className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={g.preview || g.url}
+                          alt={g.label}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )
+              ) : nekoGifs.length === 0 ? (
+                <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
+              ) : (
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  {nekoGifs.map((g) => (
+                    <button
+                      type="button"
+                      key={g.token}
+                      title={`${g.token} — ${g.label}`}
+                      onClick={() => applyStickerToActiveLine(g.token, g.url)}
+                      className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                    >
+                      {g.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.url}
+                          alt={g.label}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          className="h-8 w-8 object-contain"
+                        />
+                      ) : (
+                        <span className="text-lg">{g.emoji}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
             ) : filteredStickers.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
             ) : (

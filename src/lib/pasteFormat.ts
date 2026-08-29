@@ -206,10 +206,12 @@ export function findTokenShorthands(text: string): TokenHit[] {
 export function buildInlineMarks(
   text: string,
   stickerTokens: ReadonlySet<string>,
+  /** Additional valid sticker tokens for this line, e.g. keys of line.stickerUrls. */
+  extraTokens: ReadonlySet<string> = EMPTY_SET,
 ): InlineMark[] {
   const marks: InlineMark[] = [];
   for (const hit of findTokenShorthands(text)) {
-    if (stickerTokens.has(hit.token)) {
+    if (stickerTokens.has(hit.token) || extraTokens.has(hit.token)) {
       marks.push({ start: hit.start, end: hit.end, kind: 'sticker', value: hit.token });
     } else if (EMOJI_SHORTCUTS[hit.token]) {
       marks.push({ start: hit.start, end: hit.end, kind: 'emoji', value: EMOJI_SHORTCUTS[hit.token] });
@@ -218,6 +220,8 @@ export function buildInlineMarks(
   marks.push(...detectLinks(text));
   return marks.sort((a, b) => a.start - b.start);
 }
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 /** Sorts and drops invalid/overlapping marks defensively (bad data safety). */
 export function sanitizeMarks(marks: InlineMark[] | undefined, textLength: number): InlineMark[] {
