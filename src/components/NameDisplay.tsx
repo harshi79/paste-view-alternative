@@ -39,6 +39,15 @@ type Props = {
   className?: string;
 };
 
+const FALLBACK_FROM = '#a78bfa';
+const FALLBACK_TO = '#22d3ee';
+
+function clamp100(value: number | undefined, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
 export default function NameDisplay({
   text,
   from,
@@ -49,13 +58,21 @@ export default function NameDisplay({
   intensity = 60,
   className = '',
 }: Props) {
+  // Defensive: bad data (missing profile, NULL display_name, malformed
+  // colors) must never crash the render tree.
+  const safeText = typeof text === 'string' ? text : '';
+  const safeFrom = typeof from === 'string' && from ? from : FALLBACK_FROM;
+  const safeTo = typeof to === 'string' && to ? to : FALLBACK_TO;
+  const safeSpeed = clamp100(speed, 50);
+  const safeIntensity = clamp100(intensity, 60);
+
   const vars = useMemo(
-    () => ({ '--name-from': from, '--name-to': to }) as React.CSSProperties,
-    [from, to],
+    () => ({ '--name-from': safeFrom, '--name-to': safeTo }) as React.CSSProperties,
+    [safeFrom, safeTo],
   );
 
   if (effect === 'wave') {
-    return <Wave text={text} vars={vars} intensity={intensity} className={className} />;
+    return <Wave text={safeText} vars={vars} intensity={safeIntensity} className={className} />;
   }
 
   let cls = '';
@@ -67,10 +84,10 @@ export default function NameDisplay({
   else if (effect === 'aurora') cls = 'effect-aurora';
   else if (effect === 'gold') cls = 'effect-gold';
   else if (style === 'gradient') cls = 'effect-gradient-text';
-  const inlineColor = cls === '' ? { color: from } : undefined;
+  const inlineColor = cls === '' ? { color: safeFrom } : undefined;
 
   // speed 0–100 maps to animation-duration scalar (lower speed = slower)
-  const durationScale = useMemo(() => durationFor(speed), [speed]);
+  const durationScale = useMemo(() => durationFor(safeSpeed), [safeSpeed]);
   const style2: React.CSSProperties = {
     ...vars,
     ...inlineColor,
@@ -79,7 +96,7 @@ export default function NameDisplay({
     // intensity tweaks shadow strength for neon/fire/glitch
     filter:
       effect === 'neon' || effect === 'fire'
-        ? `drop-shadow(0 0 ${Math.round(intensity / 8)}px ${from}88)`
+        ? `drop-shadow(0 0 ${Math.round(safeIntensity / 8)}px ${safeFrom}88)`
         : undefined,
   };
 
@@ -87,19 +104,21 @@ export default function NameDisplay({
     return (
       <span className={className} style={vars}>
         <Typewriter
-          text={text}
-          baseColor={style === 'solid' ? from : undefined}
-          from={from}
-          to={to}
-          speed={speed}
+          text={safeText}
+          baseColor={style === 'solid' ? safeFrom : undefined}
+          from={safeFrom}
+          to={safeTo}
+          speed={safeSpeed}
         />
       </span>
     );
   }
 
+  if (safeText === '') return null;
+
   return (
     <span className={`${cls} ${className}`} style={style2}>
-      {text}
+      {safeText}
     </span>
   );
 }
@@ -156,6 +175,8 @@ function Typewriter({
     };
   }, [len, deleting, text, speed]);
 
+  if (!text) return null;
+
   return (
     <>
       <span
@@ -175,7 +196,12 @@ function Typewriter({
 
 // ------------------------------------------------------------------
 // Wave — each letter bobs on a phase offset.
+// The @keyframes wave-letter lives in globals.css (styled-jsx is not
+// SSR'd in the App Router, which previously left the animation broken
+// and coupled it to an out-of-band runtime).
 // ------------------------------------------------------------------
+const WAVE_MAX_LETTERS = 80;
+
 function Wave({
   text,
   vars,
@@ -188,36 +214,38 @@ function Wave({
   className: string;
 }) {
   const amplitude = Math.max(1, Math.round(intensity / 10)); // 1..10 px
+
+  // Memoize the letter spans: the component re-renders on parent state
+  // changes (e.g. every keystroke in the settings preview) and rebuilding
+  // a per-letter animated span every time is wasted work.
+  const letters = useMemo(() => {
+    const chars = Array.from(text.slice(0, WAVE_MAX_LETTERS));
+    return chars.map((ch, i) => (
+      <span
+        key={`${i}-${ch === ' ' ? 'sp' : ch}`}
+        className="inline-block"
+        style={
+          {
+            color: 'var(--name-from)',
+            animation: `wave-letter 1.2s ease-in-out ${(i * 80) % 1200}ms infinite`,
+            '--amp': `${amplitude}px`,
+          } as React.CSSProperties
+        }
+      >
+        {ch === ' ' ? '\u00A0' : ch}
+      </span>
+    ));
+  }, [text, amplitude]);
+
+  if (letters.length === 0) return null;
+
   return (
     <span
       className={`effect-wave ${className}`}
-      style={{
-        ...vars,
-        // the .effect-wave animation is a single transform; we override
-        // here to do letter-by-letter via inline style below.
-        animation: 'none',
-      }}
+      style={{ ...vars, animation: 'none' }}
+      aria-label={text}
     >
-      {Array.from(text).map((ch, i) => (
-        <span
-          key={i}
-          className="inline-block"
-          style={{
-            color: vars['--name-from' as keyof React.CSSProperties] as string,
-            animation: `wave-letter 1.2s ease-in-out ${(i * 80) % 1200}ms infinite`,
-            // amplitude is approximated by tweaking translateY range below
-            ['--amp' as string]: `${amplitude}px`,
-          } as React.CSSProperties}
-        >
-          {ch === ' ' ? '\u00A0' : ch}
-        </span>
-      ))}
-      <style jsx>{`
-        @keyframes wave-letter {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(calc(var(--amp) * -1)); }
-        }
-      `}</style>
+      {letters}
     </span>
   );
 }

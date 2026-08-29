@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import Nav from '@/components/Nav';
+import Logo from '@/components/Logo';
 import { getSessionUser } from '@/lib/auth';
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   username: session.user.username,
                   displayName: session.profile?.displayName ?? null,
                   avatarUrl: session.profile?.avatarUrl ?? null,
+                  statusEmoji: session.profile?.statusEmoji ?? null,
                 }
               : null
           }
@@ -42,11 +44,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
         <footer className="border-t border-white/5 py-8">
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm text-zinc-500 sm:flex-row sm:px-6">
-            <p>
-              <Link href="/" className="font-semibold text-zinc-300 hover:text-white">
-                VibeBin
-              </Link>{' '}
-              — a free PasteView alternative.
+            <p className="flex items-center gap-3">
+              <Link href="/" className="transition-opacity hover:opacity-80" aria-label="VibeBin home">
+                <Logo compact />
+              </Link>
+              <span className="hidden h-4 w-px bg-white/10 sm:block" />
+              <span>A free PasteView alternative.</span>
             </p>
             <p className="text-zinc-600">No premium paywalls · No accounts required for guests</p>
           </div>

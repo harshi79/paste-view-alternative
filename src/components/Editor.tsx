@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LANGUAGES } from '@/lib/languages';
 import { EXPIRY_OPTIONS } from '@/lib/expiry';
@@ -8,22 +8,115 @@ import {
   type RichDoc,
   type RichLine,
   type FontId,
-  type InlineMark,
   FONTS,
   DEFAULT_FONT,
-  detectLinks,
-  EMOJI_SHORTCUTS,
+  buildInlineMarks,
 } from '@/lib/pasteFormat';
+import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
+import { splitLine, lineFont } from './richRender';
+import StickerImage from './StickerImage';
 
 type Props = { username: string | null };
-
-type Sticker = { token: string; url: string | null; emoji: string | null; label: string };
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32, 40] as const;
 const COLORS = [
   '#dbe1f1', '#ffffff', '#a78bfa', '#22d3ee', '#4ade80', '#fbbf24',
   '#f87171', '#f472b6', '#a3e635', '#60a5fa', '#fb7185', '#facc15',
 ] as const;
+
+const tb =
+  'inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white';
+const tbActive = 'border-brand-400/40 bg-brand-500/15 text-brand-100';
+
+function emptyDoc(): RichDoc {
+  return { v: 1, lines: [{ text: '' }] };
+}
+
+function TextIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function RichIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M10 2.5 11.6 7 16 8.6 11.6 10.2 10 14.7 8.4 10.2 4 8.6 8.4 7 10 2.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <path d="M15.5 13.5v3.5M13.75 15.25h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SlidersIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M3.5 5.5h9M16 5.5h.5M3.5 10h4M11 10h5.5M3.5 14.5h11M17.5 14.5h.2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="14" cy="5.5" r="1.7" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="9.5" cy="10" r="1.7" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="15" cy="14.5" r="1.7" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function EyeIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path
+        d="M2.5 10s2.6-4.75 7.5-4.75S17.5 10 17.5 10 14.9 14.75 10 14.75 2.5 10 2.5 10Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      <circle cx="10" cy="10" r="2.1" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function GridIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <rect x="3.25" y="3.25" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="11.25" y="3.25" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="3.25" y="11.25" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="11.25" y="11.25" width="5.5" height="5.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className = 'h-3 w-3', open = false }: { className?: string; open?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      className={`${className} transition-transform ${open ? 'rotate-180' : ''}`}
+      aria-hidden="true"
+    >
+      <path d="m5.5 7.75 4.5 4.5 4.5-4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AlertIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 6.5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="10" cy="13.4" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
 
 export default function Editor({ username }: Props) {
   const router = useRouter();
@@ -39,72 +132,89 @@ export default function Editor({ username }: Props) {
   const [busy, setBusy] = useState(false);
 
   // rich-text state
-  const [rich, setRich] = useState<RichDoc>({ v: 1, lines: [{ text: '' }] });
-  const [stickerPack, setStickerPack] = useState<Sticker[]>([]);
+  const [rich, setRich] = useState<RichDoc>(emptyDoc);
+  const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
   const [activeLine, setActiveLine] = useState(0);
   const [showStickers, setShowStickers] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [stickerQuery, setStickerQuery] = useState('');
   const [format, setFormat] = useState<'plain' | 'rich'>('plain');
 
-  // load sticker pack once
-  useEffect(() => {
-    fetch('/api/stickers')
-      .then((r) => (r.ok ? r.json() : { stickers: [] }))
-      .then((d) => setStickerPack(d.stickers ?? []))
-      .catch(() => {});
+  const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const packLoaded = useRef(false);
+  const stickerTokenSet = useMemo(() => new Set(stickerPack.map((s) => s.token)), [stickerPack]);
+
+  /** Loads the sticker pack on first need (panel open or rich mode). */
+  const ensureStickerPack = useCallback(() => {
+    if (packLoaded.current) return;
+    packLoaded.current = true;
+    loadStickerPack()
+      .then((pack) => {
+        setStickerPack(pack);
+        // Mark any tokens already typed/loaded in every line.
+        setRich((doc) => ({
+          ...doc,
+          lines: doc.lines.map((line) => ({
+            ...line,
+            marks: buildInlineMarks(line.text ?? '', new Set(pack.map((s) => s.token))),
+          })),
+        }));
+      })
+      .catch(() => {
+        packLoaded.current = false;
+      });
   }, []);
 
-  // auto-detect links whenever user stops typing in rich mode
-  const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  useEffect(() => {
+    if (format === 'rich') ensureStickerPack();
+  }, [format, ensureStickerPack]);
 
   function updateLine(i: number, patch: Partial<RichLine>) {
     setRich((doc) => {
       const lines = doc.lines.slice();
+      if (i < 0 || i >= lines.length) return doc;
       lines[i] = { ...lines[i], ...patch };
       return { ...doc, lines };
     });
   }
 
-  function insertText(i: number, text: string) {
+  /** Recomputes links + sticker/emoji marks for one line from its text. */
+  function syncLineMarks(i: number, text: string) {
+    const marks = buildInlineMarks(text, stickerTokenSet);
     setRich((doc) => {
       const lines = doc.lines.slice();
-      const before = lines[i] ?? { text: '' };
-      const next: RichLine = { ...before, text: before.text + text };
-      lines[i] = next;
+      if (i < 0 || i >= lines.length) return doc;
+      lines[i] = { ...lines[i], text, marks };
       return { ...doc, lines };
     });
   }
 
-  function splitLine(i: number, at: number) {
+  function splitLineAt(i: number, at: number) {
     setRich((doc) => {
       const lines = doc.lines.slice();
       const line = lines[i];
-      if (!line) return doc;
+      if (!line || at < 0 || at > line.text.length) return doc;
       const left: RichLine = { ...line, text: line.text.slice(0, at) };
       const right: RichLine = {
         text: line.text.slice(at),
         font: line.font,
         size: line.size,
         color: line.color,
-        marks: line.marks
-          ?.map((m) => ({ ...m }))
-          .filter((m) => m.start >= at)
-          .map((m) => ({ ...m, start: m.start - at, end: m.end - at })),
       };
-      // re-keep left-marks too
-      left.marks = line.marks
-        ?.map((m) => ({ ...m }))
-        .filter((m) => m.end <= at);
+      left.marks = undefined;
+      right.marks = undefined;
       lines.splice(i, 1, left, right);
       return { ...doc, lines };
     });
+    // Marks for both halves are recomputed on the next input; compute now.
+    const text = rich.lines[i]?.text ?? '';
+    syncLineMarks(i, text.slice(0, at));
+    syncLineMarks(i + 1, text.slice(at));
   }
 
   function handleLineInput(i: number, e: React.FormEvent<HTMLDivElement>) {
-    const el = e.currentTarget;
-    const text = el.innerText;
-    updateLine(i, { text });
-    autoLinks(i, text);
+    const text = e.currentTarget.innerText ?? '';
+    syncLineMarks(i, text);
   }
 
   function handleLineKey(i: number, e: React.KeyboardEvent<HTMLDivElement>) {
@@ -112,63 +222,35 @@ export default function Editor({ username }: Props) {
       e.preventDefault();
       const sel = window.getSelection();
       const at = sel?.focusOffset ?? (rich.lines[i]?.text.length ?? 0);
-      splitLine(i, at);
-      // focus the new line
+      splitLineAt(i, at);
       requestAnimationFrame(() => {
         const next = lineRefs.current[i + 1];
-        next?.focus();
+        if (next) {
+          next.focus();
+          const s = window.getSelection();
+          if (s) {
+            const range = document.createRange();
+            range.selectNodeContents(next);
+            range.collapse(false);
+            s.removeAllRanges();
+            s.addRange(range);
+          }
+        }
         setActiveLine(i + 1);
       });
     }
   }
 
-  function autoLinks(i: number, text: string) {
-    const detected = detectLinks(text);
-    setRich((doc) => {
-      const lines = doc.lines.slice();
-      const line = lines[i];
-      if (!line) return doc;
-      // drop existing link marks
-      const otherMarks = (line.marks ?? []).filter((m) => m.kind !== 'link');
-      lines[i] = { ...line, marks: [...otherMarks, ...detected] };
-      return { ...doc, lines };
-    });
-  }
-
-  function applyStickerToActiveLine(token: string, fallback: string) {
+  function applyStickerToActiveLine(token: string) {
     const i = activeLine;
     const line = rich.lines[i] ?? { text: '' };
-    const pos = line.text.length;
-    updateLine(i, {
-      text: line.text + fallback,
-      marks: [
-        ...(line.marks ?? []),
-        { start: pos, end: pos + fallback.length, kind: 'sticker', value: token },
-      ],
-    });
+    const text = line.text + token;
+    syncLineMarks(i, text);
     setShowStickers(false);
     setStickerQuery('');
-    lineRefs.current[i]?.focus();
-  }
-
-  function applyEmojiShortcut(i: number, text: string) {
-    // expand :shortcuts: at the end of the line into a single emoji
-    const match = text.match(/:[a-z0-9+_-]+:$/i);
-    if (!match) return;
-    const token = match[0];
-    const replacement = EMOJI_SHORTCUTS[token];
-    if (!replacement) return;
-    const at = text.length - token.length;
-    const newText = text.slice(0, at) + replacement;
-    const newMarks = (rich.lines[i]?.marks ?? [])
-      .filter((m) => m.end <= at)
-      .concat({
-        start: at,
-        end: at + replacement.length,
-        kind: 'emoji',
-        value: replacement,
-      });
-    updateLine(i, { text: newText, marks: newMarks });
+    requestAnimationFrame(() => {
+      lineRefs.current[i]?.focus();
+    });
   }
 
   async function submit(e: React.FormEvent) {
@@ -223,12 +305,6 @@ export default function Editor({ username }: Props) {
     }
   }
 
-  const input =
-    'w-full rounded-xl border border-white/10 bg-night-800/80 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none transition-colors focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-  const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
-  const chip = 'rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-zinc-200 transition hover:bg-white/10';
-  const chipActive = 'border-brand-400/60 bg-brand-500/20 text-brand-100';
-
   const filteredStickers = useMemo(() => {
     const q = stickerQuery.toLowerCase().trim();
     if (!q) return stickerPack.slice(0, 24);
@@ -239,302 +315,445 @@ export default function Editor({ username }: Props) {
       .slice(0, 24);
   }, [stickerQuery, stickerPack]);
 
+  const switching = (mode: 'plain' | 'rich') => {
+    setFormat(mode);
+    if (mode === 'rich') ensureStickerPack();
+    setShowPreview(false);
+  };
+
+  const modeBtn = (active: boolean) =>
+    `relative inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+      active ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-200'
+    }`;
+
+  const fieldLabel = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500';
+  const languageLabel = LANGUAGES.find((l) => l.id === language)?.label ?? 'Plain text';
+  const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
+
   return (
     <form
       onSubmit={submit}
-      className="animate-fade-up rounded-2xl border border-white/10 bg-night-800/60 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:p-6"
+      onKeyDown={(e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.requestSubmit();
+        }
+      }}
+      className="animate-fade-up overflow-hidden rounded-2xl border border-white/[0.08] bg-night-900/70 shadow-[0_24px_64px_-28px_rgba(0,0,0,0.75)]"
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold text-white">Create a new paste</h2>
-        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-400">
+      {/* Header — the title is the primary field. */}
+      <div className="flex flex-col gap-2.5 border-b border-white/[0.06] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+        <input
+          type="text"
+          aria-label="Paste title"
+          className="w-full bg-transparent text-xl font-semibold tracking-tight text-white placeholder-zinc-600 outline-none sm:text-2xl"
+          placeholder="Untitled paste"
+          value={title}
+          maxLength={120}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <p className="shrink-0 text-xs text-zinc-500">
           {username ? (
             <>
-              posting as <span className="font-semibold text-brand-300">@{username}</span>
+              posting as <span className="font-semibold text-zinc-300">@{username}</span>
             </>
           ) : (
-            'as guest — no account needed'
+            'guest paste — no account needed'
           )}
-        </span>
+        </p>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <label className={label} htmlFor="title">
-            Title
-          </label>
-          <input
-            id="title"
-            className={input}
-            placeholder="Untitled"
-            value={title}
-            maxLength={120}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
-
-        {/* Mode tabs */}
-        <div className="flex items-center gap-2">
+      {/* Toolbar — content mode, inline formatting (rich), options. */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 sm:px-5">
+        <div
+          role="tablist"
+          aria-label="Content mode"
+          className="flex items-center rounded-lg border border-white/10 bg-night-950/60 p-0.5"
+        >
           <button
             type="button"
-            onClick={() => setFormat('plain')}
-            className={`${chip} ${format === 'plain' ? chipActive : ''}`}
+            role="tab"
+            aria-selected={format === 'plain'}
+            onClick={() => switching('plain')}
+            className={modeBtn(format === 'plain')}
           >
-            📝 Plain
+            <TextIcon />
+            Text
           </button>
           <button
             type="button"
-            onClick={() => setFormat('rich')}
-            className={`${chip} ${format === 'rich' ? chipActive : ''}`}
+            role="tab"
+            aria-selected={format === 'rich'}
+            onClick={() => switching('rich')}
+            className={modeBtn(format === 'rich')}
           >
-            ✨ Rich
+            <RichIcon />
+            Rich
           </button>
-          <span className="ml-auto text-xs text-zinc-500">
-            {format === 'rich'
-              ? `${rich.lines.reduce((s, l) => s + l.text.length, 0).toLocaleString()} chars · links auto-clickable`
-              : `${content.length.toLocaleString()} / 100,000`}
-          </span>
         </div>
 
+        {format === 'rich' && (
+          <>
+            <span className="hidden h-4 w-px bg-white/10 sm:block" />
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Line formatting">
+              <select
+                className="input !w-auto !px-2 !py-1.5 !text-xs"
+                aria-label="Font"
+                title="Font"
+                value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
+                onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
+              >
+                {FONTS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input !w-auto !px-2 !py-1.5 !text-xs"
+                aria-label="Font size"
+                title="Font size"
+                value={rich.lines[activeLine]?.size ?? 14}
+                onChange={(e) => updateLine(activeLine, { size: Number(e.target.value) })}
+              >
+                {FONT_SIZES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}px
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1 pl-1">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={`Text color ${c}`}
+                    aria-label={`Text color ${c}`}
+                    onClick={() => updateLine(activeLine, { color: c })}
+                    className={`h-[18px] w-[18px] rounded-[5px] border transition-transform hover:scale-110 ${
+                      (rich.lines[activeLine]?.color ?? '#dbe1f1') === c
+                        ? 'border-white/80 ring-1 ring-white/40'
+                        : 'border-white/15'
+                    }`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+            </div>
+            <span className="hidden h-4 w-px bg-white/10 sm:block" />
+            <button
+              type="button"
+              className={showStickers ? `${tb} ${tbActive}` : tb}
+              aria-expanded={showStickers}
+              aria-controls="sticker-picker"
+              onClick={() => {
+                setShowStickers((v) => !v);
+                ensureStickerPack();
+              }}
+            >
+              <GridIcon />
+              Stickers
+            </button>
+            <button
+              type="button"
+              className={`${tb} ${showPreview ? tbActive : ''}`}
+              aria-pressed={showPreview}
+              onClick={() => setShowPreview((v) => !v)}
+            >
+              <EyeIcon />
+              Preview
+            </button>
+          </>
+        )}
+
+        <button
+          type="button"
+          className={`${tb} ml-auto`}
+          aria-expanded={showOptions}
+          aria-controls="paste-options"
+          onClick={() => setShowOptions((v) => !v)}
+        >
+          <SlidersIcon />
+          Options
+          <ChevronIcon open={showOptions} />
+        </button>
+      </div>
+
+      {/* Settings panel — collapsed by default, keeps the editor uncluttered. */}
+      {showOptions && (
+        <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-night-950/30 px-4 py-4 sm:px-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className={fieldLabel} htmlFor="language">
+                Language
+              </label>
+              <select id="language" className="input" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                {LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={fieldLabel} htmlFor="expires">
+                Expires in
+              </label>
+              <select id="expires" className="input" value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}>
+                {EXPIRY_OPTIONS.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={fieldLabel} htmlFor="visibility">
+                Visibility
+              </label>
+              <select
+                id="visibility"
+                className="input"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as 'public' | 'unlisted')}
+              >
+                <option value="public">Public — listed</option>
+                <option value="unlisted">Unlisted — link only</option>
+              </select>
+            </div>
+            <div>
+              <label className={fieldLabel} htmlFor="password">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                className="input"
+                placeholder="None"
+                value={password}
+                maxLength={64}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={fieldLabel} htmlFor="title-color">
+                Title color
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  id="title-color"
+                  type="color"
+                  value={titleColor || '#a78bfa'}
+                  onChange={(e) => setTitleColor(e.target.value)}
+                  className="h-8 w-11 cursor-pointer rounded-md border border-white/10 bg-transparent p-0.5"
+                />
+                <span className="font-mono text-xs text-zinc-500">
+                  {titleColor ? titleColor.toUpperCase() : 'Default'}
+                </span>
+                {titleColor && (
+                  <button
+                    type="button"
+                    onClick={() => setTitleColor('')}
+                    className="text-xs font-medium text-zinc-400 underline-offset-2 transition-colors hover:text-white hover:underline"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* The paste body — one large, quiet workspace. */}
+      <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
         {format === 'plain' ? (
-          <div>
-            <label className={label} htmlFor="content">
-              Content
-            </label>
+          <div className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-night-950/60 transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10">
             <textarea
               id="content"
-              className={`${input} min-h-[240px] resize-y font-mono text-[13px] leading-relaxed`}
+              aria-label="Paste content"
+              className="block min-h-[420px] w-full resize-y bg-transparent px-4 py-4 font-mono text-[13px] leading-6 text-zinc-100 placeholder-zinc-600 outline-none md:min-h-[520px]"
               placeholder="Paste your code or text here…"
               value={content}
               maxLength={100_000}
               onChange={(e) => setContent(e.target.value)}
               spellCheck={false}
             />
-            <p className="mt-1 text-xs text-zinc-500">
-              Any http(s) / www / email link in your paste will be clickable automatically. No link
-              previews are generated.
-            </p>
+            <span className="pointer-events-none absolute right-3 top-3 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+              {languageLabel}
+            </span>
           </div>
-        ) : (
-          <div>
-            <div className="mb-1.5 flex flex-wrap items-center gap-2">
-              <label className={`${label} mb-0`}>Rich content</label>
-              <span className="ml-auto flex flex-wrap items-center gap-1">
-                <select
-                  className={`${input} !w-auto !py-1 text-xs`}
-                  value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
-                  onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
-                >
-                  {FONTS.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      Font: {f.label}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className={`${input} !w-auto !py-1 text-xs`}
-                  value={rich.lines[activeLine]?.size ?? 14}
-                  onChange={(e) =>
-                    updateLine(activeLine, { size: Number(e.target.value) })
-                  }
-                >
-                  {FONT_SIZES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}px
-                    </option>
-                  ))}
-                </select>
-                <span className="ml-2 inline-flex items-center gap-1">
-                  {COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      title={c}
-                      onClick={() => updateLine(activeLine, { color: c })}
-                      className="h-5 w-5 rounded border border-white/15 transition hover:scale-110"
-                      style={{ background: c }}
-                    />
-                  ))}
-                </span>
-              </span>
-            </div>
-
-            <div className="rounded-xl border border-white/10 bg-night-900/80 p-3">
+        ) : showPreview ? (
+          <div
+            aria-label="Live preview"
+            className="min-h-[420px] overflow-x-auto rounded-xl border border-white/[0.08] bg-night-950/40 px-4 py-4 md:min-h-[520px]"
+          >
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+              Live preview
+            </p>
+            <div className="text-sm leading-7">
               {rich.lines.map((line, i) => (
-                <div
-                  key={i}
-                  ref={(el) => {
-                    lineRefs.current[i] = el;
-                  }}
-                  contentEditable
-                  suppressContentEditableWarning
-                  spellCheck={false}
-                  onInput={(e) => handleLineInput(i, e)}
-                  onKeyDown={(e) => {
-                    handleLineKey(i, e);
-                    // also check emoji shortcodes
-                    setTimeout(() => applyEmojiShortcut(i, lineRefs.current[i]?.innerText ?? ''), 0);
-                  }}
-                  onFocus={() => setActiveLine(i)}
-                  className="min-h-[1.6em] rounded px-1 outline-none focus:bg-white/5"
-                  style={{
-                    fontFamily: FONTS.find((f) => f.id === (line.font ?? DEFAULT_FONT))?.css,
-                    fontSize: `${line.size ?? 14}px`,
-                    color: line.color ?? '#dbe1f1',
-                  }}
-                />
+                <PreviewLine key={i} line={line} pack={stickerPack} />
               ))}
             </div>
+          </div>
+        ) : (
+          <div
+            onClick={(e) => {
+              if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
+            }}
+            className="min-h-[420px] rounded-xl border border-white/[0.08] bg-night-950/60 px-4 py-4 transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10 md:min-h-[520px]"
+          >
+            {rich.lines.map((line, i) => (
+              <div
+                key={i}
+                ref={(el) => {
+                  lineRefs.current[i] = el;
+                }}
+                contentEditable
+                suppressContentEditableWarning
+                spellCheck={false}
+                data-placeholder={i === 0 ? 'Type or paste your content…' : `Line ${i + 1}`}
+                onInput={(e) => handleLineInput(i, e)}
+                onKeyDown={(e) => handleLineKey(i, e)}
+                onFocus={() => setActiveLine(i)}
+                className="rich-line min-h-[1.6em] whitespace-pre-wrap break-words rounded px-1 outline-none transition-colors focus:bg-white/[0.04]"
+                style={{
+                  fontFamily: lineFont(line),
+                  fontSize: `${line.size ?? 14}px`,
+                  color: line.color ?? '#dbe1f1',
+                }}
+              >
+                {line.text ?? ''}
+              </div>
+            ))}
+          </div>
+        )}
 
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        {format === 'rich' && !showPreview && (
+          <p className="mt-2 px-1 text-xs text-zinc-600">
+            Per-line formatting applies to the line you last clicked · type{' '}
+            <code className="font-mono text-zinc-500">:wave:</code> or{' '}
+            <code className="font-mono text-zinc-500">;happy;</code> for stickers
+          </p>
+        )}
+
+        {/* Sticker picker — inline panel, always in reach on mobile. */}
+        {format === 'rich' && showStickers && (
+          <div id="sticker-picker" className="animate-pop mt-3 rounded-xl border border-white/[0.08] bg-night-950/40 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Stickers & emoji
+              </p>
               <button
                 type="button"
-                className={chip}
-                onClick={() => setShowStickers((v) => !v)}
+                aria-label="Close sticker picker"
+                onClick={() => setShowStickers(false)}
+                className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-white"
               >
-                😺 Stickers & emoji
+                <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
+                  <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
               </button>
-              <span>Type :fire: :rocket: etc. for emoji · paste a URL for clickable links</span>
             </div>
-
-            {showStickers && (
-              <div className="animate-pop mt-2 rounded-xl border border-white/10 bg-night-900 p-3">
-                <input
-                  className={`${input} mb-2`}
-                  placeholder="Search stickers (token, e.g. wave)…"
-                  value={stickerQuery}
-                  onChange={(e) => setStickerQuery(e.target.value)}
-                />
-                {filteredStickers.length === 0 ? (
-                  <p className="text-xs text-zinc-500">No stickers yet — ask an admin to add some.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {filteredStickers.map((s) => (
-                      <button
-                        type="button"
-                        key={s.token}
-                        title={`${s.token} — ${s.label || ''}`}
-                        onClick={() => applyStickerToActiveLine(s.token, s.token)}
-                        className="flex h-12 w-12 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-lg hover:border-brand-400/60"
-                      >
-                        {s.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={s.url} alt={s.label || s.token} className="h-8 w-8 object-contain" />
-                        ) : (
-                          <span>{s.emoji ?? s.token}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <input
+              className="input !py-2 text-sm"
+              placeholder="Search stickers — try “wave”, “fire”…"
+              value={stickerQuery}
+              onChange={(e) => setStickerQuery(e.target.value)}
+            />
+            {filteredStickers.length === 0 ? (
+              <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
+            ) : (
+              <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                {filteredStickers.map((s) => (
+                  <button
+                    type="button"
+                    key={s.token}
+                    title={`${s.token} — ${s.label || ''}`}
+                    onClick={() => applyStickerToActiveLine(s.token)}
+                    className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                  >
+                    {s.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.url}
+                        alt={s.label || s.token}
+                        loading="lazy"
+                        decoding="async"
+                        className="h-8 w-8 object-contain"
+                      />
+                    ) : (
+                      <span className="text-lg">{s.emoji ?? s.token}</span>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
           </div>
         )}
+      </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div>
-            <label className={label} htmlFor="language">
-              Language
-            </label>
-            <select id="language" className={input} value={language} onChange={(e) => setLanguage(e.target.value)}>
-              {LANGUAGES.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label} htmlFor="expires">
-              Expires in
-            </label>
-            <select id="expires" className={input} value={expiresIn} onChange={(e) => setExpiresIn(e.target.value)}>
-              {EXPIRY_OPTIONS.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={label} htmlFor="visibility">
-              Visibility
-            </label>
-            <select
-              id="visibility"
-              className={input}
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as 'public' | 'unlisted')}
-            >
-              <option value="public">Public — listed</option>
-              <option value="unlisted">Unlisted — link only</option>
-            </select>
-          </div>
-          <div>
-            <label className={label} htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              className={input}
-              placeholder="Optional lock"
-              value={password}
-              maxLength={64}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowOptions(!showOptions)}
-            className="text-xs font-medium text-brand-300 hover:text-brand-200"
-          >
-            {showOptions ? '− Hide style options' : '+ Title color'}
-          </button>
-          {showOptions && (
-            <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3">
-              <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Title color
-              </label>
-              <input
-                type="color"
-                value={titleColor || '#a78bfa'}
-                onChange={(e) => setTitleColor(e.target.value)}
-                className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent"
-              />
-              {titleColor && (
-                <button
-                  type="button"
-                  onClick={() => setTitleColor('')}
-                  className="text-xs text-zinc-400 hover:text-white"
-                >
-                  reset
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {error && (
-          <p className="animate-pop rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-bold text-white shadow-lg shadow-brand-600/40 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center gap-2.5 border-t border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300 sm:px-5"
         >
-          {busy ? 'Creating paste…' : 'Create paste'}
-        </button>
-        <p className="text-center text-xs text-zinc-500">
-          The share link will be available on your dashboard after creation.
+          <AlertIcon />
+          {error}
+        </div>
+      )}
+
+      {/* Footer — quiet status, one clear action. */}
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5 ${
+          error ? '' : 'border-t border-white/[0.06]'
+        }`}
+      >
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+          <span>
+            {format === 'rich'
+              ? `${richChars.toLocaleString()} chars`
+              : `${content.length.toLocaleString()} / 100,000 chars`}
+          </span>
+          <span className="hidden h-3 w-px bg-white/10 sm:block" />
+          <span className="hidden sm:inline">
+            {format === 'rich'
+              ? 'URLs auto-link · no previews generated'
+              : 'links auto-link · no previews generated'}
+          </span>
+          <kbd className="hidden rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 lg:inline-block">
+            Ctrl/⌘ + Enter
+          </kbd>
         </p>
+        <button type="submit" disabled={busy} className="btn-primary min-w-[150px]">
+          {busy ? 'Creating…' : 'Create paste'}
+        </button>
       </div>
     </form>
+  );
+}
+
+/** Renders one rich line as it will appear in the final paste. */
+function PreviewLine({ line, pack }: { line: RichLine; pack: StickerEntry[] }) {
+  const segments = splitLine(line, {
+    renderSticker: (m, slice) => <StickerImage token={m.value} fallback={slice} pack={pack} />,
+    renderEmoji: (m) => (
+      <span className="text-[1.05em]" title={m.value}>
+        {m.value}
+      </span>
+    ),
+  });
+  return (
+    <div
+      className="whitespace-pre-wrap break-words"
+      style={{
+        fontFamily: lineFont(line),
+        fontSize: line.size ? `${line.size}px` : '14px',
+        color: line.color ?? '#dbe1f1',
+      }}
+    >
+      {segments}
+    </div>
   );
 }

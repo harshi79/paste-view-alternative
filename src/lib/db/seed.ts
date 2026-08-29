@@ -35,6 +35,20 @@ const SEED_STICKERS = [
   { token: ':tada:', url: pngStickerUrl('🎉', '#f472b6'), emoji: '🎉', label: 'Tada' },
   { token: ':bug:', url: pngStickerUrl('🐛', '#84cc16'), emoji: '🐛', label: 'Bug' },
   { token: ':heart:', url: pngStickerUrl('❤️', '#f87171'), emoji: '❤️', label: 'Heart' },
+
+  // Default anime GIF pack — free reaction GIFs from the keyless
+  // NekosBest API (https://nekos.best, CORS-enabled, no API key).
+  // URLs are stable per-file assets; emoji is the offline fallback.
+  { token: ':hug:', url: 'https://nekos.best/api/v2/hug/350aee04-6ec3-40a9-b45e-15c754b9c25d.gif', emoji: '🤗', label: 'Anime hug' },
+  { token: ':kiss:', url: 'https://nekos.best/api/v2/kiss/5a0e8e01-8992-4b7a-91ed-2bbf3ac7e5b9.gif', emoji: '😘', label: 'Anime kiss' },
+  { token: ':pat:', url: 'https://nekos.best/api/v2/pat/e704d636-0ed6-4559-92ec-61568fd10ef6.gif', emoji: '🖐️', label: 'Anime pat' },
+  { token: ':blush:', url: 'https://nekos.best/api/v2/blush/50b11542-3d86-4368-af3c-1aa060cfcb72.gif', emoji: '😊', label: 'Anime blush' },
+  { token: ':cry:', url: 'https://nekos.best/api/v2/cry/eea3fe7e-0846-4e60-afc0-7e1a787eb556.gif', emoji: '😢', label: 'Anime cry' },
+  { token: ':wink:', url: 'https://nekos.best/api/v2/wink/75a33d9e-18a6-4777-8b0f-26231a8a6cfe.gif', emoji: '😉', label: 'Anime wink' },
+  { token: ':happy:', url: 'https://nekos.best/api/v2/happy/1158fd04-ee35-4897-afbd-ca397ecc6c3c.gif', emoji: '😄', label: 'Anime happy' },
+  { token: ':dance:', url: 'https://nekos.best/api/v2/dance/52b1e250-a89c-4c65-93ac-d490d54c700a.gif', emoji: '💃', label: 'Anime dance' },
+  { token: ':cuddle:', url: 'https://nekos.best/api/v2/cuddle/84b24863-5b47-495c-a9ee-8226655553c5.gif', emoji: '🥰', label: 'Anime cuddle' },
+  { token: ':anime-wave:', url: 'https://nekos.best/api/v2/wave/3c855905-a12a-4bd1-8938-57067b791b0e.gif', emoji: '👋', label: 'Anime wave' },
 ];
 
 export async function seedIfEmpty(db: DB) {

@@ -52,6 +52,19 @@ const SCHEMA_STATEMENTS = [
   // New columns added in v2 — backfill for existing deployments.
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_speed integer NOT NULL DEFAULT 50`,
   `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_intensity integer NOT NULL DEFAULT 60`,
+  // v3 — emoji status beside the name / username.
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status_emoji text NOT NULL DEFAULT ''`,
+  `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS status_text text NOT NULL DEFAULT ''`,
+
+  `CREATE TABLE IF NOT EXISTS password_resets (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash text NOT NULL UNIQUE,
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets (user_id)`,
 
   `CREATE TABLE IF NOT EXISTS pastes (
     id text PRIMARY KEY,
@@ -66,11 +79,28 @@ const SCHEMA_STATEMENTS = [
     expires_at timestamptz,
     pinned boolean NOT NULL DEFAULT false,
     views integer NOT NULL DEFAULT 0,
+    likes_count integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'plain'`,
+  // v4 — like counter (likes rows are the source of truth for dedupe).
+  `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS likes_count integer NOT NULL DEFAULT 0`,
   `CREATE INDEX IF NOT EXISTS pastes_user_idx ON pastes (user_id)`,
   `CREATE INDEX IF NOT EXISTS pastes_created_idx ON pastes (created_at)`,
+
+  // Likes — a paste can be liked or unliked (no dislikes).
+  // One like per signed-in user, one per anonymous IP (salted hash).
+  `CREATE TABLE IF NOT EXISTS likes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    paste_id text NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+    user_id uuid REFERENCES users(id) ON DELETE CASCADE,
+    ip_hash text,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS likes_paste_idx ON likes (paste_id)`,
+  `CREATE INDEX IF NOT EXISTS likes_user_idx ON likes (user_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS likes_paste_user_idx ON likes (paste_id, user_id) WHERE user_id IS NOT NULL`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS likes_paste_ip_idx ON likes (paste_id, ip_hash) WHERE ip_hash IS NOT NULL`,
 
   // Per-IP signup tracking (max 3 accounts per IP).
   `CREATE TABLE IF NOT EXISTS signup_ips (

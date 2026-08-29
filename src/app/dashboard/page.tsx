@@ -25,6 +25,7 @@ export default async function DashboardPage({ searchParams }: Props) {
     .orderBy(desc(pastes.pinned), desc(pastes.createdAt));
 
   const totalViews = rows.reduce((s, p) => s + p.views, 0);
+  const totalLikes = rows.reduce((s, p) => s + (p.likesCount ?? 0), 0);
 
   return (
     <div className="pt-10">
@@ -44,6 +45,10 @@ export default async function DashboardPage({ searchParams }: Props) {
           <div className="card px-5 py-3 text-center">
             <p className="text-2xl font-black text-white">{formatViews(totalViews)}</p>
             <p className="text-xs text-zinc-500">total views</p>
+          </div>
+          <div className="card px-5 py-3 text-center">
+            <p className="text-2xl font-black text-white">♥ {formatViews(totalLikes)}</p>
+            <p className="text-xs text-zinc-500">total likes</p>
           </div>
           <Link
             href={`/u/${user.username}`}
@@ -71,6 +76,7 @@ export default async function DashboardPage({ searchParams }: Props) {
           language: p.language,
           visibility: p.visibility,
           views: p.views,
+          likesCount: p.likesCount ?? 0,
           pinned: p.pinned,
           hasPassword: !!p.passwordHash,
           expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,

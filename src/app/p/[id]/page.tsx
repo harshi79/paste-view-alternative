@@ -3,8 +3,10 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
-import { pastes, users, profiles } from '@/lib/db/schema';
+import { pastes, users, profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
+import { getClientIp } from '@/lib/ip';
+import { getLikeState, likeActor } from '@/lib/likes';
 import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
 import { formatViews, timeAgo } from '@/lib/format';
 import { parsePasteContent, isRichDoc } from '@/lib/pasteFormat';
@@ -16,6 +18,7 @@ import ExpiryCountdown from '@/components/ExpiryCountdown';
 import CopyButton from '@/components/CopyButton';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import Avatar from '@/components/Avatar';
+import LikeButton from '@/components/LikeButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,8 +77,9 @@ export default async function PastePage({ params }: Props) {
 
   const locked = !!paste.passwordHash && !isOwner;
 
-  // Author lookup + view increment happen concurrently.
-  const [authorRows] = await Promise.all([
+  // Author lookup, view increment, sticker pack and the like state are
+  // independent — run them concurrently (one DB round-trip window).
+  const [authorRows, stickerRows, likeState] = await Promise.all([
     paste.userId
       ? db
           .select({
@@ -89,7 +93,22 @@ export default async function PastePage({ params }: Props) {
           .where(eq(users.id, paste.userId))
           .limit(1)
       : Promise.resolve([]),
-    locked ? Promise.resolve() : incrementPasteViews(paste.id),
+    locked
+      ? Promise.resolve([])
+      : db
+          .select({
+            token: stickers.token,
+            url: stickers.url,
+            emoji: stickers.emoji,
+            label: stickers.label,
+          })
+          .from(stickers),
+    (async () => {
+      const ip = await getClientIp();
+      // Paste row is already loaded above — pass its counter to avoid a
+      // duplicate read; only the "did I like it" lookup runs.
+      return getLikeState(paste.id, likeActor(session?.user.id, ip), paste.likesCount ?? 0);
+    })(),
   ]);
   const authorRow = authorRows[0] ?? null;
 
@@ -143,6 +162,7 @@ export default async function PastePage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <LikeButton pasteId={paste.id} initialCount={likeState.count} initialLiked={likeState.liked} />
           <CopyLinkButton id={paste.id} />
           {!locked && isRich && isRichDoc(parsed) && (
             <CopyButton text={extractPlainText(parsed)} label="Copy content" />
@@ -172,7 +192,7 @@ export default async function PastePage({ params }: Props) {
         <UnlockForm pasteId={paste.id} />
       ) : isRich && isRichDoc(parsed) ? (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
-          <RichPasteView doc={parsed} />
+          <RichPasteView doc={parsed} stickers={stickerRows} />
         </div>
       ) : (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>

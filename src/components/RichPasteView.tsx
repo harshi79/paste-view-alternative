@@ -1,36 +1,50 @@
-import type { RichDoc, RichLine } from '@/lib/pasteFormat';
-import { fontCss } from '@/lib/pasteFormat';
-import StickerSpan from './StickerSpan';
+import type { RichDoc, RichLine, InlineMark } from '@/lib/pasteFormat';
+import { findSticker } from '@/lib/stickerPack';
+import { splitLine, lineFont } from './richRender';
 
-type Props = { doc: RichDoc };
+export type StickerPackEntry = {
+  token: string;
+  url: string | null;
+  emoji: string | null;
+  label: string;
+};
+
+type Props = { doc: RichDoc; stickers?: StickerPackEntry[] };
 
 /**
  * Server component: renders a rich paste. Links are clickable, never
- * previewed; stickers/emoji are rendered as tokens inline; lines can
- * override font, size, and color.
+ * previewed; stickers/emoji render as inline images with no shortcode
+ * text visible. The sticker pack is passed from the server so the page
+ * needs no extra client fetch or flash of `:wave:` text.
  */
-export default function RichPasteView({ doc }: Props) {
+export default function RichPasteView({ doc, stickers }: Props) {
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-night-900/80">
       <div className="overflow-x-auto px-5 py-4 leading-7">
         {doc.lines.length === 0 ? (
           <p className="text-sm italic text-zinc-500">(empty paste)</p>
         ) : (
-          doc.lines.map((line, i) => <RichLine key={i} line={line} />)
+          doc.lines.map((line, i) => <RichLine key={i} line={line} stickers={stickers} />)
         )}
       </div>
     </div>
   );
 }
 
-function RichLine({ line }: { line: RichLine }) {
-  const font = fontCss(line.font) ?? fontCss('mono');
-  const segments = splitLine(line);
+function RichLine({ line, stickers }: { line: RichLine; stickers?: StickerPackEntry[] }) {
+  const segments = splitLine(line, {
+    renderSticker: (mark, slice) => <StickerImg mark={mark} slice={slice} stickers={stickers} />,
+    renderEmoji: (mark) => (
+      <span className="text-[1.05em]" title={mark.value}>
+        {mark.value}
+      </span>
+    ),
+  });
   return (
     <div
       className="whitespace-pre-wrap break-words"
       style={{
-        fontFamily: font,
+        fontFamily: lineFont(line),
         fontSize: line.size ? `${line.size}px` : '14px',
         color: line.color ?? '#dbe1f1',
       }}
@@ -40,46 +54,33 @@ function RichLine({ line }: { line: RichLine }) {
   );
 }
 
-function splitLine(line: RichLine): React.ReactNode[] {
-  const text = line.text;
-  const marks = (line.marks ?? []).slice().sort((a, b) => a.start - b.start);
-  const out: React.ReactNode[] = [];
-  let cursor = 0;
-
-  for (let i = 0; i < marks.length; i++) {
-    const m = marks[i];
-    if (m.start < cursor || m.end > text.length) continue;
-    if (m.start > cursor) {
-      out.push(
-        <span key={`t${i}-${cursor}`}>{text.slice(cursor, m.start)}</span>,
-      );
-    }
-    const slice = text.slice(m.start, m.end);
-    if (m.kind === 'link') {
-      out.push(
-        <a
-          key={`l${i}-${m.start}`}
-          href={m.value}
-          target="_blank"
-          rel="noopener noreferrer nofollow ugc"
-          className="text-brand-300 underline decoration-brand-500/40 underline-offset-2 hover:text-brand-200"
-        >
-          {slice}
-        </a>,
-      );
-    } else if (m.kind === 'sticker') {
-      out.push(<StickerSpan key={`s${i}-${m.start}`} token={m.value} fallback={slice} />);
-    } else {
-      out.push(
-        <span key={`e${i}-${m.start}`} className="text-[1.05em]">
-          {m.value}
-        </span>,
-      );
-    }
-    cursor = m.end;
+/** Pure markup — no hooks, so it stays renderable by the server. */
+function StickerImg({
+  mark,
+  slice,
+  stickers,
+}: {
+  mark: InlineMark;
+  slice: string;
+  stickers?: StickerPackEntry[];
+}) {
+  const hit = findSticker(stickers ?? null, mark.value);
+  if (hit?.url) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={hit.url}
+        alt={hit.label || mark.value}
+        title={hit.label || hit.token}
+        loading="lazy"
+        decoding="async"
+        className="paste-sticker"
+      />
+    );
   }
-  if (cursor < text.length) {
-    out.push(<span key={`tail-${cursor}`}>{text.slice(cursor)}</span>);
+  if (hit?.emoji) {
+    return <span title={hit.label || hit.token}>{hit.emoji}</span>;
   }
-  return out;
+  // Unknown sticker: keep the original text so nothing is lost.
+  return <span>{slice}</span>;
 }

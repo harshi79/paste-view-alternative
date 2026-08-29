@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getDb } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
-import { purgeExpired } from '@/lib/pastes';
+import { purgeExpiredIfDue } from '@/lib/pastes';
 import Editor from '@/components/Editor';
 
 export const dynamic = 'force-dynamic';
@@ -31,50 +31,46 @@ const FEATURES = [
 
 export default async function HomePage() {
   const db = await getDb();
-  // Session + lazy expiry purge are independent — run them together.
-  const [session] = await Promise.all([getSessionUser(), purgeExpired(db)]);
+  // Session + throttled lazy expiry purge are independent — run them together.
+  const [session] = await Promise.all([getSessionUser(), purgeExpiredIfDue(db)]);
 
   return (
-    <div className="pt-10 sm:pt-14">
-      <section className="animate-fade-up mb-10 text-center sm:mb-14">
-        <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-200">
-          100% free PasteView alternative
+    <div className="animate-fade-up pt-8 sm:pt-12">
+      {/* Compact page intro — the workspace below is the focus. */}
+      <section className="mb-5 sm:mb-6">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-400">
+          New paste
         </p>
-        <h1 className="mx-auto max-w-3xl text-4xl font-black leading-tight tracking-tight sm:text-6xl">
-          Paste it. Share it.{' '}
-          <span
-            className="effect-gradient-text"
-            style={{ '--name-from': '#a78bfa', '--name-to': '#22d3ee' } as React.CSSProperties}
-          >
-            Done.
-          </span>
+        <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          Paste code, text, or rich content.
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-balance text-base text-zinc-400 sm:text-lg">
-          Share code and text with syntax highlighting, expiring links, password protection and
-          optional rich-text formatting. Profile customization — banners, animated names, links —
-          is free for everyone.
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-[15px]">
+          Syntax highlighting, expiring links, passwords, unlisted pastes and rich formatting — all
+          in one place, no account needed.
         </p>
       </section>
 
-      <section className="mx-auto max-w-3xl">
+      <section className="mx-auto max-w-5xl">
         <Editor username={session?.user.username ?? null} />
       </section>
 
-      <section className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {FEATURES.map((f, i) => (
-          <div
-            key={f.title}
-            className="card animate-fade-up p-5"
-            style={{ animationDelay: `${i * 70}ms` }}
-          >
-            <div className="mb-2 text-2xl">{f.icon}</div>
-            <h3 className="font-bold text-white">{f.title}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-zinc-400">{f.text}</p>
-          </div>
-        ))}
+      <section className="mt-12 border-t border-white/[0.06] pt-8 sm:mt-16">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((f) => (
+            <div key={f.title} className="flex items-start gap-3">
+              <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-sm">
+                {f.icon}
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-white">{f.title}</h3>
+                <p className="mt-1 text-xs leading-relaxed text-zinc-500">{f.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
-      <section className="mt-14 text-center text-sm text-zinc-500">
+      <section className="mt-10 text-center text-sm text-zinc-500">
         <p>
           New here?{' '}
           <Link href="/register" className="font-semibold text-brand-300 hover:text-brand-200">

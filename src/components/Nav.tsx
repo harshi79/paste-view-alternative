@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import Logo from './Logo';
 
 export type NavUser = {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  statusEmoji?: string | null;
 } | null;
 
 export default function Nav({ session }: { session: NavUser }) {
@@ -49,16 +51,8 @@ export default function Nav({ session }: { session: NavUser }) {
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-night-950/80 backdrop-blur-md">
       <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="group flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-cyan-400 text-base font-black text-night-950 shadow-lg shadow-brand-600/30 transition-transform group-hover:scale-110">
-            ⚡
-          </span>
-          <span className="text-lg font-extrabold tracking-tight">
-            Vibe
-            <span className="bg-gradient-to-r from-brand-400 to-cyan-300 bg-clip-text text-transparent">
-              Bin
-            </span>
-          </span>
+        <Link href="/" className="group flex items-center" aria-label="VibeBin home">
+          <Logo />
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2">
@@ -96,6 +90,7 @@ export default function Nav({ session }: { session: NavUser }) {
                   </span>
                 )}
                 <span className="hidden max-w-[120px] truncate sm:block">
+                  {session.statusEmoji && <span className="mr-1">{session.statusEmoji}</span>}
                   {session.displayName || session.username}
                 </span>
                 <span className="text-zinc-500">▾</span>

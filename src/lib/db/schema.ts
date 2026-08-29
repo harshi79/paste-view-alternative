@@ -59,7 +59,28 @@ export const profiles = pgTable('profiles', {
   accent: text('accent').notNull().default('#8b5cf6'),
   links: jsonb('links').$type<ProfileLink[]>().notNull().default([]),
   views: integer('views').notNull().default(0),
+  // Custom emoji + short status text shown beside the name / username.
+  statusEmoji: text('status_emoji').notNull().default(''),
+  statusText: text('status_text').notNull().default(''),
 });
+
+// ------------------------------------------------------------------
+// Password resets — one-time, expiring, opaque tokens (sha256 stored).
+// ------------------------------------------------------------------
+export const passwordResets = pgTable(
+  'password_resets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('password_resets_user_idx').on(t.userId)],
+);
 
 // ------------------------------------------------------------------
 // Pastes — content may be plain text OR rich-text JSON (the new
@@ -81,11 +102,35 @@ export const pastes = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }),
     pinned: boolean('pinned').notNull().default(false),
     views: integer('views').notNull().default(0),
+    // Denormalized counter — keeps count-only reads off the likes table.
+    likesCount: integer('likes_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('pastes_user_idx').on(t.userId),
     index('pastes_created_idx').on(t.createdAt),
+  ],
+);
+
+// ------------------------------------------------------------------
+// Likes — one per paste per signed-in user OR per anonymous visitor
+// (tracked by a salted IP hash). A paste can be liked OR unliked;
+// there is no dislike. Dedupe is enforced by partial unique indexes.
+// ------------------------------------------------------------------
+export const likes = pgTable(
+  'likes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pasteId: text('paste_id')
+      .notNull()
+      .references(() => pastes.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    ipHash: text('ip_hash'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('likes_paste_idx').on(t.pasteId),
+    index('likes_user_idx').on(t.userId),
   ],
 );
 
@@ -133,5 +178,6 @@ export const stickers = pgTable('stickers', {
 export type User = typeof users.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
+export type Like = typeof likes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;

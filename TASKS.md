@@ -46,3 +46,13 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] F1. Build passes (next build clean)
 - [x] F2. Pushed to branch (done at end)
 - [x] F3. Added Vercel env instructions in README
+
+## V3 — Performance, emoji status, unified editor, stickers, passwords
+- [x] V3.1. Server-side syntax highlighting (hljs out of the initial client bundle); lazy-loaded client viewer only after unlocking a protected paste
+- [x] V3.2. Shared, cached sticker-pack loader + cache headers on /api/stickers
+- [x] V3.3. Expiry purge throttled (at most once per 5 min per process); parallel DB round-trips on home/paste/profile
+- [x] V3.4. Emoji status (custom emoji + optional status text) beside name/username, picker + free entry, edit/remove, desktop + mobile
+- [x] V3.5. Wave effect crash fix: keyframes moved to globals.css (styled-jsx is not SSR'd in App Router), defensive guards, memoized letters
+- [x] V3.6. Unified paste page with a clear Basic/Rich toggle at the top
+- [x] V3.7. Sticker/GIF shortcodes (`:wave:` / `;fire;`) auto-convert in rich pastes; animated stickers render in composer preview and result; no shortcode text shown
+- [x] V3.8. Password management: forgot-password flow (one-time 30-min reset code, single-use), reset page, change-password in Account (confirms current password), safe error messages for expired/invalid/used links

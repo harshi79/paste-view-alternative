@@ -1,15 +1,16 @@
+'use client';
+
 import HighlightedCode from './HighlightedCode';
 
 type Props = { content: string; language: string };
 
 /**
- * Server-rendered, syntax-highlighted viewer for plain-text pastes.
- * - URLs/emails are auto-linked but never previewed.
- * - Line numbers are shown in a gutter.
- * - Highlighting runs on the server, so highlight.js never ships to
- *   the browser on initial page load.
+ * Client-side paste viewer for password-protected pastes: the content is
+ * only fetched after the user unlocks it, so this module (and the
+ * highlight.js code it pulls in via `HighlightedCode`) is loaded lazily
+ * at that point — never on the initial paste page.
  */
-export default function PasteViewer({ content, language }: Props) {
+export default function PasteViewerClient({ content, language }: Props) {
   const lines = content.split('\n');
 
   return (

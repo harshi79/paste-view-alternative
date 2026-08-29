@@ -66,12 +66,27 @@ export function parsePasteContent(format: string, content: string): RichDoc | st
 }
 
 const FONT_OPTIONS = [
+  { id: 'normal', label: 'Normal', css: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' },
   { id: 'sans', label: 'Sans', css: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
   { id: 'mono', label: 'Mono', css: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace' },
   { id: 'serif', label: 'Serif', css: 'ui-serif, Georgia, Cambria, "Times New Roman", serif' },
   { id: 'rounded', label: 'Rounded', css: '"Nunito", "SF Pro Rounded", system-ui, sans-serif' },
   { id: 'condensed', label: 'Narrow', css: '"Roboto Condensed", "Arial Narrow", sans-serif' },
   { id: 'display', label: 'Display', css: '"Bebas Neue", "Anton", Impact, sans-serif' },
+  { id: 'times', label: 'Times', css: '"Times New Roman", Times, serif' },
+  { id: 'georgia', label: 'Georgia', css: 'Georgia, Cambria, "Times New Roman", serif' },
+  { id: 'palatino', label: 'Palatino', css: '"Palatino Linotype", Palatino, "Book Antiqua", serif' },
+  { id: 'typewriter', label: 'Typewriter', css: '"Courier New", Courier, monospace' },
+  { id: 'comic', label: 'Comic', css: '"Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive' },
+  { id: 'handwritten', label: 'Handwritten', css: '"Segoe Script", "Bradley Hand", "Brush Script MT", cursive' },
+  { id: 'verdana', label: 'Verdana', css: 'Verdana, Geneva, Tahoma, sans-serif' },
+  { id: 'trebuchet', label: 'Trebuchet', css: '"Trebuchet MS", "Lucida Grande", sans-serif' },
+  { id: 'arial', label: 'Arial', css: 'Arial, Helvetica, sans-serif' },
+  { id: 'tahoma', label: 'Tahoma', css: 'Tahoma, Geneva, Verdana, sans-serif' },
+  { id: 'calibri', label: 'Calibri', css: 'Calibri, "Segoe UI", Arial, sans-serif' },
+  { id: 'impact', label: 'Impact', css: 'Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif' },
+  { id: 'franklin', label: 'Franklin', css: '"Franklin Gothic Medium", "Arial Narrow", sans-serif' },
+  { id: 'fantasy', label: 'Fantasy', css: 'Papyrus, Copperplate, fantasy' },
 ] as const;
 
 export type FontId = (typeof FONT_OPTIONS)[number]['id'];
@@ -140,6 +155,78 @@ export function detectLinks(text: string): InlineMark[] {
 export function inlineCount(line: RichLine): { chars: number; tokens: number } {
   const tokens = (line.marks ?? []).filter((m) => m.kind !== 'link').length;
   return { chars: line.text.length, tokens };
+}
+
+// ------------------------------------------------------------------
+// Sticker / emoji shortcode detection
+// ------------------------------------------------------------------
+// Tokens look like `:wave:` or `;happy;`. The rendered result replaces
+// them with the sticker/GIF (or fallback emoji) instead of showing the
+// raw shortcode.
+// ------------------------------------------------------------------
+
+// Must stay consistent with the admin route/server validation
+// (^:[a-z0-9_+-]+:$) so hyphenated tokens like :anime-wave: convert too.
+const STICKER_TOKEN_RE = /:([a-z0-9_+-]{1,32}):|;([a-z0-9_+-]{1,32});/gi;
+
+export type TokenHit = { start: number; end: number; token: string };
+
+/** Finds every sticker/emoji shortcode in a line of text. */
+export function findTokenShorthands(text: string): TokenHit[] {
+  const out: TokenHit[] = [];
+  let m: RegExpExecArray | null;
+  STICKER_TOKEN_RE.lastIndex = 0;
+  while ((m = STICKER_TOKEN_RE.exec(text))) {
+    const name = m[1] || m[2];
+    out.push({ start: m.index, end: m.index + m[0].length, token: `:${name}:` });
+  }
+  return out;
+}
+
+/**
+ * Rebuilds the inline marks for a line from scratch:
+ * 1. sticker-pack tokens → 'sticker' marks (keep the token as text);
+ * 2. remaining emoji shortcuts → 'emoji' marks;
+ * 3. URL / email / phone detection → 'link' marks.
+ * Runs on every edit so typed or pasted shorthands resolve immediately.
+ */
+export function buildInlineMarks(
+  text: string,
+  stickerTokens: ReadonlySet<string>,
+): InlineMark[] {
+  const marks: InlineMark[] = [];
+  for (const hit of findTokenShorthands(text)) {
+    if (stickerTokens.has(hit.token)) {
+      marks.push({ start: hit.start, end: hit.end, kind: 'sticker', value: hit.token });
+    } else if (EMOJI_SHORTCUTS[hit.token]) {
+      marks.push({ start: hit.start, end: hit.end, kind: 'emoji', value: EMOJI_SHORTCUTS[hit.token] });
+    }
+  }
+  marks.push(...detectLinks(text));
+  return marks.sort((a, b) => a.start - b.start);
+}
+
+/** Sorts and drops invalid/overlapping marks defensively (bad data safety). */
+export function sanitizeMarks(marks: InlineMark[] | undefined, textLength: number): InlineMark[] {
+  if (!marks || marks.length === 0) return [];
+  const sorted = marks
+    .filter(
+      (m) =>
+        Number.isInteger(m.start) &&
+        Number.isInteger(m.end) &&
+        m.start >= 0 &&
+        m.end > m.start &&
+        m.end <= textLength,
+    )
+    .sort((a, b) => a.start - b.start);
+  const out: InlineMark[] = [];
+  let cursor = 0;
+  for (const m of sorted) {
+    if (m.start < cursor) continue; // overlap → drop
+    out.push(m);
+    cursor = m.end;
+  }
+  return out;
 }
 
 export type { ReactNode };

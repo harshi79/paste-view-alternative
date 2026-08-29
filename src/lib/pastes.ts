@@ -30,6 +30,22 @@ export async function purgeExpired(db: DB) {
     .where(and(isNotNull(pastes.expiresAt), lt(pastes.expiresAt, new Date())));
 }
 
+const PURGE_INTERVAL_MS = 5 * 60 * 1000;
+const g = globalThis as unknown as { __vibepurge?: number };
+
+/**
+ * Purge is idempotent, so running it on every page view is wasted work —
+ * at most once per process every 5 minutes is plenty (expired pastes are
+ * also filtered lazily on read by the viewer).
+ */
+export async function purgeExpiredIfDue(db: DB): Promise<void> {
+  const last = g.__vibepurge ?? 0;
+  const now = Date.now();
+  if (now - last < PURGE_INTERVAL_MS) return;
+  g.__vibepurge = now;
+  await purgeExpired(db);
+}
+
 export function isExpired(p: { expiresAt: Date | null }): boolean {
   return !!p.expiresAt && p.expiresAt.getTime() <= Date.now();
 }
