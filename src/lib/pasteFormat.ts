@@ -34,6 +34,19 @@ export type RichLine = {
   size?: number; // px
   color?: string; // hex
   marks?: InlineMark[]; // sorted, non-overlapping
+  /**
+   * Client-side only: a stable identity used as the React key for the
+   * composer's uncontrolled contentEditable lines. Stripped before the doc
+   * is stored (see Editor.submit), so it never reaches the database.
+   */
+  _key?: string;
+  /**
+   * Optional explicit url for sticker tokens in this line, keyed by the
+   * shortcode (e.g. ":anime-hug:" → gif url). Lets the composer embed a
+   * sticker/GIF that isn't in the DB pack (e.g. a live anime GIF) and
+   * still render reliably in the final paste. Serially saved in the doc.
+   */
+  stickerUrls?: Record<string, string>;
 };
 
 export type RichDoc = { v: 1; lines: RichLine[] };

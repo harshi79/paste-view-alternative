@@ -135,6 +135,12 @@ const SCHEMA_STATEMENTS = [
   )`,
 ];
 
+/** DDL that must run once on a fresh database (tables, indexes). */
+const CREATE_STATEMENTS = SCHEMA_STATEMENTS.filter((s) => /^CREATE/.test(s.trim()));
+
+/** Idempotent backfills (ALTER ... IF NOT EXISTS) safe to run on any DB. */
+const ALTER_STATEMENTS = SCHEMA_STATEMENTS.filter((s) => /^ALTER/.test(s.trim()));
+
 const g = globalThis as unknown as { __vibedb?: Promise<DB> };
 
 async function createDb(): Promise<DB> {
@@ -161,11 +167,34 @@ async function createDb(): Promise<DB> {
   return drizzlePglite(client, { schema }) as unknown as DB;
 }
 
-/** Returns the shared database connection, bootstrapping schema + seed data once. */
-export function getDb(): Promise<DB> {
+/**
+ * Returns the shared database connection, bootstrapping schema + seed data
+ * once per process.
+ *
+ * On Neon the free tier puts idle compute to sleep, and every serverless
+ * cold start would otherwise re-run ~15 idempotent DDL round-trips before
+ * the first real query — that's the biggest source of the "website is slow"
+ * feel. So we do a single cheap existence check and only run DDL on a truly
+ * fresh database. Existing deployments skip straight to the query.
+ */
+export async function getDb(): Promise<DB> {
   if (!g.__vibedb) {
     g.__vibedb = (async () => {
       const db = await createDb();
+      const exists = await db.execute(
+        sql.raw(`SELECT to_regclass('public.users') AS t`),
+      );
+      const usersTable = (exists[0] as { t: string | null } | undefined)?.t ?? null;
+      if (usersTable) {
+        // Existing deployment: run only the idempotent ALTER backfills
+        // (a handful of fast IF-NOT-EXISTS round-trips) and skip the full
+        // CREATE block — this is what keeps serverless cold starts snappy.
+        for (const stmt of ALTER_STATEMENTS) {
+          await db.execute(sql.raw(stmt));
+        }
+        await seedIfEmpty(db);
+        return db;
+      }
       for (const stmt of SCHEMA_STATEMENTS) {
         await db.execute(sql.raw(stmt));
       }

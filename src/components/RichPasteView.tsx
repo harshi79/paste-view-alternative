@@ -1,6 +1,6 @@
-import type { RichDoc, RichLine, InlineMark } from '@/lib/pasteFormat';
-import { findSticker } from '@/lib/stickerPack';
+import type { RichDoc, RichLine } from '@/lib/pasteFormat';
 import { splitLine, lineFont } from './richRender';
+import StickerImage from './StickerImage';
 
 export type StickerPackEntry = {
   token: string;
@@ -33,7 +33,14 @@ export default function RichPasteView({ doc, stickers }: Props) {
 
 function RichLine({ line, stickers }: { line: RichLine; stickers?: StickerPackEntry[] }) {
   const segments = splitLine(line, {
-    renderSticker: (mark, slice) => <StickerImg mark={mark} slice={slice} stickers={stickers} />,
+    renderSticker: (mark, slice, stickerUrls) => (
+      <StickerImage
+        token={mark.value}
+        fallback={slice}
+        pack={stickers}
+        url={stickerUrls?.[mark.value]}
+      />
+    ),
     renderEmoji: (mark) => (
       <span className="text-[1.05em]" title={mark.value}>
         {mark.value}
@@ -52,35 +59,4 @@ function RichLine({ line, stickers }: { line: RichLine; stickers?: StickerPackEn
       {segments}
     </div>
   );
-}
-
-/** Pure markup — no hooks, so it stays renderable by the server. */
-function StickerImg({
-  mark,
-  slice,
-  stickers,
-}: {
-  mark: InlineMark;
-  slice: string;
-  stickers?: StickerPackEntry[];
-}) {
-  const hit = findSticker(stickers ?? null, mark.value);
-  if (hit?.url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={hit.url}
-        alt={hit.label || mark.value}
-        title={hit.label || hit.token}
-        loading="lazy"
-        decoding="async"
-        className="paste-sticker"
-      />
-    );
-  }
-  if (hit?.emoji) {
-    return <span title={hit.label || hit.token}>{hit.emoji}</span>;
-  }
-  // Unknown sticker: keep the original text so nothing is lost.
-  return <span>{slice}</span>;
 }

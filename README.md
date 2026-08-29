@@ -15,6 +15,10 @@ custom colors and links, badges) is free for everyone.
 - Sticker shortcodes (`:wave:` / `;fire;`) are converted automatically to the real sticker or
   emoji — no manual attachments, no shortcode text in the result, animated stickers render in the
   composer preview and the rendered paste
+- The rich editor's **Stickers** panel has an **Anime GIFs** tab that pulls live reaction GIFs from
+  the keyless [Nekos.best](https://nekos.best) API (hug, kiss, pat, wave, dance, …) — click one to
+  drop it into the paste at your cursor. Resolved URLs are saved with the paste so they render
+  reliably; if the API is down they gracefully fall back to their emoji
 - Auto-detects every URL / email / phone number in a paste and makes it clickable — no link
   previews are ever generated
 - **Expiration**: 10 min → 1 month (auto-purged)

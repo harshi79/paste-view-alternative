@@ -115,6 +115,9 @@ export default async function ProfilePage({ params }: Props) {
             alt=""
             decoding="async"
             className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
           />
         ) : (
           <div

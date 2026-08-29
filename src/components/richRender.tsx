@@ -10,7 +10,7 @@ import { fontCss, sanitizeMarks } from '@/lib/pasteFormat';
 export function splitLine(
   line: RichLine,
   opts: {
-    renderSticker: (mark: InlineMark, slice: string) => ReactNode;
+    renderSticker: (mark: InlineMark, slice: string, stickerUrls?: Record<string, string>) => ReactNode;
     renderEmoji?: (mark: InlineMark, slice: string) => ReactNode;
   },
 ): ReactNode[] {
@@ -38,7 +38,7 @@ export function splitLine(
         </a>,
       );
     } else if (m.kind === 'sticker') {
-      out.push(<span key={`s${i}-${m.start}`}>{opts.renderSticker(m, slice)}</span>);
+      out.push(<span key={`s${i}-${m.start}`}>{opts.renderSticker(m, slice, line.stickerUrls)}</span>);
     } else if (opts.renderEmoji) {
       out.push(<span key={`e${i}-${m.start}`}>{opts.renderEmoji(m, slice)}</span>);
     } else {

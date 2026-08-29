@@ -15,6 +15,7 @@ import {
 import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
 import { splitLine, lineFont } from './richRender';
 import StickerImage from './StickerImage';
+import { nekoTokenSet, type NekoGif } from '@/lib/neko';
 
 type Props = { username: string | null };
 
@@ -29,7 +30,12 @@ const tb =
 const tbActive = 'border-brand-400/40 bg-brand-500/15 text-brand-100';
 
 function emptyDoc(): RichDoc {
-  return { v: 1, lines: [{ text: '' }] };
+  return { v: 1, lines: [{ text: '', _key: 'l0' }] };
+}
+
+/** Drops the client-only `_key` identity before a doc is stored. */
+function serializeDoc(doc: RichDoc): RichDoc {
+  return { v: doc.v, lines: doc.lines.map(({ _key: _omit, ...rest }) => rest) };
 }
 
 function TextIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
@@ -134,15 +140,25 @@ export default function Editor({ username }: Props) {
   // rich-text state
   const [rich, setRich] = useState<RichDoc>(emptyDoc);
   const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
+  const [nekoGifs, setNekoGifs] = useState<NekoGif[]>([]);
   const [activeLine, setActiveLine] = useState(0);
   const [showStickers, setShowStickers] = useState(false);
+  const [stickerTab, setStickerTab] = useState<'pack' | 'anime'>('pack');
   const [showPreview, setShowPreview] = useState(false);
   const [stickerQuery, setStickerQuery] = useState('');
   const [format, setFormat] = useState<'plain' | 'rich'>('plain');
 
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
   const packLoaded = useRef(false);
-  const stickerTokenSet = useMemo(() => new Set(stickerPack.map((s) => s.token)), [stickerPack]);
+  const nekoLoaded = useRef(false);
+  /** Monotonic id source for stable per-line React keys (uncontrolled DOM). */
+  const keySeq = useRef(1);
+  const nextLineKey = useCallback(() => `l${keySeq.current++}`, []);
+  /** Tokens recognised as stickers: the DB pack plus every anime GIF token. */
+  const stickerTokenSet = useMemo(
+    () => new Set([...stickerPack.map((s) => s.token), ...nekoTokenSet()]),
+    [stickerPack],
+  );
 
   /** Loads the sticker pack on first need (panel open or rich mode). */
   const ensureStickerPack = useCallback(() => {
@@ -162,6 +178,18 @@ export default function Editor({ username }: Props) {
       })
       .catch(() => {
         packLoaded.current = false;
+      });
+  }, []);
+
+  /** Loads live anime GIFs from the Neko API once (first time the tab opens). */
+  const ensureNekoGifs = useCallback(() => {
+    if (nekoLoaded.current) return;
+    nekoLoaded.current = true;
+    fetch('/api/neko')
+      .then((r) => (r.ok ? r.json() : { gifs: [] }))
+      .then((d) => setNekoGifs(Array.isArray(d.gifs) ? d.gifs : []))
+      .catch(() => {
+        nekoLoaded.current = false;
       });
   }, []);
 
@@ -189,31 +217,79 @@ export default function Editor({ username }: Props) {
     });
   }
 
+  /**
+   * The rich lines are UNCONTROLLED contentEditables: we seed their text
+   * once from React state (see the ref below) and read it back on every
+   * input, but we never feed the typed text back through React for the
+   * editable itself. React thus never touches the DOM text node under the
+   * caret, which is what previously made the caret jump to the front
+   * (text appearing to type "backwards") and made backspace delete the
+   * wrong character.
+   */
+
+  /** innerText, with the trailing newline Chrome adds for a trailing <br>. */
+  function readLineText(el: HTMLElement): string {
+    let text = el.innerText ?? '';
+    if (text.endsWith('\n')) text = text.slice(0, -1);
+    return text;
+  }
+
+  /** Character offset of a (node, offset) caret position within `root`. */
+  function offsetWithin(root: HTMLElement, node: Node, offset: number): number {
+    if (node === root) return offset;
+    let pos = 0;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const tn = walker.currentNode as Text;
+      if (tn === node) return pos + offset;
+      pos += tn.data.length;
+    }
+    return offset;
+  }
+
+  /** Collapses the caret to character `pos` inside `el` (a plain text node). */
+  function placeCaretAt(el: HTMLElement, pos: number) {
+    const node = el.firstChild as Text | null;
+    if (!node) return;
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.setStart(node, Math.max(0, Math.min(pos, node.data.length)));
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
   function splitLineAt(i: number, at: number) {
+    const text = rich.lines[i]?.text ?? '';
+    const stickerUrls = { ...(rich.lines[i]?.stickerUrls || {}) };
     setRich((doc) => {
       const lines = doc.lines.slice();
       const line = lines[i];
       if (!line || at < 0 || at > line.text.length) return doc;
-      const left: RichLine = { ...line, text: line.text.slice(0, at) };
+      // Both halves get fresh stable keys so React mounts NEW nodes that
+      // re-seed their text via the ref (positional keys would reuse the
+      // old node, whose "seeded" flag would stop the right half from ever
+      // displaying its content when splitting in the middle of the doc).
+      const left: RichLine = { ...line, _key: nextLineKey(), text: line.text.slice(0, at), marks: undefined, stickerUrls };
       const right: RichLine = {
+        _key: nextLineKey(),
         text: line.text.slice(at),
         font: line.font,
         size: line.size,
         color: line.color,
+        stickerUrls,
       };
-      left.marks = undefined;
-      right.marks = undefined;
       lines.splice(i, 1, left, right);
       return { ...doc, lines };
     });
     // Marks for both halves are recomputed on the next input; compute now.
-    const text = rich.lines[i]?.text ?? '';
     syncLineMarks(i, text.slice(0, at));
     syncLineMarks(i + 1, text.slice(at));
   }
 
   function handleLineInput(i: number, e: React.FormEvent<HTMLDivElement>) {
-    const text = e.currentTarget.innerText ?? '';
+    const text = readLineText(e.currentTarget);
     syncLineMarks(i, text);
   }
 
@@ -221,7 +297,9 @@ export default function Editor({ username }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const sel = window.getSelection();
-      const at = sel?.focusOffset ?? (rich.lines[i]?.text.length ?? 0);
+      let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+      const len = rich.lines[i]?.text.length ?? 0;
+      at = Math.max(0, Math.min(at, len));
       splitLineAt(i, at);
       requestAnimationFrame(() => {
         const next = lineRefs.current[i + 1];
@@ -241,16 +319,51 @@ export default function Editor({ username }: Props) {
     }
   }
 
-  function applyStickerToActiveLine(token: string) {
+  /**
+   * Inserts a sticker/GIF into the active line at the caret (appending when
+   * the line is empty or the caret isn't inside it). `url` is the explicit
+   * resolved GIF url for live anime stickers; pack stickers pass `undefined`
+   * and resolve via the DB pack at render time.
+   */
+  function applyStickerToActiveLine(token: string, url?: string | null) {
     const i = activeLine;
-    const line = rich.lines[i] ?? { text: '' };
-    const text = line.text + token;
-    syncLineMarks(i, text);
+    const el = lineRefs.current[i];
+    const currentText = el ? readLineText(el) : (rich.lines[i]?.text ?? '');
+    let at = currentText.length;
+    if (el && document.activeElement === el) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (el.contains(range.startContainer)) {
+          at = offsetWithin(el, range.startContainer, range.startOffset);
+        }
+      }
+    }
+    const newText = currentText.slice(0, at) + token + currentText.slice(at);
+    syncLineMarks(i, newText);
+    if (url) {
+      setRich((doc) => {
+        const lines = doc.lines.slice();
+        if (i < 0 || i >= lines.length) return doc;
+        const s = { ...(lines[i].stickerUrls || {}) };
+        s[token] = url;
+        lines[i] = { ...lines[i], stickerUrls: s };
+        return { ...doc, lines };
+      });
+    }
+    if (el) {
+      el.textContent = newText;
+      placeCaretAt(el, at + token.length);
+      el.focus();
+    }
     setShowStickers(false);
     setStickerQuery('');
-    requestAnimationFrame(() => {
-      lineRefs.current[i]?.focus();
-    });
+    setActiveLine(i);
+  }
+
+  function switchStickerTab(tab: 'pack' | 'anime') {
+    setStickerTab(tab);
+    if (tab === 'anime') ensureNekoGifs();
   }
 
   async function submit(e: React.FormEvent) {
@@ -271,7 +384,10 @@ export default function Editor({ username }: Props) {
       const body: Record<string, unknown> = {
         title: title.trim() || 'Untitled',
         format,
-        content: format === 'rich' ? JSON.stringify(rich) : content,
+        content:
+          format === 'rich'
+            ? JSON.stringify(serializeDoc(rich))
+            : content,
         language,
         visibility,
         expiresIn,
@@ -307,13 +423,17 @@ export default function Editor({ username }: Props) {
 
   const filteredStickers = useMemo(() => {
     const q = stickerQuery.toLowerCase().trim();
-    if (!q) return stickerPack.slice(0, 24);
-    return stickerPack
+    const pool =
+      stickerTab === 'anime'
+        ? nekoGifs.map((g) => ({ token: g.token, url: g.url, emoji: g.emoji, label: g.label }))
+        : stickerPack;
+    if (!q) return pool.slice(0, 30);
+    return pool
       .filter(
         (s) => s.token.toLowerCase().includes(q) || (s.label ?? '').toLowerCase().includes(q),
       )
-      .slice(0, 24);
-  }, [stickerQuery, stickerPack]);
+      .slice(0, 30);
+  }, [stickerQuery, stickerPack, nekoGifs, stickerTab]);
 
   const switching = (mode: 'plain' | 'rich') => {
     setFormat(mode);
@@ -606,9 +726,16 @@ export default function Editor({ username }: Props) {
           >
             {rich.lines.map((line, i) => (
               <div
-                key={i}
+                key={line._key ?? i}
                 ref={(el) => {
                   lineRefs.current[i] = el;
+                  // Seed the (uncontrolled) editable once — React never
+                  // manages this text again, so the caret stays put while
+                  // typing. New lines from Enter are seeded via this ref.
+                  if (el && el.dataset.seeded !== 'true') {
+                    el.textContent = line.text ?? '';
+                    el.dataset.seeded = 'true';
+                  }
                 }}
                 contentEditable
                 suppressContentEditableWarning
@@ -623,9 +750,7 @@ export default function Editor({ username }: Props) {
                   fontSize: `${line.size ?? 14}px`,
                   color: line.color ?? '#dbe1f1',
                 }}
-              >
-                {line.text ?? ''}
-              </div>
+              />
             ))}
           </div>
         )}
@@ -641,10 +766,35 @@ export default function Editor({ username }: Props) {
         {/* Sticker picker — inline panel, always in reach on mobile. */}
         {format === 'rich' && showStickers && (
           <div id="sticker-picker" className="animate-pop mt-3 rounded-xl border border-white/[0.08] bg-night-950/40 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                Stickers & emoji
-              </p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div
+                role="tablist"
+                aria-label="Sticker source"
+                className="flex items-center rounded-lg border border-white/10 bg-night-950/60 p-0.5"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={stickerTab === 'pack'}
+                  onClick={() => switchStickerTab('pack')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    stickerTab === 'pack' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  Stickers
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={stickerTab === 'anime'}
+                  onClick={() => switchStickerTab('anime')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    stickerTab === 'anime' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  Anime GIFs
+                </button>
+              </div>
               <button
                 type="button"
                 aria-label="Close sticker picker"
@@ -658,11 +808,19 @@ export default function Editor({ username }: Props) {
             </div>
             <input
               className="input !py-2 text-sm"
-              placeholder="Search stickers — try “wave”, “fire”…"
+              placeholder={
+                stickerTab === 'anime'
+                  ? 'Search anime GIFs — “hug”, “pat”, “wave”…'
+                  : 'Search stickers — try “wave”, “fire”…'
+              }
               value={stickerQuery}
               onChange={(e) => setStickerQuery(e.target.value)}
             />
-            {filteredStickers.length === 0 ? (
+            {stickerTab === 'anime' && nekoGifs.length === 0 && !stickerQuery ? (
+              <p className="mt-4 text-sm text-zinc-500">
+                Loading anime GIFs… (anime reactions may be unavailable offline)
+              </p>
+            ) : filteredStickers.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
             ) : (
               <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
@@ -671,7 +829,7 @@ export default function Editor({ username }: Props) {
                     type="button"
                     key={s.token}
                     title={`${s.token} — ${s.label || ''}`}
-                    onClick={() => applyStickerToActiveLine(s.token)}
+                    onClick={() => applyStickerToActiveLine(s.token, s.url)}
                     className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                   >
                     {s.url ? (
@@ -681,6 +839,9 @@ export default function Editor({ username }: Props) {
                         alt={s.label || s.token}
                         loading="lazy"
                         decoding="async"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                         className="h-8 w-8 object-contain"
                       />
                     ) : (
@@ -737,7 +898,9 @@ export default function Editor({ username }: Props) {
 /** Renders one rich line as it will appear in the final paste. */
 function PreviewLine({ line, pack }: { line: RichLine; pack: StickerEntry[] }) {
   const segments = splitLine(line, {
-    renderSticker: (m, slice) => <StickerImage token={m.value} fallback={slice} pack={pack} />,
+    renderSticker: (m, slice, stickerUrls) => (
+      <StickerImage token={m.value} fallback={slice} pack={pack} url={stickerUrls?.[m.value]} />
+    ),
     renderEmoji: (m) => (
       <span className="text-[1.05em]" title={m.value}>
         {m.value}

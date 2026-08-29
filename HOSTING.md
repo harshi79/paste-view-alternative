@@ -108,7 +108,38 @@ Your existing data is untouched.
 | `notFound()` after registering a new account on a deployed Vercel URL    | Make sure your Neon **pooled** connection string is the one in `DATABASE_URL`.       |
 | Tag you assigned to a user doesn't show on their profile                 | Hard refresh (Ctrl+Shift+R). The page is `dynamic = 'force-dynamic'`.                |
 
-## 7. Local dev (optional)
+## 7. Keeping Neon awake (first-load slowness)
+
+**Yes — a slow first load is almost always Neon's free tier putting the
+database compute to sleep** after ~5 minutes of no connections. When a
+visitor hits the site, their request has to wake the database first, which
+adds a few seconds. This is normal for free Neon and not a code bug.
+
+We've shipped three things to make this better:
+
+1. **`/api/ping`** — a tiny health-check endpoint that runs a trivial
+   `SELECT 1` against the DB. Hitting it on an interval keeps the compute
+   warm, so real visitors get an instant response.
+2. **`vercel.json` cron** — Vercel runs `/api/ping` every **5 minutes** on
+   the Hobby plan for free. Just redeploy with the new `vercel.json` and
+   the cron is created automatically (check Project → Settings → Cron Jobs).
+3. **Faster cold starts** — the DB layer now does a single cheap
+   "does `users` exist?" check and only runs the full schema on a truly
+   fresh database, skipping ~15 DDL round-trips on every serverless cold
+   start. Existing deployments only run the small idempotent `ALTER`s.
+
+### Optional: keep it warm with an external uptime monitor
+
+If you'd rather not rely on Vercel's cron, point a free uptime monitor
+(UptimeRobot, Cronitor, etc.) at `https://YOUR-DOMAIN/api/ping` every
+5–10 minutes. Same effect, works on any host.
+
+> Note: Vercel Hobby builds are still serverless — each idle function
+> instance can go cold, but the **database** (the slow part) stays warm as
+> long as `/api/ping` keeps firing. First-load after a long idle may still
+> re-init a function; that's a few hundred ms, not seconds.
+
+## 8. Local dev (optional)
 
 ```bash
 git fetch
