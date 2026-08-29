@@ -79,7 +79,7 @@ async function main() {
   ];
 
   for (const u of users) {
-    await db.run({
+    await client.execute({
       sql: 'INSERT INTO users (id, username, password_hash, created_at, username_changed_at) VALUES (?, ?, ?, ?, ?)',
       args: [u.id, u.username, u.passwordHash, ts(u.createdAt), null],
     });
@@ -103,7 +103,7 @@ async function main() {
   ];
 
   for (const p of profiles) {
-    await db.run({
+    await client.execute({
       sql: 'INSERT INTO profiles (user_id, display_name, bio, bio_enabled, avatar_url, banner_url, banner_type, name_from, name_to, name_style, name_effect, effect_speed, effect_intensity, accent, links, views, status_emoji, status_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       args: [p.userId, p.displayName, p.bio, p.bioEnabled ? 1 : 0, p.avatarUrl, p.bannerUrl, p.bannerType, p.nameFrom, p.nameTo, p.nameStyle, p.nameEffect, p.effectSpeed, p.effectIntensity, p.accent, JSON.stringify(p.links), p.views, p.statusEmoji, p.statusText],
     });
@@ -123,7 +123,7 @@ async function main() {
     { userId: '8d37e207-e145-4c77-acb6-455b35a86e23', ip: '104.28.220.26', createdAt: '2026-08-28T23:37:18.557288+00:00' },
   ];
   for (const s of signupIps) {
-    await db.run({ sql: 'INSERT INTO signup_ips (user_id, ip, created_at) VALUES (?, ?, ?)', args: [s.userId, s.ip, ts(s.createdAt)] });
+    await client.execute({ sql: 'INSERT INTO signup_ips (user_id, ip, created_at) VALUES (?, ?, ?)', args: [s.userId, s.ip, ts(s.createdAt)] });
   }
   console.log(`  signup_ips: ${signupIps.length} rows`);
 
@@ -139,7 +139,7 @@ async function main() {
     { id: 'def89f85-4225-4064-b4d6-0e575f5f555d', label: 'Founder', color: '#fbbf24', effect: 'gold', createdAt: '2026-08-28T18:27:35.615586+00:00' },
   ];
   for (const t of tags) {
-    await db.run({ sql: 'INSERT INTO tags (id, label, color, effect, created_at) VALUES (?, ?, ?, ?, ?)', args: [t.id, t.label, t.color, t.effect, ts(t.createdAt)] });
+    await client.execute({ sql: 'INSERT INTO tags (id, label, color, effect, created_at) VALUES (?, ?, ?, ?, ?)', args: [t.id, t.label, t.color, t.effect, ts(t.createdAt)] });
   }
   console.log(`  tags: ${tags.length} rows`);
 
@@ -153,7 +153,7 @@ async function main() {
     { userId: '17e8bee7-da34-4121-9a16-e132264ad4c9', tagId: '67001a17-3084-48cb-889a-979f156523d7' },
   ];
   for (const ut of userTags) {
-    await db.run({ sql: 'INSERT INTO user_tags (user_id, tag_id) VALUES (?, ?)', args: [ut.userId, ut.tagId] });
+    await client.execute({ sql: 'INSERT INTO user_tags (user_id, tag_id) VALUES (?, ?)', args: [ut.userId, ut.tagId] });
   }
   console.log(`  user_tags: ${userTags.length} rows`);
 
@@ -183,14 +183,14 @@ async function main() {
     { id: '9ac52db2-d8e3-442a-9a91-6b51983bdf32', token: ':anime-wave:', url: 'https://nekos.best/api/v2/wave/3c855905-a12a-4bd1-8938-57067b791b0e.gif', emoji: '👋', label: 'Anime wave', createdAt: '2026-08-29T10:20:42.509313+00:00' },
   ];
   for (const s of stickers) {
-    await db.run({ sql: 'INSERT INTO stickers (id, token, url, emoji, label, created_at) VALUES (?, ?, ?, ?, ?, ?)', args: [s.id, s.token, s.url, s.emoji, s.label, ts(s.createdAt)] });
+    await client.execute({ sql: 'INSERT INTO stickers (id, token, url, emoji, label, created_at) VALUES (?, ?, ?, ?, ?, ?)', args: [s.id, s.token, s.url, s.emoji, s.label, ts(s.createdAt)] });
   }
   console.log(`  stickers: ${stickers.length} rows`);
 
   // ── PASTES ── (content is huge, loading from file)
   const pastesRaw = JSON.parse(require('fs').readFileSync('scripts/pastes-data.json', 'utf-8'));
   for (const p of pastesRaw) {
-    await db.run({
+    await client.execute({
       sql: 'INSERT INTO pastes (id, user_id, title, title_color, format, content, language, visibility, password_hash, expires_at, pinned, views, likes_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       args: [p.id, p.user_id, p.title, p.title_color, p.format || 'plain', p.content, p.language || 'plaintext', p.visibility || 'public', p.password_hash, p.expires_at ? ts(p.expires_at) : null, p.pinned ? 1 : 0, p.views || 0, p.likes_count || 0, ts(p.created_at)],
     });
@@ -203,7 +203,7 @@ async function main() {
     { id: 'fc24f2fc-fffb-4d04-8789-812ed28555f6', pasteId: '634gm069', userId: '17e8bee7-da34-4121-9a16-e132264ad4c9', ipHash: null, createdAt: '2026-08-29T10:30:13.01386+00:00' },
   ];
   for (const l of likes) {
-    await db.run({ sql: 'INSERT INTO likes (id, paste_id, user_id, ip_hash, created_at) VALUES (?, ?, ?, ?, ?)', args: [l.id, l.pasteId, l.userId, l.ipHash, ts(l.createdAt)] });
+    await client.execute({ sql: 'INSERT INTO likes (id, paste_id, user_id, ip_hash, created_at) VALUES (?, ?, ?, ?, ?)', args: [l.id, l.pasteId, l.userId, l.ipHash, ts(l.createdAt)] });
   }
   console.log(`  likes: ${likes.length} rows`);
 
