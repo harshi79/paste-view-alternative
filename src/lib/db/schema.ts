@@ -1,36 +1,32 @@
 import {
-  pgTable,
+  sqliteTable,
   text,
-  uuid,
-  timestamp,
   integer,
-  boolean,
-  jsonb,
   index,
   uniqueIndex,
   primaryKey,
-} from 'drizzle-orm/pg-core';
+} from 'drizzle-orm/sqlite-core';
 
 // ------------------------------------------------------------------
 // Users
 // ------------------------------------------------------------------
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(), // UUID stored as text
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  usernameChangedAt: timestamp('username_changed_at', { withTimezone: true }),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  usernameChangedAt: integer('username_changed_at', { mode: 'timestamp_ms' }),
 });
 
 // ------------------------------------------------------------------
 // Account creation tracking — enforces "max N accounts per IP"
 // ------------------------------------------------------------------
-export const signupIps = pgTable('signup_ips', {
-  userId: uuid('user_id')
+export const signupIps = sqliteTable('signup_ips', {
+  userId: text('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
   ip: text('ip').notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
 // ------------------------------------------------------------------
@@ -39,13 +35,13 @@ export const signupIps = pgTable('signup_ips', {
 // ------------------------------------------------------------------
 export type ProfileLink = { label: string; url: string; color: string };
 
-export const profiles = pgTable('profiles', {
-  userId: uuid('user_id')
+export const profiles = sqliteTable('profiles', {
+  userId: text('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
   displayName: text('display_name'),
   bio: text('bio').notNull().default(''),
-  bioEnabled: boolean('bio_enabled').notNull().default(true),
+  bioEnabled: integer('bio_enabled', { mode: 'boolean' }).notNull().default(true),
   avatarUrl: text('avatar_url'),
   bannerUrl: text('banner_url'),
   bannerType: text('banner_type').notNull().default('image'), // 'image' | 'video'
@@ -57,7 +53,7 @@ export const profiles = pgTable('profiles', {
   effectSpeed: integer('effect_speed').notNull().default(50), // 0-100
   effectIntensity: integer('effect_intensity').notNull().default(60), // 0-100
   accent: text('accent').notNull().default('#8b5cf6'),
-  links: jsonb('links').$type<ProfileLink[]>().notNull().default([]),
+  links: text('links', { mode: 'json' }).$type<ProfileLink[]>().notNull().default([]),
   views: integer('views').notNull().default(0),
   // Custom emoji + short status text shown beside the name / username.
   statusEmoji: text('status_emoji').notNull().default(''),
@@ -67,17 +63,17 @@ export const profiles = pgTable('profiles', {
 // ------------------------------------------------------------------
 // Password resets — one-time, expiring, opaque tokens (sha256 stored).
 // ------------------------------------------------------------------
-export const passwordResets = pgTable(
+export const passwordResets = sqliteTable(
   'password_resets',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
+    id: text('id').primaryKey(), // UUID stored as text
+    userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     tokenHash: text('token_hash').notNull().unique(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    usedAt: timestamp('used_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [index('password_resets_user_idx').on(t.userId)],
 );
@@ -86,11 +82,11 @@ export const passwordResets = pgTable(
 // Pastes — content may be plain text OR rich-text JSON (the new
 // "rich" format that supports font / color / emoji tokens).
 // ------------------------------------------------------------------
-export const pastes = pgTable(
+export const pastes = sqliteTable(
   'pastes',
   {
     id: text('id').primaryKey(),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     title: text('title').notNull().default('Untitled'),
     titleColor: text('title_color'),
     // 'plain' or 'rich'
@@ -99,12 +95,12 @@ export const pastes = pgTable(
     language: text('language').notNull().default('plaintext'),
     visibility: text('visibility').notNull().default('public'), // 'public' | 'unlisted'
     passwordHash: text('password_hash'),
-    expiresAt: timestamp('expires_at', { withTimezone: true }),
-    pinned: boolean('pinned').notNull().default(false),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
     views: integer('views').notNull().default(0),
     // Denormalized counter — keeps count-only reads off the likes table.
     likesCount: integer('likes_count').notNull().default(0),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('pastes_user_idx').on(t.userId),
@@ -117,16 +113,16 @@ export const pastes = pgTable(
 // (tracked by a salted IP hash). A paste can be liked OR unliked;
 // there is no dislike. Dedupe is enforced by partial unique indexes.
 // ------------------------------------------------------------------
-export const likes = pgTable(
+export const likes = sqliteTable(
   'likes',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: text('id').primaryKey(), // UUID stored as text
     pasteId: text('paste_id')
       .notNull()
       .references(() => pastes.id, { onDelete: 'cascade' }),
-    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
     ipHash: text('ip_hash'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('likes_paste_idx').on(t.pasteId),
@@ -138,22 +134,22 @@ export const likes = pgTable(
 // Admin-managed tags (label, color, optional effect).
 // Plus a join table for user <-> tag assignments.
 // ------------------------------------------------------------------
-export const tags = pgTable('tags', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const tags = sqliteTable('tags', {
+  id: text('id').primaryKey(), // UUID stored as text
   label: text('label').notNull().unique(),
   color: text('color').notNull().default('#a78bfa'),
   // '', 'shimmer', 'neon', 'rainbow', 'fire', 'gold'
   effect: text('effect').notNull().default(''),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
-export const userTags = pgTable(
+export const userTags = sqliteTable(
   'user_tags',
   {
-    userId: uuid('user_id')
+    userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    tagId: uuid('tag_id')
+    tagId: text('tag_id')
       .notNull()
       .references(() => tags.id, { onDelete: 'cascade' }),
   },
@@ -164,15 +160,15 @@ export const userTags = pgTable(
 // Server sticker pack — admin-curated, in addition to unicode emoji.
 // Stored as text/url only; no media bytes on the server.
 // ------------------------------------------------------------------
-export const stickers = pgTable('stickers', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const stickers = sqliteTable('stickers', {
+  id: text('id').primaryKey(), // UUID stored as text
   // the short token a user types in the editor, e.g. ":wave:"
   token: text('token').notNull().unique(),
   // image/gif url OR an emoji fallback if no url
   url: text('url'),
   emoji: text('emoji'),
   label: text('label').notNull().default(''),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
 export type User = typeof users.$inferSelect;

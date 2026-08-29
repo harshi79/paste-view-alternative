@@ -81,6 +81,7 @@ export async function POST(req: Request) {
     visibility,
     passwordHash: password ? await hashPassword(password) : null,
     expiresAt: expiryFromId(expiresIn),
+    createdAt: new Date(),
   });
 
   return NextResponse.json({ ok: true, id });

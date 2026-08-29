@@ -19,7 +19,7 @@ export async function GET() {
   let db: string;
   try {
     const handle = await getDb();
-    await handle.execute(sql.raw(`SELECT 1`));
+    await handle.run(sql.raw(`SELECT 1`));
     db = 'ok';
   } catch (err) {
     db = 'error';

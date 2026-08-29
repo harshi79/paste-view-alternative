@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { sql } from 'drizzle-orm';
 import { users, profiles, pastes, tags, stickers } from './schema';
@@ -64,13 +65,15 @@ export async function seedIfEmpty(db: DB) {
   const hash = bcrypt.hashSync(DEMO_PASSWORD, 10);
   const novaHash = bcrypt.hashSync(NOVA_PASSWORD, 10);
 
+  const now = Date.now();
+
   const [demo] = await db
     .insert(users)
-    .values({ username: 'demo', passwordHash: hash })
+    .values({ id: randomUUID(), username: 'demo', passwordHash: hash, createdAt: new Date(now) })
     .returning();
   const [nova] = await db
     .insert(users)
-    .values({ username: 'nova', passwordHash: novaHash })
+    .values({ id: randomUUID(), username: 'nova', passwordHash: novaHash, createdAt: new Date(now) })
     .returning();
 
   await db.insert(profiles).values([
@@ -107,7 +110,6 @@ export async function seedIfEmpty(db: DB) {
     },
   ]);
 
-  const now = Date.now();
   await db.insert(pastes).values([
     {
       id: 'welcometovb',
@@ -181,20 +183,21 @@ print(' '.join(w[::-1] for w in sentence.split()))`,
 
   // Tags + stickers
   for (const t of SEED_TAGS) {
-    await db.insert(tags).values(t).onConflictDoNothing();
+    await db.insert(tags).values({ id: randomUUID(), ...t, createdAt: new Date(now) }).onConflictDoNothing();
   }
   for (const s of SEED_STICKERS) {
-    await db.insert(stickers).values(s).onConflictDoNothing();
+    await db.insert(stickers).values({ id: randomUUID(), ...s, createdAt: new Date(now) }).onConflictDoNothing();
   }
 
   console.log('[vibebin] seeded demo data (demo/demo1234)');
 }
 
 async function ensureStickersAndTags(db: DB) {
+  const now = Date.now();
   for (const t of SEED_TAGS) {
-    await db.insert(tags).values(t).onConflictDoNothing();
+    await db.insert(tags).values({ id: randomUUID(), ...t, createdAt: new Date(now) }).onConflictDoNothing();
   }
   for (const s of SEED_STICKERS) {
-    await db.insert(stickers).values(s).onConflictDoNothing();
+    await db.insert(stickers).values({ id: randomUUID(), ...s, createdAt: new Date(now) }).onConflictDoNothing();
   }
 }

@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.3.0",
+    "@libsql/client": "^0.17.4",
     "bcryptjs": "^3.0.2",
     "drizzle-orm": "^0.44.0",
     "highlight.js": "^11.11.0",

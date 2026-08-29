@@ -20,7 +20,7 @@ export async function computeBadges(
     const [row] = await db
       .select({ n: sql<number>`count(*)` })
       .from(users)
-      .where(sql`${users.createdAt} <= ${user.createdAt.toISOString()}`);
+      .where(sql`${users.createdAt} <= ${user.createdAt.getTime()}`);
     if (Number(row?.n ?? 0) <= 10) {
       badges.push({ id: 'og', label: 'OG Member', emoji: '🏅', from: '#f59e0b', to: '#ef4444' });
     }
