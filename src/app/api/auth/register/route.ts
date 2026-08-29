@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { users, profiles, signupIps } from '@/lib/db/schema';
@@ -69,14 +70,15 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await hashPassword(password);
+  const now = new Date();
   const [user] = await db
     .insert(users)
-    .values({ username, passwordHash })
+    .values({ id: randomUUID(), username, passwordHash, createdAt: now })
     .returning();
 
   await db.insert(profiles).values({ userId: user.id, displayName: user.username });
   if (ip && ip !== '0.0.0.0') {
-    await db.insert(signupIps).values({ userId: user.id, ip });
+    await db.insert(signupIps).values({ userId: user.id, ip, createdAt: now });
   }
 
   await createSession(user);

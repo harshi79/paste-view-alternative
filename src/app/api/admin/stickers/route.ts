@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { stickers } from '@/lib/db/schema';
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
   }
   const [row] = await db
     .insert(stickers)
-    .values({ token, url, emoji, label })
+    .values({ id: randomUUID(), token, url, emoji, label, createdAt: new Date() })
     .returning();
   return NextResponse.json({ sticker: row });
 }

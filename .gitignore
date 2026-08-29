@@ -27,3 +27,11 @@ yarn-error.log*
 
 # embedded dev database
 .pglite-data/
+
+# local SQLite database
+local.db
+local.db-wal
+local.db-shm
+
+# migration exports
+exports/

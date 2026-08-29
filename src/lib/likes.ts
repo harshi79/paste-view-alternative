@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from './db';
 import { likes, pastes } from './db/schema';
@@ -96,7 +96,7 @@ export async function likePaste(
     // an error (a failed statement would poison the whole transaction).
     const [row] = await tx
       .insert(likes)
-      .values({ pasteId, userId: actor.userId ?? null, ipHash: actor.ipHash ?? null })
+      .values({ id: randomUUID(), pasteId, userId: actor.userId ?? null, ipHash: actor.ipHash ?? null, createdAt: new Date() })
       .onConflictDoNothing()
       .returning({ id: likes.id });
     const inserted = !!row;
@@ -129,7 +129,7 @@ export async function unlikePaste(
     if (removed.length > 0) {
       await tx
         .update(pastes)
-        .set({ likesCount: sql`GREATEST(${pastes.likesCount} - 1, 0)` })
+        .set({ likesCount: sql`MAX(${pastes.likesCount} - 1, 0)` })
         .where(eq(pastes.id, pasteId));
     }
     const [paste] = await tx

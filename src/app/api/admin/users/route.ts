@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const db = await getDb();
   const where = q
     ? sql`lower(${users.username}) LIKE ${`%${q}%`}`
-    : sql`TRUE`;
+    : sql`1`;
   const rows = await db
     .select({
       id: users.id,

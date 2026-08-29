@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { getDb } from './db';
 import { passwordResets, users } from './db/schema';
@@ -35,7 +35,7 @@ export async function issuePasswordReset(userId: string): Promise<{ token: strin
 
   // Replace any previous (still unused) tokens for this user.
   await db.delete(passwordResets).where(and(eq(passwordResets.userId, userId), isNull(passwordResets.usedAt)));
-  await db.insert(passwordResets).values({ userId, tokenHash: sha256(token), expiresAt });
+  await db.insert(passwordResets).values({ id: randomUUID(), userId, tokenHash: sha256(token), expiresAt, createdAt: new Date() });
 
   return { token, expiresIn: RESET_TTL_MS / 1000 };
 }

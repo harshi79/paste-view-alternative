@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { asc, eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { tags, userTags } from '@/lib/db/schema';
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
   const db = await getDb();
   const [existing] = await db.select().from(tags).where(eq(tags.label, label)).limit(1);
   if (existing) return NextResponse.json({ error: 'A tag with that label already exists.' }, { status: 409 });
-  const [row] = await db.insert(tags).values({ label, color, effect }).returning();
+  const [row] = await db.insert(tags).values({ id: randomUUID(), label, color, effect, createdAt: new Date() }).returning();
   return NextResponse.json({ tag: row });
 }
 
