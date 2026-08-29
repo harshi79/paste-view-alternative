@@ -510,7 +510,14 @@ export default function ProfileCustomizer({
               />
             ) : state.bannerUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={state.bannerUrl} alt="" className="h-full w-full object-cover" />
+              <img
+                src={state.bannerUrl}
+                alt=""
+                className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
             ) : (
               <div
                 className="h-full w-full"
@@ -529,6 +536,9 @@ export default function ProfileCustomizer({
                 alt=""
                 className="h-16 w-16 rounded-full border-4 border-night-950 object-cover shadow-xl"
                 style={{ boxShadow: `0 6px 30px ${state.accent}55` }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             ) : (
               <span className="grid h-16 w-16 place-items-center rounded-full border-4 border-night-950 bg-gradient-to-br from-brand-500 to-cyan-400 text-xl font-black text-night-950">

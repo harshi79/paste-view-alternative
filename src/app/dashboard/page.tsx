@@ -33,8 +33,7 @@ export default async function DashboardPage({ searchParams }: Props) {
         <div>
           <h1 className="text-3xl font-black tracking-tight text-white">My pastes</h1>
           <p className="mt-1 text-sm text-zinc-400">
-            Everything you have pasted. Guests can paste without an account, but only accounts
-            keep a history.
+            All your pastes in one place. Signing in saves a history; guests paste without one.
           </p>
         </div>
         <div className="flex gap-3">

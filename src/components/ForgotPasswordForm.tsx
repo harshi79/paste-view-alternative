@@ -106,7 +106,7 @@ export default function ForgotPasswordForm() {
                   autoFocus
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="coolname_123"
+                  placeholder="username"
                   autoComplete="username"
                   className={input}
                 />

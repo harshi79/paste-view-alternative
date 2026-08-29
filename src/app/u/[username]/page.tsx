@@ -9,6 +9,7 @@ import { computeBadges } from '@/lib/badges';
 import { formatDate, formatViews } from '@/lib/format';
 import NameDisplay, { type NameEffect } from '@/components/NameDisplay';
 import Avatar from '@/components/Avatar';
+import SafeImage from '@/components/SafeImage';
 import PasteCard from '@/components/PasteCard';
 import AdminTags from '@/components/AdminTags';
 import TagBadge from '@/components/TagBadge';
@@ -109,13 +110,7 @@ export default async function ProfilePage({ params }: Props) {
             className="h-full w-full object-cover"
           />
         ) : profile.bannerUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={profile.bannerUrl}
-            alt=""
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
+          <SafeImage src={profile.bannerUrl} className="h-full w-full object-cover" />
         ) : (
           <div
             className="h-full w-full"

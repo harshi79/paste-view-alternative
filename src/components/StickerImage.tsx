@@ -8,6 +8,8 @@ type Props = {
   fallback: string;
   /** Optional pre-loaded pack (e.g. from the editor). Falls back to the shared loader. */
   pack?: StickerEntry[] | null;
+  /** Explicit resolved url for this token (e.g. a live anime GIF). */
+  url?: string | null;
 };
 
 /**
@@ -15,8 +17,9 @@ type Props = {
  * Renders the sticker image/GIF when the pack resolves — never the raw
  * shortcode unless the sticker is unknown.
  */
-export default function StickerImage({ token, fallback, pack }: Props) {
+export default function StickerImage({ token, fallback, pack, url }: Props) {
   const [loaded, setLoaded] = useState<StickerEntry[] | null>(pack ?? null);
+  const [broken, setBroken] = useState(false);
 
   useEffect(() => {
     if (pack) {
@@ -33,16 +36,18 @@ export default function StickerImage({ token, fallback, pack }: Props) {
   }, [pack, token]);
 
   const hit = findSticker(loaded, token);
-  if (hit?.url) {
+  const src = url || hit?.url || null;
+  if (src && !broken) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={hit.url}
-        alt={hit.label || token}
-        title={hit.label || hit.token}
+        src={src}
+        alt={hit?.label || token}
+        title={hit?.label || hit?.token || token}
         loading="lazy"
         decoding="async"
         className="paste-sticker"
+        onError={() => setBroken(true)}
       />
     );
   }

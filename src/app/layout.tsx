@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: '%s · VibeBin',
   },
   description:
-    'A free PasteView alternative: share pastes with syntax highlighting, expiring links, password protection, and rich-text formatting. Customize your profile with animated names, video banners and colored links — all free.',
+    'A fast pastebin for developers. Share code with syntax highlighting, expiring links, password protection, unlisted pastes and rich-text formatting. Custom profiles with animated names, video banners and links.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -42,16 +42,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
         <main className="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6">{children}</main>
 
-        <footer className="border-t border-white/5 py-8">
+        <footer className="border-t border-white/[0.06] py-8">
           <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 text-sm text-zinc-500 sm:flex-row sm:px-6">
             <p className="flex items-center gap-3">
               <Link href="/" className="transition-opacity hover:opacity-80" aria-label="VibeBin home">
                 <Logo compact />
               </Link>
               <span className="hidden h-4 w-px bg-white/10 sm:block" />
-              <span>A free PasteView alternative.</span>
+              <span>Developer pastebin.</span>
             </p>
-            <p className="text-zinc-600">No premium paywalls · No accounts required for guests</p>
+            <p className="text-zinc-600">Syntax highlighting · Expiring links · Rich text</p>
           </div>
         </footer>
       </body>
