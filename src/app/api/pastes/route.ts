@@ -21,7 +21,10 @@ export async function POST(req: Request) {
   const language = String(body.language ?? 'plaintext');
   const visibility = body.visibility === 'unlisted' ? 'unlisted' : 'public';
   const expiresIn = String(body.expiresIn ?? 'never');
-  const password = body.password ? String(body.password) : '';
+  // A password is only accepted when the creator explicitly opts in. This
+  // keeps the default public/unprotected and ignores accidental autofill.
+  const passwordProtected = body.passwordProtected === true;
+  const password = passwordProtected ? String(body.password ?? '') : '';
   const titleColor =
     typeof body.titleColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.titleColor)
       ? body.titleColor
@@ -58,6 +61,9 @@ export async function POST(req: Request) {
 
   if (!isLanguage(language)) {
     return NextResponse.json({ error: 'Unknown language.' }, { status: 400 });
+  }
+  if (passwordProtected && !password) {
+    return NextResponse.json({ error: 'Enter a password to enable password protection.' }, { status: 400 });
   }
   if (password.length > 64) {
     return NextResponse.json({ error: 'Password too long (64 max).' }, { status: 400 });
