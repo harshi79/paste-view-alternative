@@ -459,7 +459,7 @@ export default function Editor({ username }: Props) {
           e.currentTarget.requestSubmit();
         }
       }}
-      className="animate-fade-up overflow-hidden rounded-2xl border border-white/[0.08] bg-night-900/70 shadow-[0_24px_64px_-28px_rgba(0,0,0,0.75)]"
+      className="glass animate-fade-up overflow-hidden rounded-2xl shadow-[0_24px_64px_-28px_rgba(0,0,0,0.75)]"
     >
       {/* Header — the title is the primary field. */}
       <div className="flex flex-col gap-2.5 border-b border-white/[0.06] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
@@ -478,7 +478,7 @@ export default function Editor({ username }: Props) {
               posting as <span className="font-semibold text-zinc-300">@{username}</span>
             </>
           ) : (
-            'guest paste — no account needed'
+            'guest paste'
           )}
         </p>
       </div>
@@ -488,7 +488,7 @@ export default function Editor({ username }: Props) {
         <div
           role="tablist"
           aria-label="Content mode"
-          className="flex items-center rounded-lg border border-white/10 bg-night-950/60 p-0.5"
+          className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
         >
           <button
             type="button"
@@ -601,7 +601,7 @@ export default function Editor({ username }: Props) {
 
       {/* Settings panel — collapsed by default, keeps the editor uncluttered. */}
       {showOptions && (
-        <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-night-950/30 px-4 py-4 sm:px-5">
+        <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-white/[0.02] px-4 py-4 backdrop-blur-sm sm:px-5">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className={fieldLabel} htmlFor="language">
@@ -688,7 +688,7 @@ export default function Editor({ username }: Props) {
       {/* The paste body — one large, quiet workspace. */}
       <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
         {format === 'plain' ? (
-          <div className="relative overflow-hidden rounded-xl border border-white/[0.08] bg-night-950/60 transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10">
+          <div className="relative overflow-hidden rounded-xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-sm transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10">
             <textarea
               id="content"
               aria-label="Paste content"
@@ -706,7 +706,7 @@ export default function Editor({ username }: Props) {
         ) : showPreview ? (
           <div
             aria-label="Live preview"
-            className="min-h-[420px] overflow-x-auto rounded-xl border border-white/[0.08] bg-night-950/40 px-4 py-4 md:min-h-[520px]"
+            className="min-h-[420px] overflow-x-auto rounded-xl border border-white/[0.1] bg-white/[0.02] px-4 py-4 backdrop-blur-sm md:min-h-[520px]"
           >
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
               Live preview
@@ -722,7 +722,7 @@ export default function Editor({ username }: Props) {
             onClick={(e) => {
               if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
             }}
-            className="min-h-[420px] rounded-xl border border-white/[0.08] bg-night-950/60 px-4 py-4 transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10 md:min-h-[520px]"
+            className="min-h-[420px] rounded-xl border border-white/[0.1] bg-white/[0.03] px-4 py-4 backdrop-blur-sm transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10 md:min-h-[520px]"
           >
             {rich.lines.map((line, i) => (
               <div
@@ -757,20 +757,19 @@ export default function Editor({ username }: Props) {
 
         {format === 'rich' && !showPreview && (
           <p className="mt-2 px-1 text-xs text-zinc-600">
-            Per-line formatting applies to the line you last clicked · type{' '}
-            <code className="font-mono text-zinc-500">:wave:</code> or{' '}
-            <code className="font-mono text-zinc-500">;happy;</code> for stickers
+            Formatting applies to the line you last clicked · use a shortcode like{' '}
+            <code className="font-mono text-zinc-500">:wave:</code> to insert a sticker
           </p>
         )}
 
         {/* Sticker picker — inline panel, always in reach on mobile. */}
         {format === 'rich' && showStickers && (
-          <div id="sticker-picker" className="animate-pop mt-3 rounded-xl border border-white/[0.08] bg-night-950/40 p-4">
+          <div id="sticker-picker" className="glass animate-pop mt-3 rounded-xl p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div
                 role="tablist"
                 aria-label="Sticker source"
-                className="flex items-center rounded-lg border border-white/10 bg-night-950/60 p-0.5"
+                className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
               >
                 <button
                   type="button"
@@ -817,9 +816,7 @@ export default function Editor({ username }: Props) {
               onChange={(e) => setStickerQuery(e.target.value)}
             />
             {stickerTab === 'anime' && nekoGifs.length === 0 && !stickerQuery ? (
-              <p className="mt-4 text-sm text-zinc-500">
-                Loading anime GIFs… (anime reactions may be unavailable offline)
-              </p>
+              <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
             ) : filteredStickers.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
             ) : (

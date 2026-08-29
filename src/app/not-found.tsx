@@ -9,7 +9,7 @@ export default function NotFound() {
             404
           </span>
         </p>
-        <h1 className="mt-3 text-xl font-bold text-white">This page ghosted you 👻</h1>
+        <h1 className="mt-3 text-xl font-bold text-white">Page not found</h1>
         <p className="mt-2 text-zinc-400">
           The page you&apos;re looking for doesn&apos;t exist or the paste was removed.
         </p>
