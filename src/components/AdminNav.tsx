@@ -16,8 +16,7 @@ export default function AdminNav({ active }: { active?: string }) {
 
   async function logout() {
     await fetch('/api/admin/logout', { method: 'POST' });
-    router.push('/admin/login');
-    router.refresh();
+    window.location.href = '/admin/login';
   }
 
   return (

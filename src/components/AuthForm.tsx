@@ -28,8 +28,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       setBusy(false);
       return;
     }
-    router.push(isRegister ? '/settings' : '/dashboard');
-    router.refresh();
+    window.location.href = isRegister ? '/settings' : '/dashboard';
   }
 
   const input =

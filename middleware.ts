@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const SECRET = new TextEncoder().encode(
-  process.env.AUTH_SECRET || 'vibebin-dev-secret-do-not-use-in-production-change-me',
-);
+function getSecret(): Uint8Array {
+  const raw =
+    process.env.AUTH_SECRET ||
+    'vibebin-dev-secret-do-not-use-in-production-change-me';
+  return new TextEncoder().encode(raw);
+}
 
 /**
  * Edge guard for authenticated pages.
@@ -15,13 +18,14 @@ const SECRET = new TextEncoder().encode(
  */
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const secret = getSecret();
 
   if (path.startsWith('/admin') && path !== '/admin/login') {
     const token = req.cookies.get('vb_admin')?.value;
     let ok = false;
     if (token) {
       try {
-        const { payload } = await jwtVerify(token, SECRET);
+        const { payload } = await jwtVerify(token, secret);
         ok = payload.admin === true;
       } catch {
         ok = false;
@@ -44,7 +48,7 @@ export async function middleware(req: NextRequest) {
     let ok = false;
     if (token) {
       try {
-        await jwtVerify(token, SECRET);
+        await jwtVerify(token, secret);
         ok = true;
       } catch {
         ok = false;
@@ -62,8 +66,11 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
+    '/dashboard',
     '/dashboard/:path*',
+    '/settings',
     '/settings/:path*',
+    '/account',
     '/account/:path*',
     '/admin',
     '/admin/:path*',

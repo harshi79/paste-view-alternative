@@ -24,8 +24,7 @@ export default function AdminLoginForm() {
       setError(data.error || 'Wrong password.');
       return;
     }
-    router.push('/admin');
-    router.refresh();
+    window.location.href = '/admin';
   }
 
   return (

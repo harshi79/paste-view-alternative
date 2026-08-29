@@ -68,8 +68,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/');
-    router.refresh();
+    window.location.href = '/';
   }
 
   async function changePassword(e: React.FormEvent) {
