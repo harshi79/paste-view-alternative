@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { LANGUAGES } from '@/lib/languages';
 import { EXPIRY_OPTIONS } from '@/lib/expiry';
@@ -155,7 +154,6 @@ export default function Editor({ username }: Props) {
   const [format, setFormat] = useState<'plain' | 'rich'>('plain');
 
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
-  const stickerSearchRef = useRef<HTMLInputElement | null>(null);
   const packLoaded = useRef(false);
   const nekoLoaded = useRef(false);
   /** Monotonic id source for stable per-line React keys (uncontrolled DOM). */
@@ -241,23 +239,6 @@ export default function Editor({ username }: Props) {
     const t = setTimeout(() => handleGifSearch(q), 350);
     return () => clearTimeout(t);
   }, [stickerQuery, stickerTab, showStickers, handleGifSearch]);
-
-  // Sticker drawer (slide-over) behavior: Escape closes it, the page
-  // behind it doesn't scroll, and the search box is focused on open.
-  useEffect(() => {
-    if (format !== 'rich' || !showStickers) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowStickers(false);
-    };
-    window.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    stickerSearchRef.current?.focus();
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [showStickers, format]);
 
   function updateLine(i: number, patch: Partial<RichLine>) {
     setRich((doc) => {
@@ -560,11 +541,6 @@ export default function Editor({ username }: Props) {
   return (
     <form
       onSubmit={submit}
-      // This is a paste-composer form, not a login form — never let the
-      // browser's password manager autofill anything here (it used to
-      // silently fill the optional paste-password field with the user's
-      // last saved/copied password, locking pastes on share).
-      autoComplete="off"
       onKeyDown={(e) => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
           e.preventDefault();
@@ -754,21 +730,14 @@ export default function Editor({ username }: Props) {
               </select>
             </div>
             <div>
-              <label className={fieldLabel} htmlFor="paste-password">
-                Password <span className="text-zinc-600">(optional)</span>
+              <label className={fieldLabel} htmlFor="password">
+                Password
               </label>
               <input
-                id="paste-password"
-                name="paste-password"
+                id="password"
                 type="password"
-                // "new-password" is the strong signal browsers respect:
-                // never autofill a saved/last-used password into this field.
-                autoComplete="new-password"
-                data-1p-ignore
-                data-lpignore="true"
-                data-form-type="other"
                 className="input"
-                placeholder="Leave empty for no password"
+                placeholder="None"
                 value={password}
                 maxLength={64}
                 onChange={(e) => setPassword(e.target.value)}
@@ -881,192 +850,156 @@ export default function Editor({ username }: Props) {
           </p>
         )}
 
-        {/* Sticker picker — a small slide-over drawer anchored to the right
-            edge of the screen. It never reflows the editor: clicking the
-            scrim outside it (or pressing Escape) closes it. */}
-        {format === 'rich' &&
-          showStickers &&
-          createPortal(
-            <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Sticker picker">
-              {/* Scrim — click outside the drawer to close it. */}
+        {/* Sticker picker — inline panel, always in reach on mobile. */}
+        {format === 'rich' && showStickers && (
+          <div id="sticker-picker" className="glass animate-pop mt-3 rounded-xl p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div
-                className="sticker-scrim absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-                onClick={() => setShowStickers(false)}
-                aria-hidden="true"
-              />
-              <aside
-                className="sticker-drawer absolute right-0 top-0 flex h-full w-[320px] max-w-[88vw] flex-col border-l border-white/10 bg-night-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
-                onClick={(e) => e.stopPropagation()}
+                role="tablist"
+                aria-label="Sticker source"
+                className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
               >
-                <div className="flex flex-none flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
-                  <div
-                    role="tablist"
-                    aria-label="Sticker source"
-                    className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
-                  >
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={stickerTab === 'pack'}
-                      onClick={() => switchStickerTab('pack')}
-                      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        stickerTab === 'pack' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
-                      }`}
-                    >
-                      Stickers
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={stickerTab === 'anime'}
-                      onClick={() => switchStickerTab('anime')}
-                      className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        stickerTab === 'anime' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
-                      }`}
-                    >
-                      Anime GIFs
-                    </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={stickerTab === 'pack'}
+                  onClick={() => switchStickerTab('pack')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    stickerTab === 'pack' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  Stickers
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={stickerTab === 'anime'}
+                  onClick={() => switchStickerTab('anime')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    stickerTab === 'anime' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  Anime GIFs
+                </button>
+              </div>
+              <button
+                type="button"
+                aria-label="Close sticker picker"
+                onClick={() => setShowStickers(false)}
+                className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-white"
+              >
+                <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
+                  <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <input
+              className="input !py-2 text-sm"
+              placeholder={
+                stickerTab === 'anime'
+                  ? 'Search anime GIFs — “hug”, “pat”, “wave”…'
+                  : 'Search stickers — try “wave”, “fire”…'
+              }
+              value={stickerQuery}
+              onChange={(e) => setStickerQuery(e.target.value)}
+            />
+            {stickerTab === 'anime' ? (
+              stickerQuery.trim() ? (
+                searchingGifs ? (
+                  <p className="mt-4 text-sm text-zinc-500">Searching GIFs…</p>
+                ) : gifResults.length === 0 ? (
+                  <p className="mt-4 text-sm text-zinc-500">No GIFs found — try another term.</p>
+                ) : (
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                    {gifResults.map((g) => (
+                      <button
+                        type="button"
+                        key={g.url}
+                        title={g.label}
+                        onClick={() => insertGifUrl(g.url)}
+                        className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={g.preview || g.url}
+                          alt={g.label}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    ))}
                   </div>
+                )
+              ) : nekoGifs.length === 0 ? (
+                <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
+              ) : (
+                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  {nekoGifs.map((g) => (
+                    <button
+                      type="button"
+                      key={g.token}
+                      title={`${g.token} — ${g.label}`}
+                      onClick={() => applyStickerToActiveLine(g.token, g.url)}
+                      className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                    >
+                      {g.url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={g.url}
+                          alt={g.label}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                          className="h-8 w-8 object-contain"
+                        />
+                      ) : (
+                        <span className="text-lg">{g.emoji}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )
+            ) : filteredStickers.length === 0 ? (
+              <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
+            ) : (
+              <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                {filteredStickers.map((s) => (
                   <button
                     type="button"
-                    aria-label="Close sticker picker"
-                    onClick={() => setShowStickers(false)}
-                    className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-white"
+                    key={s.token}
+                    title={`${s.token} — ${s.label || ''}`}
+                    onClick={() => applyStickerToActiveLine(s.token, s.url)}
+                    className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                   >
-                    <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
-                      <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="flex-none px-4 pt-3">
-                  <input
-                    id="paste-sticker-search"
-                    ref={stickerSearchRef}
-                    className="input !py-2 text-sm"
-                    placeholder={
-                      stickerTab === 'anime'
-                        ? 'Search anime GIFs — “hug”, “pat”, “wave”…'
-                        : 'Search stickers — try “wave”, “fire”…'
-                    }
-                    value={stickerQuery}
-                    onChange={(e) => setStickerQuery(e.target.value)}
-                  />
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                  {stickerTab === 'anime' ? (
-                    stickerQuery.trim() ? (
-                      searchingGifs ? (
-                        <p className="mt-4 text-sm text-zinc-500">Searching GIFs…</p>
-                      ) : gifResults.length === 0 ? (
-                        <p className="mt-4 text-sm text-zinc-500">No GIFs found — try another term.</p>
-                      ) : (
-                        <div className="grid grid-cols-4 gap-2">
-                          {gifResults.map((g) => (
-                            <button
-                              type="button"
-                              key={g.url}
-                              title={g.label}
-                              onClick={() => insertGifUrl(g.url)}
-                              className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={g.preview || g.url}
-                                alt={g.label}
-                                loading="lazy"
-                                decoding="async"
-                                className="h-full w-full object-cover"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      )
-                    ) : nekoGifs.length === 0 ? (
-                      <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
+                    {s.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.url}
+                        alt={s.label || s.token}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        className="h-8 w-8 object-contain"
+                      />
                     ) : (
-                      <div className="grid grid-cols-4 gap-2">
-                        {nekoGifs.map((g) => (
-                          <button
-                            type="button"
-                            key={g.token}
-                            title={`${g.token} — ${g.label}`}
-                            onClick={() => applyStickerToActiveLine(g.token, g.url)}
-                            className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
-                          >
-                            {g.url ? (
-                              // eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={g.url}
-                                alt={g.label}
-                                loading="lazy"
-                                decoding="async"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                                className="h-8 w-8 object-contain"
-                              />
-                            ) : (
-                              <span className="text-lg">{g.emoji}</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )
-                  ) : filteredStickers.length === 0 ? (
-                    <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
-                  ) : (
-                    <div className="grid grid-cols-4 gap-2">
-                      {filteredStickers.map((s) => (
-                        <button
-                          type="button"
-                          key={s.token}
-                          title={`${s.token} — ${s.label || ''}`}
-                          onClick={() => applyStickerToActiveLine(s.token, s.url)}
-                          className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
-                        >
-                          {s.url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={s.url}
-                              alt={s.label || s.token}
-                              loading="lazy"
-                              decoding="async"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                              className="h-8 w-8 object-contain"
-                            />
-                          ) : (
-                            <span className="text-lg">{s.emoji ?? s.token}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p className="flex-none border-t border-white/[0.08] px-4 py-2.5 text-[11px] text-zinc-600">
-                  Click a sticker to insert its shortcode · Esc or click outside to close
-                </p>
-              </aside>
-              <style>{`
-                @keyframes vbStickerDrawerIn {
-                  from { transform: translateX(100%); }
-                  to { transform: translateX(0); }
-                }
-                @keyframes vbStickerScrimIn {
-                  from { opacity: 0; }
-                  to { opacity: 1; }
-                }
-                .sticker-drawer { animation: vbStickerDrawerIn 0.24s cubic-bezier(0.16, 1, 0.3, 1) both; }
-                .sticker-scrim { animation: vbStickerScrimIn 0.2s ease-out both; }
-              `}</style>
-            </div>,
-            document.body,
-          )}
+                      <span className="text-lg">{s.emoji ?? s.token}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
         <div
+          role="alert"
           className="flex items-center gap-2.5 border-t border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300 sm:px-5"
         >
           <AlertIcon />

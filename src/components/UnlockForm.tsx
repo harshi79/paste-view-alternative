@@ -52,12 +52,6 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
       <input
         type="password"
         autoFocus
-        // Paste passwords are one-off shared secrets, never saved
-        // credentials — don't let the browser autofill anything here.
-        autoComplete="off"
-        name="paste-unlock-password"
-        data-1p-ignore
-        data-lpignore="true"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
