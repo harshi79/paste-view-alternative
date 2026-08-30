@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import NameDisplay, { type NameStyle, type NameEffect, NAME_EFFECTS } from './NameDisplay';
 import EmojiStatus from './EmojiStatus';
+import SocialPlatformIcon from './SocialPlatformIcon';
 import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
+import { detectSocialPlatform } from '@/lib/socialPlatform';
 
 type LinkItem = { label: string; url: string; color: string };
 
@@ -529,16 +531,26 @@ export default function ProfileCustomizer({
                       set('links', links);
                     }}
                   />
-                  <input
-                    className={input}
-                    placeholder="https://…"
-                    value={link.url}
-                    onChange={(e) => {
-                      const links = [...state.links];
-                      links[i] = { ...link, url: e.target.value };
-                      set('links', links);
-                    }}
-                  />
+                  <div className="relative min-w-0">
+                    {link.url.trim() && (
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
+                        <SocialPlatformIcon
+                          platform={detectSocialPlatform(link.url).icon}
+                          className="h-4 w-4"
+                        />
+                      </span>
+                    )}
+                    <input
+                      className={`${input} ${link.url.trim() ? 'pl-9' : ''}`}
+                      placeholder="https://…"
+                      value={link.url}
+                      onChange={(e) => {
+                        const links = [...state.links];
+                        links[i] = { ...link, url: e.target.value };
+                        set('links', links);
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => set('links', state.links.filter((_, j) => j !== i))}
@@ -640,20 +652,26 @@ export default function ProfileCustomizer({
             {state.links.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {state.links
-                  .filter((link) => link.label)
-                  .map((link, i) => (
-                    <span
-                      key={i}
-                      className="rounded-full border px-3 py-1 text-[11px] font-semibold"
-                      style={{
-                        borderColor: `${link.color}66`,
-                        background: `${link.color}14`,
-                        color: link.color,
-                      }}
-                    >
-                      {link.label}
-                    </span>
-                  ))}
+                  .filter((link) => link.url.trim())
+                  .map((link, i) => {
+                    const detected = detectSocialPlatform(link.url);
+                    const label = (link.label ?? '').trim() || detected.label;
+                    const accent = detected.color;
+                    return (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold"
+                        style={{
+                          borderColor: `${accent}66`,
+                          background: `${accent}14`,
+                          color: accent,
+                        }}
+                      >
+                        <SocialPlatformIcon platform={detected.icon} className="h-3.5 w-3.5 shrink-0" />
+                        {label}
+                      </span>
+                    );
+                  })}
               </div>
             )}
           </div>

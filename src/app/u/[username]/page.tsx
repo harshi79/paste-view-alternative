@@ -11,6 +11,8 @@ import NameDisplay, { type NameEffect } from '@/components/NameDisplay';
 import Avatar from '@/components/Avatar';
 import SafeImage from '@/components/SafeImage';
 import PasteCard from '@/components/PasteCard';
+import SocialPlatformIcon from '@/components/SocialPlatformIcon';
+import { detectSocialPlatform } from '@/lib/socialPlatform';
 import AdminTags from '@/components/AdminTags';
 import TagBadge from '@/components/TagBadge';
 import EmojiStatus from '@/components/EmojiStatus';
@@ -201,22 +203,28 @@ export default async function ProfilePage({ params }: Props) {
 
         {profile.links.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2.5">
-            {profile.links.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors hover:border-white/30"
-                style={{
-                  borderColor: `${link.color}66`,
-                  background: `${link.color}14`,
-                  color: link.color,
-                }}
-              >
-                {link.label}
-              </a>
-            ))}
+            {profile.links.map((link, i) => {
+              const detected = detectSocialPlatform(link.url);
+              const label = (link.label ?? '').trim() || detected.label;
+              const accent = detected.color;
+              return (
+                <a
+                  key={i}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors hover:border-white/30"
+                  style={{
+                    borderColor: `${accent}66`,
+                    background: `${accent}14`,
+                    color: accent,
+                  }}
+                >
+                  <SocialPlatformIcon platform={detected.icon} className="h-4 w-4 shrink-0" />
+                  <span>{label}</span>
+                </a>
+              );
+            })}
           </div>
         )}
 
