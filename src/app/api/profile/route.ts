@@ -4,15 +4,12 @@ import { profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { sql } from 'drizzle-orm';
 import { isStickerToken, normalizeUnicodeStatus } from '@/lib/statusEmoji';
+import { isNameEffect } from '@/lib/nameEffects';
 
 export const runtime = 'nodejs';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const NAME_STYLES = ['solid', 'gradient'];
-const NAME_EFFECTS = [
-  'none', 'typewriter', 'shimmer', 'neon', 'rainbow',
-  'fire', 'glitch', 'wave', 'aurora', 'gold',
-];
 
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo;
@@ -52,7 +49,9 @@ export async function PATCH(req: Request) {
   const requestedStatusEmoji = String(body.statusEmoji ?? '').trim();
   const statusText = String(body.statusText ?? '').trim().slice(0, 60);
   const nameStyle = NAME_STYLES.includes(String(body.nameStyle)) ? String(body.nameStyle) : 'gradient';
-  const nameEffect = NAME_EFFECTS.includes(String(body.nameEffect)) ? String(body.nameEffect) : 'none';
+  // Validate against the shared registry. Unknown ids — including the
+  // removed legacy `wave` effect — are normalized to 'none'.
+  const nameEffect = isNameEffect(body.nameEffect) ? body.nameEffect : 'none';
   const nameFrom = HEX.test(String(body.nameFrom)) ? String(body.nameFrom) : '#a78bfa';
   const nameTo = HEX.test(String(body.nameTo)) ? String(body.nameTo) : '#22d3ee';
   const accent = HEX.test(String(body.accent)) ? String(body.accent) : '#8b5cf6';

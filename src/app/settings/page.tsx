@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { requireUser } from '@/lib/auth';
+import { sanitizeNameEffect } from '@/lib/nameEffects';
 import ProfileCustomizer from '@/components/ProfileCustomizer';
 
 export const metadata: Metadata = { title: 'Customize profile' };
@@ -22,17 +23,7 @@ export default async function SettingsPage() {
           nameFrom: profile.nameFrom,
           nameTo: profile.nameTo,
           nameStyle: profile.nameStyle as 'solid' | 'gradient',
-          nameEffect: profile.nameEffect as
-            | 'none'
-            | 'typewriter'
-            | 'shimmer'
-            | 'neon'
-            | 'rainbow'
-            | 'fire'
-            | 'glitch'
-            | 'wave'
-            | 'aurora'
-            | 'gold',
+          nameEffect: sanitizeNameEffect(profile.nameEffect),
           effectSpeed: profile.effectSpeed,
           effectIntensity: profile.effectIntensity,
           accent: profile.accent,
