@@ -19,23 +19,19 @@ type Props = { doc: RichDoc; stickers?: StickerPackEntry[] };
  */
 export default function RichPasteView({ doc, stickers }: Props) {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-white/10 bg-[#060912]/85 shadow-[0_28px_60px_-40px_rgba(0,0,0,0.92)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3">
-        <div className="flex items-center gap-3">
+    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#060912]/85 shadow-[0_24px_60px_-36px_rgba(0,0,0,0.9)]">
+      <div className="flex items-center justify-between border-b border-white/[0.06] bg-black/25 px-4 py-2.5 sm:px-5">
+        <div className="flex items-center gap-2.5">
           <span className="window-dots" aria-hidden="true">
             <span className="window-dot bg-rose-400/80" />
             <span className="window-dot bg-amber-400/80" />
             <span className="window-dot bg-emerald-400/80" />
           </span>
-          <div>
-            <p className="text-sm font-semibold text-white">Rendered paste</p>
-            <p className="text-[11px] text-zinc-500">Rich lines, inline stickers, and linked URLs in one clean view.</p>
-          </div>
+          <span className="font-mono text-xs font-medium text-zinc-400">rich text</span>
         </div>
-        <div className="flex flex-wrap gap-2 text-[11px] text-zinc-400">
-          <span className="pill">Rich content</span>
-          <span className="pill">{doc.lines.length.toLocaleString()} lines</span>
-        </div>
+        <span className="font-mono text-xs text-zinc-500">
+          {doc.lines.length.toLocaleString()} {doc.lines.length === 1 ? 'line' : 'lines'}
+        </span>
       </div>
 
       <div className="overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_30%)] px-3 py-4 md:px-4">
@@ -44,7 +40,7 @@ export default function RichPasteView({ doc, stickers }: Props) {
         ) : (
           doc.lines.map((line, i) => (
             <div key={i} className="grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5">
-              <span aria-hidden className="pt-1 text-right font-mono text-[11px] text-zinc-600">
+              <span aria-hidden className="select-none pt-1 text-right font-mono text-[11px] text-zinc-600">
                 {i + 1}
               </span>
               <RichLine line={line} stickers={stickers} />
