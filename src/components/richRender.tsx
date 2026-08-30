@@ -1,17 +1,26 @@
 import type { ReactNode } from 'react';
 import type { RichLine, InlineMark } from '@/lib/pasteFormat';
 import { fontCss, sanitizeMarks } from '@/lib/pasteFormat';
+import type { RichHighlightRun } from '@/lib/highlight';
 
 /**
  * Splits a rich-text line into React nodes using its inline marks.
  * Shared by the server-rendered paste view and the client-side composer
  * preview so both render stickers/emoji/links identically.
+ *
+ * `highlightRuns` are PRESENTATION-ONLY syntax tokens (source offsets +
+ * hljs class). They are applied to plain text gaps only and clipped
+ * around every inline mark, so links/stickers/emoji are always rendered
+ * through their dedicated mark path and can never be swallowed or
+ * restyled by a token span. The underlying line text is never changed.
  */
 export function splitLine(
   line: RichLine,
   opts: {
     renderSticker: (mark: InlineMark, slice: string, stickerUrls?: Record<string, string>) => ReactNode;
     renderEmoji?: (mark: InlineMark, slice: string) => ReactNode;
+    /** Token runs for this line (source offsets); undefined = no highlighting. */
+    highlightRuns?: RichHighlightRun[];
   },
 ): ReactNode[] {
   const text = line.text ?? '';
@@ -19,10 +28,43 @@ export function splitLine(
   const out: ReactNode[] = [];
   let cursor = 0;
 
+  const pushText = (from: number, to: number, keyPrefix: string) => {
+    if (to <= from) return;
+    const runs = opts.highlightRuns;
+    if (!runs || runs.length === 0 || line.color !== undefined) {
+      out.push(<span key={keyPrefix}>{text.slice(from, to)}</span>);
+      return;
+    }
+    // Clip token runs to this text gap; every piece stays a plain React
+    // span — no highlighted HTML is ever injected.
+    let pos = from;
+    let ri = 0;
+    let piece = 0;
+    while (pos < to) {
+      while (ri < runs.length && runs[ri].end <= pos) ri++;
+      if (ri >= runs.length || runs[ri].start >= to) {
+        out.push(<span key={`${keyPrefix}-p${piece++}`}>{text.slice(pos, to)}</span>);
+        break;
+      }
+      const run = runs[ri];
+      const rs = Math.max(run.start, pos);
+      if (rs > pos) {
+        out.push(<span key={`${keyPrefix}-p${piece++}`}>{text.slice(pos, rs)}</span>);
+      }
+      const re = Math.min(run.end, to);
+      out.push(
+        <span key={`${keyPrefix}-h${piece++}`} className={run.className}>
+          {text.slice(rs, re)}
+        </span>,
+      );
+      pos = re;
+    }
+  };
+
   for (let i = 0; i < marks.length; i++) {
     const m = marks[i];
     if (m.start > cursor) {
-      out.push(<span key={`t${i}-${cursor}`}>{text.slice(cursor, m.start)}</span>);
+      pushText(cursor, m.start, `t${i}-${cursor}`);
     }
     const slice = text.slice(m.start, m.end);
     if (m.kind === 'link') {
@@ -47,7 +89,7 @@ export function splitLine(
     cursor = m.end;
   }
   if (cursor < text.length) {
-    out.push(<span key={`tail-${cursor}`}>{text.slice(cursor)}</span>);
+    pushText(cursor, text.length, `tail-${cursor}`);
   }
   return out;
 }

@@ -49,7 +49,7 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
 
   if (unlocked) {
     return richDoc ? (
-      <RichPasteViewClient doc={richDoc} />
+      <RichPasteViewClient doc={richDoc} language={unlocked.language} />
     ) : (
       <PasteViewerClient content={unlocked.content} language={unlocked.language} />
     );

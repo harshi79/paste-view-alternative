@@ -179,7 +179,7 @@ export default async function PastePage({ params }: Props) {
         {locked ? (
           <UnlockForm pasteId={paste.id} />
         ) : richDoc ? (
-          <RichPasteView doc={richDoc} stickers={stickerRows} />
+          <RichPasteView doc={richDoc} stickers={stickerRows} language={paste.language} />
         ) : (
           <PasteViewer content={paste.content} language={paste.language} />
         )}
