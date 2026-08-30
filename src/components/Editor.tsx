@@ -143,6 +143,8 @@ export default function Editor({ username }: Props) {
   const [stickerQuery, setStickerQuery] = useState('');
 
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const stickerBtnRef = useRef<HTMLButtonElement | null>(null);
+  const stickerPanelRef = useRef<HTMLDivElement | null>(null);
   const packLoaded = useRef(false);
   const nekoLoaded = useRef(false);
   /** Monotonic id source for stable per-line React keys (uncontrolled DOM). */
@@ -217,6 +219,19 @@ export default function Editor({ username }: Props) {
   useEffect(() => {
     ensureStickerPack();
   }, [ensureStickerPack]);
+
+  // Clicking outside the floating sticker picker (or its toggle) closes it.
+  useEffect(() => {
+    if (!showStickers) return;
+    function onPointerDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (stickerPanelRef.current?.contains(t)) return;
+      if (stickerBtnRef.current?.contains(t)) return;
+      setShowStickers(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [showStickers]);
 
   // Debounced GIF search while the Anime GIFs tab is open.
   useEffect(() => {
@@ -525,6 +540,7 @@ export default function Editor({ username }: Props) {
   const currentExpiry = EXPIRY_OPTIONS.find((o) => o.id === expiresIn)?.label ?? expiresIn;
 
   return (
+    <div className="relative">
     <form
       onSubmit={submit}
       autoComplete="off"
@@ -637,6 +653,7 @@ export default function Editor({ username }: Props) {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
+              ref={stickerBtnRef}
               type="button"
               className={showStickers ? `${tb} ${tbActive}` : tb}
               aria-expanded={showStickers}
@@ -899,8 +916,45 @@ export default function Editor({ username }: Props) {
           </div>
         )}
 
+      </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center gap-2.5 border-t border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300 sm:px-5"
+        >
+          <AlertIcon />
+          {error}
+        </div>
+      )}
+
+      <div
+        className={`flex flex-col gap-4 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between ${
+          error ? '' : 'border-t border-white/[0.06]'
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <span className="pill">{`${richChars.toLocaleString()} / 100,000 chars`}</span>
+          <span className="pill">
+            {visibility === 'public' ? 'Public paste' : 'Unlisted paste'} ·{' '}
+            {passwordProtectionEnabled ? 'Password protected' : 'No password'}
+          </span>
+          <span className="pill hidden md:inline-flex">No link previews are generated</span>
+        </div>
+        <button type="submit" disabled={busy} className="btn-primary min-w-[170px] self-start sm:self-auto">
+          {busy ? 'Creating…' : 'Create paste'}
+        </button>
+      </div>
+    </form>
+
         {showStickers && (
-          <div id="sticker-picker" className="glass animate-pop mt-4 rounded-[24px] p-4">
+          <div
+            ref={stickerPanelRef}
+            id="sticker-picker"
+            role="dialog"
+            aria-label="Sticker picker"
+            className="glass animate-pop fixed right-3 top-20 z-50 flex max-h-[min(36rem,calc(100dvh-5.5rem))] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.85)] md:absolute md:right-0 md:top-24 md:max-h-[min(36rem,calc(100%-6rem))]"
+          >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-white">Insert stickers and reaction GIFs</p>
@@ -957,6 +1011,7 @@ export default function Editor({ username }: Props) {
               </button>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {stickerTab === 'anime' ? (
               stickerQuery.trim() ? (
                 searchingGifs ? (
@@ -964,7 +1019,7 @@ export default function Editor({ username }: Props) {
                 ) : gifResults.length === 0 ? (
                   <p className="mt-4 text-sm text-zinc-500">No GIFs found — try another term.</p>
                 ) : (
-                  <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {gifResults.map((g) => (
                       <button
                         type="button"
@@ -987,7 +1042,7 @@ export default function Editor({ username }: Props) {
               ) : nekoGifs.length === 0 ? (
                 <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
               ) : (
-                <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {nekoGifs.map((g) => (
                     <button
                       type="button"
@@ -1017,7 +1072,7 @@ export default function Editor({ username }: Props) {
             ) : filteredStickers.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
             ) : (
-              <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {filteredStickers.map((s) => (
                   <button
                     type="button"
@@ -1044,38 +1099,11 @@ export default function Editor({ username }: Props) {
                 ))}
               </div>
             )}
+            </div>
           </div>
         )}
-      </div>
+    </div>
 
-      {error && (
-        <div
-          role="alert"
-          className="flex items-center gap-2.5 border-t border-red-500/20 bg-red-500/[0.07] px-4 py-3 text-sm text-red-300 sm:px-5"
-        >
-          <AlertIcon />
-          {error}
-        </div>
-      )}
-
-      <div
-        className={`flex flex-col gap-4 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between ${
-          error ? '' : 'border-t border-white/[0.06]'
-        }`}
-      >
-        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-          <span className="pill">{`${richChars.toLocaleString()} / 100,000 chars`}</span>
-          <span className="pill">
-            {visibility === 'public' ? 'Public paste' : 'Unlisted paste'} ·{' '}
-            {passwordProtectionEnabled ? 'Password protected' : 'No password'}
-          </span>
-          <span className="pill hidden md:inline-flex">No link previews are generated</span>
-        </div>
-        <button type="submit" disabled={busy} className="btn-primary min-w-[170px] self-start sm:self-auto">
-          {busy ? 'Creating…' : 'Create paste'}
-        </button>
-      </div>
-    </form>
   );
 }
 
