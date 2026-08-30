@@ -29,8 +29,8 @@ const COLORS = [
 ] as const;
 
 const tb =
-  'inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.07] hover:text-white';
-const tbActive = 'border-brand-400/40 bg-brand-500/15 text-brand-100';
+  'inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:bg-white/[0.08] hover:text-white';
+const tbActive = 'border-brand-400/40 bg-brand-500/15 text-white shadow-[0_10px_24px_-20px_rgba(139,92,246,0.9)]';
 
 function emptyDoc(): RichDoc {
   return { v: 1, lines: [{ text: '', _key: 'l0' }] };
@@ -516,8 +516,13 @@ export default function Editor({ username }: Props) {
       .slice(0, 30);
   }, [stickerQuery, stickerPack]);
 
-  const fieldLabel = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500';
+  const fieldLabel = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
   const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
+  const currentLine = rich.lines[activeLine] ?? rich.lines[0];
+  const currentFont = FONTS.find((f) => f.id === (currentLine?.font ?? DEFAULT_FONT))?.label ?? 'Mono';
+  const currentSize = currentLine?.size ?? 14;
+  const currentLanguage = LANGUAGES.find((l) => l.id === language)?.label ?? language;
+  const currentExpiry = EXPIRY_OPTIONS.find((o) => o.id === expiresIn)?.label ?? expiresIn;
 
   return (
     <form
@@ -529,118 +534,149 @@ export default function Editor({ username }: Props) {
           e.currentTarget.requestSubmit();
         }
       }}
-      className="glass animate-fade-up overflow-hidden rounded-2xl shadow-[0_24px_64px_-28px_rgba(0,0,0,0.75)]"
+      className="glass animate-fade-up overflow-hidden rounded-[30px] border border-white/[0.08] shadow-[0_36px_90px_-42px_rgba(0,0,0,0.9)]"
     >
-      {/* Header — the title is the primary field. */}
-      <div className="flex flex-col gap-2.5 border-b border-white/[0.06] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
-        <input
-          type="text"
-          aria-label="Paste title"
-          className="w-full bg-transparent text-xl font-semibold tracking-tight text-white placeholder-zinc-600 outline-none sm:text-2xl"
-          placeholder="Untitled paste"
-          value={title}
-          maxLength={120}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-        <p className="shrink-0 text-xs text-zinc-500">
-          {username ? (
-            <>
-              posting as <span className="font-semibold text-zinc-300">@{username}</span>
-            </>
-          ) : (
-            'guest paste'
-          )}
-        </p>
-      </div>
+      <div className="border-b border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="eyebrow">Unified editor</p>
+            <input
+              type="text"
+              aria-label="Paste title"
+              className="mt-3 w-full bg-transparent text-[1.9rem] font-black tracking-tight text-white placeholder-zinc-600 outline-none sm:text-[2.2rem]"
+              placeholder="Untitled paste"
+              value={title}
+              maxLength={120}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-[15px]">
+              Plain text, code, and rich formatting all live in the same canvas. Start simple, then
+              layer formatting only where it adds meaning.
+            </p>
+          </div>
 
-      {/* Toolbar — line formatting (applies to the focused line), options. */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 sm:px-5">
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Line formatting">
-          <select
-            className="input !w-auto !px-2 !py-1.5 !text-xs"
-            aria-label="Font"
-            title="Font"
-            value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
-            onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
-          >
-            {FONTS.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input !w-auto !px-2 !py-1.5 !text-xs"
-            aria-label="Font size"
-            title="Font size"
-            value={rich.lines[activeLine]?.size ?? 14}
-            onChange={(e) => updateLine(activeLine, { size: Number(e.target.value) })}
-          >
-            {FONT_SIZES.map((s) => (
-              <option key={s} value={s}>
-                {s}px
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-1 pl-1">
-            {COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                title={`Text color ${c}`}
-                aria-label={`Text color ${c}`}
-                onClick={() => updateLine(activeLine, { color: c })}
-                className={`h-[18px] w-[18px] rounded-[5px] border transition-transform hover:scale-110 ${
-                  (rich.lines[activeLine]?.color ?? '#dbe1f1') === c
-                    ? 'border-white/80 ring-1 ring-white/40'
-                    : 'border-white/15'
-                }`}
-                style={{ background: c }}
-              />
-            ))}
+          <div className="grid gap-3 lg:min-w-[280px] lg:max-w-[320px]">
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <span className="pill">{username ? `@${username}` : 'Guest paste'}</span>
+              <span className="pill">{visibility === 'public' ? 'Public' : 'Unlisted'}</span>
+              <span className="pill">{passwordProtectionEnabled ? 'Password protected' : 'Open access'}</span>
+            </div>
+            <div className="surface-subtle rounded-2xl p-3.5">
+              <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+                <span>Language</span>
+                <span className="font-medium text-zinc-200">{currentLanguage}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                <span>Expiration</span>
+                <span className="font-medium text-zinc-200">{currentExpiry}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                <span>Characters</span>
+                <span className="font-medium text-zinc-200">{richChars.toLocaleString()} / 100,000</span>
+              </div>
+            </div>
           </div>
         </div>
-        <span className="hidden h-4 w-px bg-white/10 sm:block" />
-        <button
-          type="button"
-          className={showStickers ? `${tb} ${tbActive}` : tb}
-          aria-expanded={showStickers}
-          aria-controls="sticker-picker"
-          onClick={() => {
-            setShowStickers((v) => !v);
-            ensureStickerPack();
-          }}
-        >
-          <GridIcon />
-          Stickers
-        </button>
-        <button
-          type="button"
-          className={`${tb} ${showPreview ? tbActive : ''}`}
-          aria-pressed={showPreview}
-          onClick={() => setShowPreview((v) => !v)}
-        >
-          <EyeIcon />
-          Preview
-        </button>
-        <button
-          type="button"
-          className={`${tb} ml-auto`}
-          aria-expanded={showOptions}
-          aria-controls="paste-options"
-          onClick={() => setShowOptions((v) => !v)}
-        >
-          <SlidersIcon />
-          Options
-          <ChevronIcon open={showOptions} />
-        </button>
       </div>
 
-      {/* Settings panel — collapsed by default, keeps the editor uncluttered. */}
+      <div className="border-b border-white/[0.06] bg-black/[0.15] px-4 py-3 sm:px-5">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              Active line {activeLine + 1}
+            </span>
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-2">
+              <select
+                className="input !w-auto !min-w-[118px] !rounded-xl !px-3 !py-2 !text-xs"
+                aria-label="Font"
+                title="Font"
+                value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
+                onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
+              >
+                {FONTS.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input !w-auto !min-w-[88px] !rounded-xl !px-3 !py-2 !text-xs"
+                aria-label="Font size"
+                title="Font size"
+                value={rich.lines[activeLine]?.size ?? 14}
+                onChange={(e) => updateLine(activeLine, { size: Number(e.target.value) })}
+              >
+                {FONT_SIZES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}px
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-black/10 p-1.5">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={`Text color ${c}`}
+                    aria-label={`Text color ${c}`}
+                    onClick={() => updateLine(activeLine, { color: c })}
+                    className={`h-5 w-5 rounded-md border transition-transform hover:scale-110 ${
+                      (rich.lines[activeLine]?.color ?? '#dbe1f1') === c
+                        ? 'border-white/80 ring-2 ring-white/20'
+                        : 'border-white/10'
+                    }`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-zinc-500">
+              {currentFont} · {currentSize}px · formatting applies to the line you last clicked
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={showStickers ? `${tb} ${tbActive}` : tb}
+              aria-expanded={showStickers}
+              aria-controls="sticker-picker"
+              onClick={() => {
+                setShowStickers((v) => !v);
+                ensureStickerPack();
+              }}
+            >
+              <GridIcon />
+              Stickers
+            </button>
+            <button
+              type="button"
+              className={`${tb} ${showPreview ? tbActive : ''}`}
+              aria-pressed={showPreview}
+              onClick={() => setShowPreview((v) => !v)}
+            >
+              <EyeIcon />
+              Preview
+            </button>
+            <button
+              type="button"
+              className={`${tb} ${showOptions ? tbActive : ''}`}
+              aria-expanded={showOptions}
+              aria-controls="paste-options"
+              onClick={() => setShowOptions((v) => !v)}
+            >
+              <SlidersIcon />
+              Options
+              <ChevronIcon open={showOptions} />
+            </button>
+          </div>
+        </div>
+      </div>
+
       {showOptions && (
-        <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-white/[0.02] px-4 py-4 backdrop-blur-sm sm:px-5">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div>
+        <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-white/[0.02] px-4 py-4 sm:px-5">
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            <div className="surface-subtle rounded-2xl p-4">
               <label className={fieldLabel} htmlFor="language">
                 Language
               </label>
@@ -651,8 +687,10 @@ export default function Editor({ username }: Props) {
                   </option>
                 ))}
               </select>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">Controls syntax highlighting for legacy plain/code views and the raw source language label.</p>
             </div>
-            <div>
+
+            <div className="surface-subtle rounded-2xl p-4">
               <label className={fieldLabel} htmlFor="expires">
                 Expires in
               </label>
@@ -663,8 +701,10 @@ export default function Editor({ username }: Props) {
                   </option>
                 ))}
               </select>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">Set how long the paste should stay available before automatic removal.</p>
             </div>
-            <div>
+
+            <div className="surface-subtle rounded-2xl p-4">
               <label className={fieldLabel} htmlFor="visibility">
                 Visibility
               </label>
@@ -677,12 +717,14 @@ export default function Editor({ username }: Props) {
                 <option value="public">Public — listed</option>
                 <option value="unlisted">Unlisted — link only</option>
               </select>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">Public pastes appear normally. Unlisted pastes still work, but only for people with the link.</p>
             </div>
-            <div>
+
+            <div className="surface-subtle rounded-2xl p-4 xl:col-span-2">
               <span className={fieldLabel}>Access</span>
               <label
                 htmlFor="password-protection"
-                className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 transition-colors hover:bg-white/[0.06]"
+                className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 transition-colors hover:bg-white/[0.05]"
               >
                 <input
                   id="password-protection"
@@ -693,14 +735,14 @@ export default function Editor({ username }: Props) {
                     setPasswordProtectionEnabled(enabled);
                     if (!enabled) setPassword('');
                   }}
-                  className="h-4 w-4 shrink-0 accent-violet-500"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-violet-500"
                 />
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-zinc-200">Password protection</span>
-                  <span className="block text-xs text-zinc-500">
+                  <span className="block text-sm font-semibold text-zinc-200">Password protection</span>
+                  <span className="mt-1 block text-xs leading-5 text-zinc-500">
                     {passwordProtectionEnabled
-                      ? 'On — visitors must enter the password'
-                      : 'Off — anyone can view this paste'}
+                      ? 'On — visitors must enter the password before content is fetched.'
+                      : 'Off — anyone with access to the paste can view it immediately.'}
                   </span>
                 </span>
               </label>
@@ -725,7 +767,8 @@ export default function Editor({ username }: Props) {
                 </div>
               )}
             </div>
-            <div className="sm:col-span-2">
+
+            <div className="surface-subtle rounded-2xl p-4">
               <label className={fieldLabel} htmlFor="title-color">
                 Title color
               </label>
@@ -735,104 +778,145 @@ export default function Editor({ username }: Props) {
                   type="color"
                   value={titleColor || '#a78bfa'}
                   onChange={(e) => setTitleColor(e.target.value)}
-                  className="h-8 w-11 cursor-pointer rounded-md border border-white/10 bg-transparent p-0.5"
+                  className="h-10 w-14 cursor-pointer rounded-xl border border-white/10 bg-transparent p-1"
                 />
-                <span className="font-mono text-xs text-zinc-500">
-                  {titleColor ? titleColor.toUpperCase() : 'Default'}
+                <span className="font-mono text-xs text-zinc-400">
+                  {titleColor ? titleColor.toUpperCase() : 'Default title'}
                 </span>
                 {titleColor && (
                   <button
                     type="button"
                     onClick={() => setTitleColor('')}
-                    className="text-xs font-medium text-zinc-400 underline-offset-2 transition-colors hover:text-white hover:underline"
+                    className="text-xs font-semibold text-zinc-400 underline-offset-2 transition-colors hover:text-white hover:underline"
                   >
                     Reset
                   </button>
                 )}
               </div>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">Adds a custom accent to the paste title without changing any content behavior.</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* The paste body — one large, quiet workspace. Plain text and rich
-          formatting live in the same doc: lines are plain unless you apply
-          a font/size/color or a shortcode resolves to a sticker/emoji. */}
       <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-        {showPreview ? (
-          <div
-            aria-label="Live preview"
-            className="min-h-[420px] overflow-x-auto rounded-xl border border-white/[0.1] bg-white/[0.02] px-4 py-4 backdrop-blur-sm md:min-h-[520px]"
-          >
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
-              Live preview
-            </p>
-            <div className="text-sm leading-7">
-              {rich.lines.map((line, i) => (
-                <PreviewLine key={i} line={line} pack={stickerPack} />
-              ))}
+        <div className="overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#060912]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="window-dots" aria-hidden="true">
+                <span className="window-dot bg-rose-400/80" />
+                <span className="window-dot bg-amber-400/80" />
+                <span className="window-dot bg-emerald-400/80" />
+              </span>
+              <div>
+                <p className="text-xs font-semibold text-zinc-200">{showPreview ? 'Live preview' : 'Editor canvas'}</p>
+                <p className="text-[11px] text-zinc-500">
+                  {showPreview
+                    ? 'Review exactly how the paste will render.'
+                    : 'Type or paste content, then add formatting to individual lines.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px] text-zinc-400">
+              <span className="pill">{showPreview ? 'Previewing' : `Line ${activeLine + 1}`}</span>
+              <span className="pill">Ctrl/⌘ + Enter to publish</span>
             </div>
           </div>
-        ) : (
-          <div
-            onClick={(e) => {
-              if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
-            }}
-            className="min-h-[420px] rounded-xl border border-white/[0.1] bg-white/[0.03] px-4 py-4 backdrop-blur-sm transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10 md:min-h-[520px]"
-          >
-            {rich.lines.map((line, i) => (
-              <div
-                key={line._key ?? i}
-                ref={(el) => {
-                  lineRefs.current[i] = el;
-                  // Seed the (uncontrolled) editable once — React never
-                  // manages this text again, so the caret stays put while
-                  // typing. New lines from Enter are seeded via this ref.
-                  if (el && el.dataset.seeded !== 'true') {
-                    el.textContent = line.text ?? '';
-                    el.dataset.seeded = 'true';
-                  }
-                }}
-                contentEditable
-                suppressContentEditableWarning
-                spellCheck={false}
-                data-placeholder={i === 0 ? 'Type or paste your content…' : `Line ${i + 1}`}
-                onInput={(e) => handleLineInput(i, e)}
-                onKeyDown={(e) => handleLineKey(i, e)}
-                onFocus={() => setActiveLine(i)}
-                className="rich-line min-h-[1.6em] whitespace-pre-wrap break-words rounded px-1 outline-none transition-colors focus:bg-white/[0.04]"
-                style={{
-                  fontFamily: lineFont(line),
-                  fontSize: `${line.size ?? 14}px`,
-                  color: line.color ?? '#dbe1f1',
-                }}
-              />
-            ))}
+
+          {showPreview ? (
+            <div
+              aria-label="Live preview"
+              className="min-h-[420px] overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 md:min-h-[560px] md:px-4"
+            >
+              <div className="text-sm leading-7">
+                {rich.lines.map((line, i) => (
+                  <div key={i} className="grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5">
+                    <span aria-hidden className="pt-1 text-right font-mono text-[11px] text-zinc-600">
+                      {i + 1}
+                    </span>
+                    <PreviewLine line={line} pack={stickerPack} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div
+              onClick={(e) => {
+                if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
+              }}
+              className="min-h-[420px] bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 transition-colors focus-within:ring-4 focus-within:ring-brand-500/10 md:min-h-[560px] md:px-4"
+            >
+              {rich.lines.map((line, i) => (
+                <div
+                  key={line._key ?? i}
+                  className={`group grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5 transition-colors ${
+                    activeLine === i ? 'bg-white/[0.035]' : 'hover:bg-white/[0.02]'
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`pt-1 text-right font-mono text-[11px] transition-colors ${
+                      activeLine === i ? 'text-brand-300' : 'text-zinc-600'
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                  <div
+                    ref={(el) => {
+                      lineRefs.current[i] = el;
+                      if (el && el.dataset.seeded !== 'true') {
+                        el.textContent = line.text ?? '';
+                        el.dataset.seeded = 'true';
+                      }
+                    }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    spellCheck={false}
+                    data-placeholder={i === 0 ? 'Type or paste your content…' : `Line ${i + 1}`}
+                    onInput={(e) => handleLineInput(i, e)}
+                    onKeyDown={(e) => handleLineKey(i, e)}
+                    onFocus={() => setActiveLine(i)}
+                    className="rich-line min-h-[1.7em] whitespace-pre-wrap break-words rounded-lg px-2 py-0.5 outline-none transition-colors focus:bg-white/[0.04]"
+                    style={{
+                      fontFamily: lineFont(line),
+                      fontSize: `${line.size ?? 14}px`,
+                      color: line.color ?? '#dbe1f1',
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {!showPreview && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <span className="pill">Plain text needs nothing extra</span>
+            <span className="pill">
+              Use a shortcode like <code className="font-mono text-zinc-300">:wave:</code>
+            </span>
+            <span className="pill">Links auto-open, previews stay off</span>
           </div>
         )}
 
-        {!showPreview && (
-          <p className="mt-2 px-1 text-xs text-zinc-600">
-            Plain text needs nothing extra · formatting applies to the line you last clicked · use a shortcode like{' '}
-            <code className="font-mono text-zinc-500">:wave:</code> to insert a sticker
-          </p>
-        )}
-
-        {/* Sticker picker — inline panel, always in reach on mobile. */}
         {showStickers && (
-          <div id="sticker-picker" className="glass animate-pop mt-3 rounded-xl p-4">
+          <div id="sticker-picker" className="glass animate-pop mt-4 rounded-[24px] p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Insert stickers and reaction GIFs</p>
+                <p className="mt-1 text-xs text-zinc-500">Items are inserted into the line you last focused.</p>
+              </div>
               <div
                 role="tablist"
                 aria-label="Sticker source"
-                className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
+                className="flex items-center rounded-xl border border-white/10 bg-white/[0.05] p-1"
               >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={stickerTab === 'pack'}
                   onClick={() => switchStickerTab('pack')}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                     stickerTab === 'pack' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
@@ -843,34 +927,36 @@ export default function Editor({ username }: Props) {
                   role="tab"
                   aria-selected={stickerTab === 'anime'}
                   onClick={() => switchStickerTab('anime')}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                     stickerTab === 'anime' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   Anime GIFs
                 </button>
               </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <input
+                className="input !py-2.5 text-sm"
+                placeholder={
+                  stickerTab === 'anime'
+                    ? 'Search anime GIFs — “hug”, “pat”, “wave”…'
+                    : 'Search stickers — try “wave”, “fire”…'
+                }
+                value={stickerQuery}
+                onChange={(e) => setStickerQuery(e.target.value)}
+              />
               <button
                 type="button"
                 aria-label="Close sticker picker"
                 onClick={() => setShowStickers(false)}
-                className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-white"
+                className="btn-ghost !px-3.5 !py-2 text-xs"
               >
-                <svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5" aria-hidden="true">
-                  <path d="m6 6 8 8M14 6l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
+                Close
               </button>
             </div>
-            <input
-              className="input !py-2 text-sm"
-              placeholder={
-                stickerTab === 'anime'
-                  ? 'Search anime GIFs — “hug”, “pat”, “wave”…'
-                  : 'Search stickers — try “wave”, “fire”…'
-              }
-              value={stickerQuery}
-              onChange={(e) => setStickerQuery(e.target.value)}
-            />
+
             {stickerTab === 'anime' ? (
               stickerQuery.trim() ? (
                 searchingGifs ? (
@@ -878,16 +964,15 @@ export default function Editor({ username }: Props) {
                 ) : gifResults.length === 0 ? (
                   <p className="mt-4 text-sm text-zinc-500">No GIFs found — try another term.</p>
                 ) : (
-                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                  <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                     {gifResults.map((g) => (
                       <button
                         type="button"
                         key={g.url}
                         title={g.label}
                         onClick={() => insertGifUrl(g.url)}
-                        className="flex aspect-square min-h-[52px] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                        className="flex aspect-square min-h-[58px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={g.preview || g.url}
                           alt={g.label}
@@ -902,17 +987,16 @@ export default function Editor({ username }: Props) {
               ) : nekoGifs.length === 0 ? (
                 <p className="mt-4 text-sm text-zinc-500">Loading anime GIFs…</p>
               ) : (
-                <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+                <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                   {nekoGifs.map((g) => (
                     <button
                       type="button"
                       key={g.token}
                       title={`${g.token} — ${g.label}`}
                       onClick={() => applyStickerToActiveLine(g.token, g.url)}
-                      className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                      className="flex aspect-square min-h-[58px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                     >
                       {g.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={g.url}
                           alt={g.label}
@@ -921,7 +1005,7 @@ export default function Editor({ username }: Props) {
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
                           }}
-                          className="h-8 w-8 object-contain"
+                          className="h-9 w-9 object-contain"
                         />
                       ) : (
                         <span className="text-lg">{g.emoji}</span>
@@ -933,17 +1017,16 @@ export default function Editor({ username }: Props) {
             ) : filteredStickers.length === 0 ? (
               <p className="mt-4 text-sm text-zinc-500">No stickers found — try another name.</p>
             ) : (
-              <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
+              <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-8">
                 {filteredStickers.map((s) => (
                   <button
                     type="button"
                     key={s.token}
                     title={`${s.token} — ${s.label || ''}`}
                     onClick={() => applyStickerToActiveLine(s.token, s.url)}
-                    className="flex aspect-square min-h-[52px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                    className="flex aspect-square min-h-[58px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                   >
                     {s.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={s.url}
                         alt={s.label || s.token}
@@ -952,7 +1035,7 @@ export default function Editor({ username }: Props) {
                         onError={(e) => {
                           e.currentTarget.style.display = 'none';
                         }}
-                        className="h-8 w-8 object-contain"
+                        className="h-9 w-9 object-contain"
                       />
                     ) : (
                       <span className="text-lg">{s.emoji ?? s.token}</span>
@@ -975,28 +1058,20 @@ export default function Editor({ username }: Props) {
         </div>
       )}
 
-      {/* Footer — quiet status, one clear action. */}
       <div
-        className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5 ${
+        className={`flex flex-col gap-4 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between ${
           error ? '' : 'border-t border-white/[0.06]'
         }`}
       >
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-          <span>{`${richChars.toLocaleString()} / 100,000 chars`}</span>
-          <span className="hidden h-3 w-px bg-white/10 sm:block" />
-          <span>
-            {visibility === 'public' ? 'Public' : 'Unlisted'} ·{' '}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <span className="pill">{`${richChars.toLocaleString()} / 100,000 chars`}</span>
+          <span className="pill">
+            {visibility === 'public' ? 'Public paste' : 'Unlisted paste'} ·{' '}
             {passwordProtectionEnabled ? 'Password protected' : 'No password'}
           </span>
-          <span className="hidden h-3 w-px bg-white/10 sm:block" />
-          <span className="hidden md:inline">
-            URLs auto-link · no previews generated
-          </span>
-          <kbd className="hidden rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 lg:inline-block">
-            Ctrl/⌘ + Enter
-          </kbd>
-        </p>
-        <button type="submit" disabled={busy} className="btn-primary min-w-[150px]">
+          <span className="pill hidden md:inline-flex">No link previews are generated</span>
+        </div>
+        <button type="submit" disabled={busy} className="btn-primary min-w-[170px] self-start sm:self-auto">
           {busy ? 'Creating…' : 'Create paste'}
         </button>
       </div>

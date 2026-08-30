@@ -28,62 +28,71 @@ export default async function DashboardPage({ searchParams }: Props) {
   const totalLikes = rows.reduce((s, p) => s + (p.likesCount ?? 0), 0);
 
   return (
-    <div className="pt-10">
-      <div className="animate-fade-up mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-white">My pastes</h1>
-          <p className="mt-1 text-sm text-zinc-400">
-            All your pastes in one place. Signing in saves a history; guests paste without one.
+    <div className="pt-4 sm:pt-6">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+        <div className="card animate-fade-up rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+          <p className="eyebrow">Dashboard</p>
+          <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Your paste workspace
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+            Review every paste you&apos;ve created, copy links quickly, and keep important ones pinned.
+            The underlying routes and sharing behavior stay exactly the same.
           </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link href="/" className="btn-primary">
+              Create new paste
+            </Link>
+            <Link href={`/u/${user.username}`} className="btn-ghost">
+              View public profile
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-3">
-          <div className="card px-5 py-3 text-center">
-            <p className="text-2xl font-black text-white">{rows.length}</p>
-            <p className="text-xs text-zinc-500">pastes</p>
+
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+          <div className="stat-card p-5 text-center xl:text-left">
+            <p className="text-3xl font-black text-white">{rows.length}</p>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Total pastes</p>
           </div>
-          <div className="card px-5 py-3 text-center">
-            <p className="text-2xl font-black text-white">{formatViews(totalViews)}</p>
-            <p className="text-xs text-zinc-500">total views</p>
+          <div className="stat-card p-5 text-center xl:text-left">
+            <p className="text-3xl font-black text-white">{formatViews(totalViews)}</p>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Combined views</p>
           </div>
-          <div className="card px-5 py-3 text-center">
-            <p className="text-2xl font-black text-white">♥ {formatViews(totalLikes)}</p>
-            <p className="text-xs text-zinc-500">total likes</p>
+          <div className="stat-card p-5 text-center xl:text-left">
+            <p className="text-3xl font-black text-white">♥ {formatViews(totalLikes)}</p>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Combined likes</p>
           </div>
-          <Link
-            href={`/u/${user.username}`}
-            className="card hidden px-5 py-3 text-sm font-semibold text-zinc-200 hover:border-brand-400/40 sm:block"
-          >
-            View profile
-          </Link>
         </div>
-      </div>
+      </section>
 
       {created && rows.find((r) => r.id === created) && (
-        <div className="animate-pop mb-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-200">
-          <p className="font-semibold">Paste created.</p>
-          <p className="mt-1 text-emerald-300/80">
-            Use the <span className="font-mono">Copy link</span> button on the new row below to share
-            it. The link is never shown in plain text on this page.
+        <div className="animate-pop mt-5 rounded-[24px] border border-emerald-500/25 bg-emerald-500/[0.08] px-5 py-4 text-sm text-emerald-200">
+          <p className="font-semibold">Paste created successfully.</p>
+          <p className="mt-1 leading-6 text-emerald-300/80">
+            Use the copy button on the newly highlighted row below to share it. The link still never
+            appears here as plain text.
           </p>
         </div>
       )}
 
-      <DashboardList
-        pastes={rows.map((p) => ({
-          id: p.id,
-          title: p.title,
-          language: p.language,
-          visibility: p.visibility,
-          views: p.views,
-          likesCount: p.likesCount ?? 0,
-          pinned: p.pinned,
-          hasPassword: !!p.passwordHash,
-          expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
-          createdAt: p.createdAt.toISOString(),
-        }))}
-        displayName={profile.displayName || user.username}
-        highlightId={created ?? null}
-      />
+      <section className="mt-6">
+        <DashboardList
+          pastes={rows.map((p) => ({
+            id: p.id,
+            title: p.title,
+            language: p.language,
+            visibility: p.visibility,
+            views: p.views,
+            likesCount: p.likesCount ?? 0,
+            pinned: p.pinned,
+            hasPassword: !!p.passwordHash,
+            expiresAt: p.expiresAt ? p.expiresAt.toISOString() : null,
+            createdAt: p.createdAt.toISOString(),
+          }))}
+          displayName={profile.displayName || user.username}
+          highlightId={created ?? null}
+        />
+      </section>
     </div>
   );
 }

@@ -42,7 +42,6 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
     if (busy) return;
     setError('');
     setBusy(true);
-    // Optimistic flip — the server response reconciles the real count.
     const nextLiked = !liked;
     setLiked(nextLiked);
     setCount((c) => Math.max(0, c + (nextLiked ? 1 : -1)));
@@ -55,7 +54,6 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
       setLiked(data.liked);
       setCount(data.count);
     } catch (e) {
-      // Revert on failure.
       setLiked(liked);
       setCount((c) => Math.max(0, c + (liked ? 1 : -1)));
       setError(e instanceof Error ? e.message : 'Could not update like.');
@@ -65,7 +63,7 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex w-full flex-col gap-2">
       <button
         type="button"
         onClick={toggle}
@@ -73,7 +71,7 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
         aria-label={liked ? 'Unlike this paste' : 'Like this paste'}
         title={liked ? 'Unlike' : 'Like'}
         disabled={busy}
-        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60 ${
+        className={`inline-flex items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors disabled:opacity-60 xl:w-full ${
           liked
             ? 'border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25'
             : 'border-white/10 bg-white/[0.03] text-zinc-300 hover:border-rose-400/40 hover:text-rose-300'
@@ -81,9 +79,10 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
       >
         <Heart filled={liked} />
         <span aria-live="polite">{count.toLocaleString()}</span>
+        <span>{liked ? 'Liked' : 'Like this paste'}</span>
       </button>
       {error && (
-        <span role="status" className="max-w-[160px] text-[11px] text-red-400">
+        <span role="status" className="max-w-[220px] text-[11px] text-red-400 xl:max-w-none">
           {error}
         </span>
       )}

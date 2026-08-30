@@ -155,15 +155,20 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
     router.refresh();
   }
 
-  const input =
-    'w-full rounded-xl border border-white/10 bg-night-800 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-  const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
-  const card = 'rounded-2xl border border-white/10 bg-night-800/60 p-5 backdrop-blur';
+  const input = 'input';
+  const label = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
+  const card = 'card rounded-[28px] p-5 sm:p-6';
 
   return (
-    <div className="mx-auto max-w-2xl pt-10">
-      <h1 className="mb-1 text-3xl font-black tracking-tight text-white">Account</h1>
-      <p className="mb-8 text-sm text-zinc-400">Manage your identity and session.</p>
+    <div className="mx-auto max-w-4xl pt-4 sm:pt-6">
+      <div className="card mb-6 rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+        <p className="eyebrow">Account</p>
+        <h1 className="mt-4 text-3xl font-black tracking-tight text-white sm:text-4xl">Identity & security</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+          Update your username when eligible, manage recovery access, rotate passwords, and sign out
+          from this device — without changing any of the existing account rules.
+        </p>
+      </div>
 
       <div className="space-y-5">
         <div className={card}>
@@ -187,7 +192,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
                 <button
                   type="submit"
                   disabled={busy || !newName}
-                  className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+                  className="btn-primary px-5 py-2.5 text-sm disabled:opacity-60"
                 >
                   {busy ? 'Saving…' : 'Rename'}
                 </button>
@@ -245,7 +250,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
                 <button
                   type="submit"
                   disabled={reBusy || !newEmail}
-                  className="shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+                  className="btn-primary shrink-0 px-5 py-2.5 text-sm disabled:opacity-60"
                 >
                   {reBusy ? 'Sending…' : 'Send code'}
                 </button>
@@ -264,7 +269,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
                 <button
                   type="submit"
                   disabled={reBusy || otpCode.length !== 6}
-                  className="shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+                  className="btn-primary shrink-0 px-5 py-2.5 text-sm disabled:opacity-60"
                 >
                   {reBusy ? 'Verifying…' : 'Verify'}
                 </button>
@@ -274,7 +279,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
                     setOtpSent(false);
                     setOtpCode('');
                   }}
-                  className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-white/10"
+                  className="btn-ghost shrink-0 px-4 py-2.5 text-sm"
                 >
                   Back
                 </button>
@@ -323,7 +328,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
             <button
               type="submit"
               disabled={pwBusy || !currentPassword || !newPassword || !confirmPassword}
-              className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+              className="btn-primary px-5 py-2.5 text-sm disabled:opacity-60"
             >
               {pwBusy ? 'Updating…' : 'Change password'}
             </button>
@@ -337,7 +342,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
           </p>
           <button
             onClick={logout}
-            className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold text-zinc-200 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+            className="btn-ghost px-5 py-2.5 text-sm hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
           >
             Log out
           </button>

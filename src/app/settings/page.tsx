@@ -9,14 +9,7 @@ export default async function SettingsPage() {
   const { user, profile } = await requireUser();
 
   return (
-    <div className="pt-10">
-      <div className="animate-fade-up mb-8">
-        <h1 className="text-3xl font-black tracking-tight text-white">Profile settings</h1>
-        <p className="mt-1 text-sm text-zinc-400">
-          Configure your avatar, banner, animated name and links. Changes preview live.
-        </p>
-      </div>
-
+    <div className="pt-4 sm:pt-6">
       <ProfileCustomizer
         username={user.username}
         initial={{
@@ -29,7 +22,17 @@ export default async function SettingsPage() {
           nameFrom: profile.nameFrom,
           nameTo: profile.nameTo,
           nameStyle: profile.nameStyle as 'solid' | 'gradient',
-          nameEffect: profile.nameEffect as 'none' | 'typewriter' | 'shimmer' | 'neon' | 'rainbow' | 'fire' | 'glitch' | 'wave' | 'aurora' | 'gold',
+          nameEffect: profile.nameEffect as
+            | 'none'
+            | 'typewriter'
+            | 'shimmer'
+            | 'neon'
+            | 'rainbow'
+            | 'fire'
+            | 'glitch'
+            | 'wave'
+            | 'aurora'
+            | 'gold',
           effectSpeed: profile.effectSpeed,
           effectIntensity: profile.effectIntensity,
           accent: profile.accent,

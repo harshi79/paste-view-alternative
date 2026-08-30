@@ -48,55 +48,110 @@ const FEATURES = [
   },
 ];
 
+const QUICK_NOTES = [
+  'One unified editor',
+  'Password-protected or public',
+  'Plain text, code, and rich formatting',
+];
+
 export default async function HomePage() {
   const db = await getDb();
-  // Session + throttled lazy expiry purge are independent — run them together.
   const [session] = await Promise.all([getSessionUser(), purgeExpiredIfDue(db)]);
 
   return (
-    <div className="animate-fade-up pt-8 sm:pt-12">
-      {/* Compact page intro — the workspace below is the focus. */}
-      <section className="mb-5 sm:mb-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-400">
-          New paste
-        </p>
-        <h1 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Paste code, text, or rich content.
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-[15px]">
-          Syntax highlighting, expiring links, passwords, unlisted pastes and rich formatting — all
-          in one workspace, with no account required.
-        </p>
+    <div className="animate-fade-up pb-2 pt-3 sm:pt-6">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_360px] lg:items-start">
+        <div>
+          <p className="eyebrow">New paste</p>
+          <h1 className="mt-4 max-w-3xl text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-[3.4rem] lg:leading-[1.05]">
+            A polished paste workflow for code, notes, and rich snippets.
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-8 text-zinc-400 sm:text-lg">
+            VibeBin keeps the existing fast paste flow, then upgrades the experience with a cleaner
+            workspace, polished controls, and one unified editor for normal and rich content.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-2.5">
+            {QUICK_NOTES.map((note) => (
+              <span key={note} className="pill">
+                {note}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <aside className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <div className="stat-card p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-brand-300">
+              Paste experience
+            </p>
+            <p className="mt-3 text-lg font-semibold text-white">Focused, not cluttered</p>
+            <p className="mt-1.5 text-sm leading-6 text-zinc-400">
+              Metadata stays close at hand, while the editor remains the visual centerpiece.
+            </p>
+          </div>
+          <div className="stat-card p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
+              Unified editor
+            </p>
+            <p className="mt-3 text-lg font-semibold text-white">Plain + rich together</p>
+            <p className="mt-1.5 text-sm leading-6 text-zinc-400">
+              Start typing plain text, then layer formatting, stickers, GIFs, and colors only where
+              you need them.
+            </p>
+          </div>
+          <div className="stat-card p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
+              Sharing controls
+            </p>
+            <p className="mt-3 text-lg font-semibold text-white">Safe defaults, fast sharing</p>
+            <p className="mt-1.5 text-sm leading-6 text-zinc-400">
+              Visibility, expiration, passwords, and title color all stay intact without changing
+              the underlying paste behavior.
+            </p>
+          </div>
+        </aside>
       </section>
 
-      <section className="mx-auto max-w-5xl">
+      <section className="mt-8 lg:mt-10">
         <Editor username={session?.user.username ?? null} />
       </section>
 
+      <section className="mt-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="card px-5 py-4 sm:px-6">
+          <p className="text-sm text-zinc-400">
+            Guest-friendly by default. Sign up only if you want saved paste history and a public
+            profile with custom branding.
+          </p>
+        </div>
+        {!session && (
+          <Link href="/register" className="btn-primary justify-center sm:justify-self-start">
+            Create a free account
+          </Link>
+        )}
+      </section>
+
       <section className="mt-12 border-t border-white/[0.06] pt-8 sm:mt-16">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-5 flex items-end justify-between gap-3">
+          <div>
+            <p className="eyebrow">Why VibeBin</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-white">Everything already here, just cleaner.</h2>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {FEATURES.map((f) => (
-            <div key={f.title} className="glass flex items-start gap-3 rounded-2xl p-4">
-              <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-xl border border-white/10 bg-white/[0.06] text-brand-300">
+            <div key={f.title} className="card flex items-start gap-4 rounded-[24px] p-5">
+              <span className="mt-0.5 grid h-11 w-11 flex-none place-items-center rounded-2xl border border-white/10 bg-white/[0.05] text-brand-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                 {f.icon}
               </span>
               <div>
                 <h3 className="text-sm font-semibold text-white">{f.title}</h3>
-                <p className="mt-1 text-xs leading-relaxed text-zinc-400">{f.text}</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">{f.text}</p>
               </div>
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="mt-10 text-center text-sm text-zinc-500">
-        <p>
-          New here?{' '}
-          <Link href="/register" className="font-semibold text-brand-300 hover:text-brand-200">
-            Create a free account
-          </Link>{' '}
-          to unlock profile customization.
-        </p>
       </section>
     </div>
   );
