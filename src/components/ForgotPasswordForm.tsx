@@ -89,15 +89,17 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <div className="grid min-h-[75vh] place-items-center py-8">
+    <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
       <div className="animate-fade-up w-full max-w-lg">
-        <div className="card rounded-[30px] p-8 shadow-2xl shadow-black/40">
+        <div className="card rounded-[28px] p-6 shadow-2xl shadow-black/40 sm:p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30 sm:h-14 sm:w-14">
               🔑
             </div>
             <p className="eyebrow justify-center">Password recovery</p>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-white">Reset your password</h1>
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              Reset your password
+            </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               {stage === 'code'
                 ? 'Enter the 6-digit code sent to the recovery email.'
@@ -107,11 +109,14 @@ export default function ForgotPasswordForm() {
 
           {stage === 'token' && resetToken ? (
             <div className="space-y-4">
-              <p className="animate-pop rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm leading-6 text-emerald-200">
+              <p className="feedback-success animate-pop">
                 Reset link generated. Open it on this device, or copy the one-time code below. The
                 link expires in 30 minutes and can be used only once.
               </p>
-              <Link href={`/reset-password?token=${encodeURIComponent(resetToken)}`} className="btn-primary flex w-full justify-center py-3 text-sm">
+              <Link
+                href={`/reset-password?token=${encodeURIComponent(resetToken)}`}
+                className="btn-primary flex w-full justify-center py-3 text-sm"
+              >
                 Open reset link
               </Link>
               <div className="surface-subtle rounded-2xl px-4 py-3">
@@ -129,7 +134,7 @@ export default function ForgotPasswordForm() {
             </div>
           ) : stage === 'code' ? (
             <form onSubmit={submitCode} className="space-y-4">
-              <p className="surface-subtle rounded-2xl px-4 py-3 text-sm leading-6 text-zinc-300">
+              <p className="feedback-note">
                 If <span className="font-semibold">{looksLikeEmail ? identifier : `@${identifier}`}</span>{' '}
                 has a verified recovery email, a 6-digit code was just sent there. Codes expire in
                 10 minutes and work only once.
@@ -147,8 +152,12 @@ export default function ForgotPasswordForm() {
                   className="input"
                 />
               </div>
-              {error && <p className="animate-pop rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
-              <button type="submit" disabled={busy || code.length !== 6} className="btn-primary w-full justify-center py-3 text-sm">
+              {error && <p className="feedback-error animate-pop">{error}</p>}
+              <button
+                type="submit"
+                disabled={busy || code.length !== 6}
+                className="btn-primary w-full justify-center py-3 text-sm"
+              >
                 {busy ? 'Please wait…' : 'Verify code'}
               </button>
               <p className="text-xs leading-6 text-zinc-500">
@@ -184,9 +193,13 @@ export default function ForgotPasswordForm() {
                 />
               </div>
 
-              {error && <p className="animate-pop rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
+              {error && <p className="feedback-error animate-pop">{error}</p>}
 
-              <button type="submit" disabled={busy || !identifier.trim()} className="btn-primary w-full justify-center py-3 text-sm">
+              <button
+                type="submit"
+                disabled={busy || !identifier.trim()}
+                className="btn-primary w-full justify-center py-3 text-sm"
+              >
                 {busy ? 'Please wait…' : 'Send recovery code'}
               </button>
             </form>

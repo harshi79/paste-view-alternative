@@ -34,42 +34,40 @@ const FEATURES = [
 
 export default function HomePage() {
   return (
-    <div className="animate-fade-up pb-4 pt-10 sm:pt-16 lg:pt-24">
-      {/* Hero */}
-      <section className="mx-auto flex max-w-3xl flex-col items-center text-center">
-        <Logo />
+    <div className="animate-fade-up pb-6 pt-8 sm:pt-14 lg:pt-20">
+      <section className="mx-auto flex max-w-4xl flex-col items-center text-center">
+        <p className="eyebrow">Fast, private sharing</p>
+        <div className="mt-6">
+          <Logo />
+        </div>
 
-        <h1 className="mt-8 text-balance text-4xl font-black tracking-tight text-white sm:text-6xl sm:leading-[1.05]">
+        <h1 className="mt-7 max-w-3xl text-balance text-3xl font-black tracking-tight text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl">
           Share code and text with a link worth opening.
         </h1>
 
-        <p className="mt-5 max-w-2xl text-balance text-base leading-8 text-zinc-400 sm:text-lg">
+        <p className="mt-5 max-w-2xl text-balance text-sm leading-7 text-zinc-400 sm:text-lg sm:leading-8">
           VibeBin is a fast, private pastebin with syntax highlighting, expiring links, password
           protection, and rich-text formatting. No account required.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
-          <Link href="/paste" className="btn-primary !px-7 !py-3 text-base">
-            Create Paste
+        <div className="mt-8 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">
+          <Link href="/paste" className="btn-primary w-full !px-6 !py-3 text-base sm:w-auto">
+            Create paste
           </Link>
           <span className="text-sm text-zinc-500">Free · No account required</span>
         </div>
       </section>
 
-      {/* Feature strip */}
-      <section className="mx-auto mt-16 max-w-4xl sm:mt-20">
+      <section className="mx-auto mt-14 max-w-5xl sm:mt-20">
         <div className="grid gap-4 sm:grid-cols-3">
-          {FEATURES.map((f) => (
-            <div
-              key={f.title}
-              className="flex items-start gap-3.5 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-            >
+          {FEATURES.map((feature) => (
+            <div key={feature.title} className="card flex items-start gap-3.5 rounded-[24px] p-4 sm:p-5">
               <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-brand-300">
-                {f.icon}
+                {feature.icon}
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-white">{f.title}</h2>
-                <p className="mt-1.5 text-sm leading-6 text-zinc-400">{f.text}</p>
+                <h2 className="text-sm font-semibold text-white">{feature.title}</h2>
+                <p className="mt-1.5 text-sm leading-6 text-zinc-400">{feature.text}</p>
               </div>
             </div>
           ))}

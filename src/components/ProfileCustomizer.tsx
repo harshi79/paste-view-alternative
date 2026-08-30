@@ -78,9 +78,9 @@ export default function ProfileCustomizer({
 
   const input = 'input';
   const label = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
-  const card = 'card rounded-[28px] p-5 sm:p-6';
+  const card = 'card rounded-[26px] p-5 sm:p-6';
   const tabBtn = (active: boolean) =>
-    `rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+    `inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none ${
       active
         ? 'bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
         : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
@@ -109,16 +109,18 @@ export default function ProfileCustomizer({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
       <div className="animate-fade-up space-y-5">
         <div className="card rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
           <p className="eyebrow">Profile studio</p>
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Customize your public presence</h2>
+          <h2 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            Customize your public presence
+          </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
             Fine-tune your avatar, banner, display name, animated effects, links, and profile copy.
             The preview updates live so you can polish the final result before saving.
           </p>
-          <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-1">
+          <div className="mt-5 flex w-full flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-1">
             <button type="button" className={tabBtn(tab === 'profile')} onClick={() => setTab('profile')}>
               Profile & media
             </button>
@@ -170,11 +172,11 @@ export default function ProfileCustomizer({
 
             <div>
               <h2 className="mb-1 font-bold text-white">Emoji status</h2>
-              <p className="mb-3 text-xs text-zinc-500">
+              <p className="mb-3 text-xs leading-5 text-zinc-500">
                 A custom emoji shown beside your name and username. Pick from the selector or type
                 your own — remove it any time.
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <input
                   className={`${input} w-20 shrink-0 text-center text-xl`}
                   value={state.statusEmoji}
@@ -194,28 +196,28 @@ export default function ProfileCustomizer({
                   <button
                     type="button"
                     onClick={() => set('statusEmoji', '')}
-                    className="text-xs text-zinc-400 hover:text-white"
+                    className="text-left text-xs text-zinc-400 hover:text-white"
                   >
-                    remove emoji
+                    Remove emoji
                   </button>
                 )}
               </div>
 
               {showEmojiPicker && (
-                <div className="animate-pop mt-3 grid max-w-md grid-cols-8 gap-1 rounded-xl border border-white/10 bg-night-900/70 p-2">
-                  {STATUS_EMOJIS.map((e) => (
+                <div className="animate-pop mt-3 grid max-w-md grid-cols-6 gap-1 rounded-xl border border-white/10 bg-night-900/70 p-2 sm:grid-cols-8">
+                  {STATUS_EMOJIS.map((emoji) => (
                     <button
-                      key={e}
+                      key={emoji}
                       type="button"
                       onClick={() => {
-                        set('statusEmoji', e);
+                        set('statusEmoji', emoji);
                         setShowEmojiPicker(false);
                       }}
                       className={`grid h-9 w-9 place-items-center rounded-lg text-lg transition hover:bg-white/10 ${
-                        state.statusEmoji === e ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
+                        state.statusEmoji === emoji ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
                       }`}
                     >
-                      {e}
+                      {emoji}
                     </button>
                   ))}
                 </div>
@@ -223,7 +225,7 @@ export default function ProfileCustomizer({
 
               <div className="mt-3">
                 <label className={label}>Status text (optional)</label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     className={input}
                     maxLength={60}
@@ -235,9 +237,9 @@ export default function ProfileCustomizer({
                     <button
                       type="button"
                       onClick={() => set('statusText', '')}
-                      className="shrink-0 text-xs text-zinc-400 hover:text-white"
+                      className="shrink-0 text-left text-xs text-zinc-400 hover:text-white sm:text-right"
                     >
-                      clear
+                      Clear
                     </button>
                   )}
                 </div>
@@ -247,7 +249,7 @@ export default function ProfileCustomizer({
             <hr className="my-5 border-white/5" />
 
             <h2 className="mb-4 font-bold text-white">Media (URLs only)</h2>
-            <p className="mb-4 text-xs text-zinc-500">
+            <p className="mb-4 text-xs leading-5 text-zinc-500">
               Direct uploads are disabled to keep the database small. Host your avatar and banner
               anywhere (your own CDN, Discord, Imgur, catbox, etc.) and paste the URL below.
             </p>
@@ -266,16 +268,16 @@ export default function ProfileCustomizer({
                     onClick={() => set('avatarUrl', '')}
                     className="mt-1 text-xs text-zinc-400 hover:text-white"
                   >
-                    remove avatar
+                    Remove avatar
                   </button>
                 )}
               </div>
 
               <div>
                 <label className={label}>Banner</label>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto] sm:items-center">
                   <select
-                    className={`${input} w-auto`}
+                    className={input}
                     value={state.bannerType}
                     onChange={(e) => set('bannerType', e.target.value as 'image' | 'video')}
                   >
@@ -283,7 +285,7 @@ export default function ProfileCustomizer({
                     <option value="video">Video URL (.mp4)</option>
                   </select>
                   <input
-                    className={`${input} flex-1 min-w-[200px]`}
+                    className={input}
                     placeholder={
                       state.bannerType === 'video'
                         ? 'https://example.com/loop.mp4'
@@ -292,14 +294,16 @@ export default function ProfileCustomizer({
                     value={state.bannerUrl}
                     onChange={(e) => set('bannerUrl', e.target.value)}
                   />
-                  {state.bannerUrl && (
+                  {state.bannerUrl ? (
                     <button
                       type="button"
                       onClick={() => set('bannerUrl', '')}
-                      className="text-xs text-zinc-400 hover:text-white"
+                      className="btn-ghost !px-3.5 !py-2 text-xs sm:w-auto"
                     >
-                      remove
+                      Remove
                     </button>
+                  ) : (
+                    <div className="hidden sm:block" />
                   )}
                 </div>
                 <p className="mt-1 text-xs text-zinc-500">
@@ -310,7 +314,7 @@ export default function ProfileCustomizer({
 
               <div>
                 <label className={label}>Accent color</label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <input
                     type="color"
                     className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent"
@@ -329,14 +333,14 @@ export default function ProfileCustomizer({
             <div className={card}>
               <h2 className="mb-4 font-bold text-white">One-click effect templates</h2>
               <div className="flex flex-wrap gap-2">
-                {templates.map((t) => (
+                {templates.map((template) => (
                   <button
-                    key={t.id}
+                    key={template.id}
                     type="button"
-                    onClick={() => applyTemplate(t)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition hover:border-brand-400/40"
+                    onClick={() => applyTemplate(template)}
+                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.08]"
                   >
-                    {t.label}
+                    {template.label}
                   </button>
                 ))}
               </div>
@@ -363,14 +367,14 @@ export default function ProfileCustomizer({
                     value={state.nameEffect}
                     onChange={(e) => set('nameEffect', e.target.value as NameEffect)}
                   >
-                    {NAME_EFFECTS.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.emoji} {e.label}
+                    {NAME_EFFECTS.map((effect) => (
+                      <option key={effect.id} value={effect.id}>
+                        {effect.emoji} {effect.label}
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={label}>Color A</label>
                     <input
@@ -390,7 +394,7 @@ export default function ProfileCustomizer({
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className={label}>
                       Speed <span className="font-mono text-zinc-500">{state.effectSpeed}</span>
@@ -425,7 +429,7 @@ export default function ProfileCustomizer({
 
         {tab === 'links' && (
           <div className={card}>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-bold text-white">Custom links</h2>
               <button
                 type="button"
@@ -434,54 +438,54 @@ export default function ProfileCustomizer({
                   set('links', [...state.links, { label: '', url: '', color: state.accent }])
                 }
                 disabled={state.links.length >= 6}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10 disabled:opacity-40"
+                className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs disabled:opacity-40"
               >
                 + Add link
               </button>
             </div>
             <div className="space-y-3">
               {state.links.length === 0 && (
-                <p className="text-sm text-zinc-500">No links yet — add up to 6 colored links.</p>
+                <p className="feedback-note text-sm">No links yet — add up to 6 colored links.</p>
               )}
-              {state.links.map((l, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2">
+              {state.links.map((link, i) => (
+                <div key={i} className="grid gap-2 sm:grid-cols-[auto_9rem_minmax(0,1fr)_auto] sm:items-center">
                   <input
                     type="color"
                     className="h-9 w-11 shrink-0 cursor-pointer rounded-lg border border-white/10 bg-transparent"
-                    value={HEX.test(l.color) ? l.color : '#8b5cf6'}
+                    value={HEX.test(link.color) ? link.color : '#8b5cf6'}
                     onChange={(e) => {
                       const links = [...state.links];
-                      links[i] = { ...l, color: e.target.value };
+                      links[i] = { ...link, color: e.target.value };
                       set('links', links);
                     }}
                   />
                   <input
-                    className={`${input} w-32`}
+                    className={input}
                     placeholder="Label"
                     maxLength={40}
-                    value={l.label}
+                    value={link.label}
                     onChange={(e) => {
                       const links = [...state.links];
-                      links[i] = { ...l, label: e.target.value };
+                      links[i] = { ...link, label: e.target.value };
                       set('links', links);
                     }}
                   />
                   <input
-                    className={`${input} flex-1 min-w-[180px]`}
+                    className={input}
                     placeholder="https://…"
-                    value={l.url}
+                    value={link.url}
                     onChange={(e) => {
                       const links = [...state.links];
-                      links[i] = { ...l, url: e.target.value };
+                      links[i] = { ...link, url: e.target.value };
                       set('links', links);
                     }}
                   />
                   <button
                     type="button"
                     onClick={() => set('links', state.links.filter((_, j) => j !== i))}
-                    className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-xs text-zinc-300 hover:bg-red-500/10 hover:text-red-300"
+                    className="btn-danger !rounded-xl !px-3 !py-2 text-xs"
                   >
-                    ✕
+                    Remove
                   </button>
                 </div>
               ))}
@@ -489,18 +493,18 @@ export default function ProfileCustomizer({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <button onClick={save} disabled={busy} className="btn-primary px-8 py-3 text-sm disabled:opacity-60">
             {busy ? 'Saving…' : 'Save changes'}
           </button>
-          {saved && <span className="animate-pop text-sm font-semibold text-emerald-400">Saved</span>}
-          {error && <span className="text-sm text-red-400">{error}</span>}
+          {saved && <span className="feedback-success animate-pop px-4 py-2 text-sm font-semibold">Saved</span>}
+          {error && <span className="feedback-error px-4 py-2 text-sm">{error}</span>}
         </div>
       </div>
 
       <div className="lg:sticky lg:top-24 lg:self-start">
         <p className="eyebrow">Live preview</p>
-        <div className="animate-fade-up mt-3 overflow-hidden rounded-[28px] border border-white/10 bg-night-900 shadow-2xl shadow-black/50">
+        <div className="animate-fade-up mt-3 overflow-hidden rounded-[28px] border border-white/10 bg-night-900/95 shadow-2xl shadow-black/50">
           <div className="relative h-36">
             {state.bannerUrl && state.bannerType === 'video' ? (
               <video
@@ -548,7 +552,7 @@ export default function ProfileCustomizer({
                 {(state.displayName || username).slice(0, 1).toUpperCase()}
               </span>
             )}
-            <h3 className="mt-3 text-2xl font-black tracking-tight">
+            <h3 className="mt-3 break-words text-2xl font-black tracking-tight">
               {state.statusEmoji && (
                 <span className="mr-1.5 inline-block align-[-0.12em] text-[0.85em]">
                   {state.statusEmoji}
@@ -564,7 +568,7 @@ export default function ProfileCustomizer({
                 intensity={state.effectIntensity}
               />
             </h3>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 break-words text-xs text-zinc-500">
               {state.statusEmoji && <span className="mr-1">{state.statusEmoji}</span>}
               @{username}
               {state.statusText && <span className="text-zinc-600"> · {state.statusText}</span>}
@@ -575,18 +579,18 @@ export default function ProfileCustomizer({
             {state.links.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {state.links
-                  .filter((l) => l.label)
-                  .map((l, i) => (
+                  .filter((link) => link.label)
+                  .map((link, i) => (
                     <span
                       key={i}
-                      className="rounded-full border px-3 py-1 text-xs font-semibold"
+                      className="rounded-full border px-3 py-1 text-[11px] font-semibold"
                       style={{
-                        borderColor: `${l.color}66`,
-                        background: `${l.color}14`,
-                        color: l.color,
+                        borderColor: `${link.color}66`,
+                        background: `${link.color}14`,
+                        color: link.color,
                       }}
                     >
-                      {l.label}
+                      {link.label}
                     </span>
                   ))}
               </div>

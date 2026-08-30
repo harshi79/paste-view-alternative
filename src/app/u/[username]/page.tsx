@@ -58,9 +58,6 @@ export default async function ProfilePage({ params }: Props) {
     statusText: '',
   };
 
-  // Run everything independent in parallel — one DB round-trip window
-  // instead of four sequential ones. Visibility/expiry filtering happens
-  // in JS so the pastes query doesn't have to wait for the session.
   const [session, adminStatus, userTags, userPastes] = await Promise.all([
     getSessionUser(),
     isAdmin(),
@@ -76,14 +73,13 @@ export default async function ProfilePage({ params }: Props) {
   const isOwner = session?.user.id === user.id;
 
   const nowVisible = userPastes.filter(
-    (p) =>
-      (!p.expiresAt || p.expiresAt.getTime() > Date.now()) &&
-      (isOwner || p.visibility === 'public'),
+    (paste) =>
+      (!paste.expiresAt || paste.expiresAt.getTime() > Date.now()) &&
+      (isOwner || paste.visibility === 'public'),
   );
-  const pinned = nowVisible.filter((p) => p.pinned);
-  const rest = nowVisible.filter((p) => !p.pinned);
+  const pinned = nowVisible.filter((paste) => paste.pinned);
+  const rest = nowVisible.filter((paste) => !paste.pinned);
 
-  // Count the profile view (visitors only) while badges are computed.
   const [, badges] = await Promise.all([
     isOwner
       ? Promise.resolve()
@@ -94,12 +90,12 @@ export default async function ProfilePage({ params }: Props) {
     computeBadges(user, profile, nowVisible),
   ]);
 
-  const totalViews = nowVisible.reduce((s, p) => s + p.views, 0);
-  const totalLikes = nowVisible.reduce((s, p) => s + (p.likesCount ?? 0), 0);
+  const totalViews = nowVisible.reduce((s, paste) => s + paste.views, 0);
+  const totalLikes = nowVisible.reduce((s, paste) => s + (paste.likesCount ?? 0), 0);
 
   return (
-    <div className="pt-6">
-      <div className="animate-fade-up relative h-44 overflow-hidden rounded-3xl border border-white/10 sm:h-60">
+    <div className="pt-4 sm:pt-6">
+      <div className="animate-fade-up relative h-40 overflow-hidden rounded-[28px] border border-white/10 sm:h-56 lg:h-60">
         {profile.bannerUrl && profile.bannerType === 'video' ? (
           <video
             src={profile.bannerUrl}
@@ -122,25 +118,22 @@ export default async function ProfilePage({ params }: Props) {
         <div className="absolute inset-0 bg-gradient-to-t from-night-950/90 via-night-950/20 to-transparent" />
       </div>
 
-      <div
-        className="animate-fade-up relative -mt-12 px-1 sm:-mt-14 sm:px-6"
-        style={{ animationDelay: '60ms' }}
-      >
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-end gap-4">
+      <div className="animate-fade-up relative -mt-10 px-1 sm:-mt-14 sm:px-6" style={{ animationDelay: '60ms' }}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
             <div
-              className="rounded-full border-4 shadow-2xl"
+              className="w-fit rounded-full border-4 shadow-2xl"
               style={{ borderColor: 'var(--color-night-950)', boxShadow: `0 8px 40px ${profile.accent}44` }}
             >
               <Avatar
                 value={profile.avatarUrl}
                 label={profile.displayName || user.username}
-                className="h-24 w-24 sm:h-28 sm:w-28"
+                className="h-20 w-20 sm:h-28 sm:w-28"
               />
             </div>
-            <div className="pb-1">
+            <div className="min-w-0 pb-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="text-2xl font-black leading-none tracking-tight sm:text-4xl">
+                <h1 className="min-w-0 break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
                   {profile.statusEmoji && (
                     <span
                       className="mr-2 inline-block align-[-0.12em] text-[0.85em]"
@@ -161,42 +154,40 @@ export default async function ProfilePage({ params }: Props) {
                 </h1>
                 {userTags.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    {userTags.map((t) => (
+                    {userTags.map((tag) => (
                       <TagBadge
-                        key={t.id}
-                        label={t.label}
-                        color={t.color}
-                        effect={t.effect}
+                        key={tag.id}
+                        label={tag.label}
+                        color={tag.color}
+                        effect={tag.effect}
                         size="sm"
                       />
                     ))}
                   </div>
                 )}
               </div>
-              <p className="mt-1.5 text-sm text-zinc-400">
+              <p className="mt-1.5 break-words text-sm text-zinc-400">
                 {profile.statusEmoji ? (
                   <span className="mr-1" aria-hidden>
                     {profile.statusEmoji}
                   </span>
                 ) : null}
                 @{user.username} · joined {formatDate(user.createdAt)}
-                {profile.statusText ? (
-                  <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span>
-                ) : null}
+                {profile.statusText ? <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span> : null}
               </p>
             </div>
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          {badges.map((b) => (
+          {badges.map((badge) => (
             <span
-              key={b.id}
-              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold text-white shadow-md"
-              style={{ background: `linear-gradient(100deg, ${b.from}, ${b.to})` }}
-              title={b.label}
+              key={badge.id}
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold text-white shadow-md"
+              style={{ background: `linear-gradient(100deg, ${badge.from}, ${badge.to})` }}
+              title={badge.label}
             >
-              {b.emoji} {b.label}
+              {badge.emoji} {badge.label}
             </span>
           ))}
           <span className="chip">{formatViews(profile.views)} profile views</span>
@@ -206,55 +197,52 @@ export default async function ProfilePage({ params }: Props) {
         </div>
 
         {profile.bioEnabled && profile.bio && (
-          <p className="mt-4 max-w-2xl whitespace-pre-wrap text-[15px] leading-relaxed text-zinc-300">
+          <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-zinc-300 sm:text-[15px]">
             {profile.bio}
           </p>
         )}
 
         {profile.links.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {profile.links.map((l, i) => (
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            {profile.links.map((link, i) => (
               <a
                 key={i}
-                href={l.url}
+                href={link.url}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition-transform hover:scale-105"
+                className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors hover:border-white/30"
                 style={{
-                  borderColor: `${l.color}66`,
-                  background: `${l.color}14`,
-                  color: l.color,
+                  borderColor: `${link.color}66`,
+                  background: `${link.color}14`,
+                  color: link.color,
                 }}
               >
-                {l.label}
+                {link.label}
               </a>
             ))}
           </div>
         )}
 
         {adminStatus && !isOwner && (
-          <AdminTags
-            userId={user.id}
-            initialTagIds={userTags.map((t) => t.id)}
-          />
+          <AdminTags userId={user.id} initialTagIds={userTags.map((tag) => tag.id)} />
         )}
       </div>
 
       <section className="mt-10">
         {pinned.length > 0 && (
           <>
-            <h2 className="mb-4 text-xl font-extrabold text-white">Pinned</h2>
+            <h2 className="mb-4 text-lg font-extrabold text-white sm:text-xl">Pinned</h2>
             <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {pinned.map((p) => (
-                <PasteCard key={p.id} paste={p} />
+              {pinned.map((paste) => (
+                <PasteCard key={paste.id} paste={paste} />
               ))}
             </div>
           </>
         )}
 
-        <h2 className="mb-4 text-xl font-extrabold text-white">Pastes</h2>
+        <h2 className="mb-4 text-lg font-extrabold text-white sm:text-xl">Pastes</h2>
         {rest.length === 0 && pinned.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-500">
+          <p className="card rounded-[24px] px-6 py-8 text-center text-zinc-400 sm:px-8 sm:py-10">
             {isOwner ? (
               <>
                 You haven&apos;t created any pastes yet.{' '}
@@ -270,8 +258,8 @@ export default async function ProfilePage({ params }: Props) {
           <p className="text-sm text-zinc-500">Nothing else here yet.</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {rest.map((p) => (
-              <PasteCard key={p.id} paste={p} />
+            {rest.map((paste) => (
+              <PasteCard key={paste.id} paste={paste} />
             ))}
           </div>
         )}

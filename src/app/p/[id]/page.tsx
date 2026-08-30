@@ -67,7 +67,7 @@ export default async function PastePage({ params }: Props) {
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
     return (
       <div className="grid min-h-[50vh] place-items-center pt-8 text-center">
-        <div className="card animate-pop max-w-md rounded-[24px] p-8 text-center">
+        <div className="card animate-pop max-w-md rounded-[24px] p-6 text-center sm:p-8">
           <p className="text-4xl">⏳</p>
           <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">This paste has expired</h1>
           <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -121,9 +121,8 @@ export default async function PastePage({ params }: Props) {
 
   return (
     <div className="animate-fade-up pb-8 pt-2 sm:pt-4">
-      {/* Header: Title, metadata, and action toolbar */}
-      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 flex-1">
+      <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
+        <div className="min-w-0">
           <h1
             className="break-words text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl"
             style={paste.titleColor ? { color: paste.titleColor } : undefined}
@@ -131,14 +130,14 @@ export default async function PastePage({ params }: Props) {
             {paste.title}
           </h1>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs sm:text-sm text-zinc-400">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-400 sm:text-sm">
             {authorRow ? (
               <Link
                 href={`/u/${authorRow.username}`}
-                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08]"
+                className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08]"
               >
                 <Avatar value={authorRow.avatarUrl} label={authorRow.username} className="h-5 w-5 sm:h-6 sm:w-6" />
-                {authorRow.displayName || authorRow.username}
+                <span className="truncate">{authorRow.displayName || authorRow.username}</span>
               </Link>
             ) : (
               <span className="pill !py-1 !text-xs">Guest author</span>
@@ -147,24 +146,25 @@ export default async function PastePage({ params }: Props) {
             <span className="pill !py-1 !text-xs">{formatViews(paste.views)} views</span>
             {paste.visibility === 'unlisted' && <span className="pill !py-1 !text-xs">Unlisted</span>}
             {paste.passwordHash && <span className="pill !py-1 !text-xs">🔒 Protected</span>}
-            {!!richDoc && hasRichFormatting(richDoc) && <span className="pill !py-1 !text-xs">Rich formatting</span>}
+            {!!richDoc && hasRichFormatting(richDoc) && (
+              <span className="pill !py-1 !text-xs">Rich formatting</span>
+            )}
             {paste.expiresAt && <ExpiryCountdown expiresAt={paste.expiresAt.toISOString()} />}
           </div>
         </div>
 
-        {/* Compact action toolbar */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <LikeButton pasteId={paste.id} initialCount={likeState.count} initialLiked={likeState.liked} />
           <CopyLinkButton id={paste.id} />
           {!locked && richDoc && <CopyButton text={richDocToPlainText(richDoc)} label="Copy content" />}
           {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" />}
           {!locked && (
-            <a href={rawUrl} className="btn-ghost !px-3.5 !py-2 text-xs font-semibold">
+            <a href={rawUrl} className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold">
               Raw view
             </a>
           )}
           {!locked && (
-            <a href={`${rawUrl}?download=1`} className="btn-ghost !px-3.5 !py-2 text-xs font-semibold">
+            <a href={`${rawUrl}?download=1`} className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold">
               Download
             </a>
           )}
@@ -172,7 +172,6 @@ export default async function PastePage({ params }: Props) {
         </div>
       </div>
 
-      {/* Main paste content */}
       <div>
         {locked ? (
           <UnlockForm pasteId={paste.id} />
