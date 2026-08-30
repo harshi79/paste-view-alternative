@@ -258,7 +258,7 @@ export default async function ProfilePage({ params }: Props) {
             {isOwner ? (
               <>
                 You haven&apos;t created any pastes yet.{' '}
-                <Link href="/" className="font-semibold text-brand-300 hover:text-brand-200">
+                <Link href="/paste" className="font-semibold text-brand-300 hover:text-brand-200">
                   Create your first
                 </Link>
               </>

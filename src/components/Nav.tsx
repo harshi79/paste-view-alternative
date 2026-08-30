@@ -37,7 +37,7 @@ export default function Nav({ session }: { session: NavUser }) {
   }
 
   const links = [
-    { href: '/', label: 'New paste' },
+    { href: '/paste', label: 'Create paste' },
     ...(session
       ? [
           { href: '/dashboard', label: 'Dashboard' },

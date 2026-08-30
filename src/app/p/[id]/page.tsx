@@ -75,7 +75,7 @@ export default async function PastePage({ params }: Props) {
             It was set to self-destruct and has now been removed. You can create a fresh paste any
             time with the same streamlined workflow.
           </p>
-          <Link href="/" className="btn-primary mt-7 px-6 py-3 text-sm font-bold">
+          <Link href="/paste" className="btn-primary mt-7 px-6 py-3 text-sm font-bold">
             New paste
           </Link>
         </div>

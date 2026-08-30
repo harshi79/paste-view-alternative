@@ -61,7 +61,7 @@ export default function DashboardList({
           Your dashboard is ready. Create your first paste to start building history, views, and
           shareable links.
         </p>
-        <Link href="/" className="btn-primary mt-6">
+        <Link href="/paste" className="btn-primary mt-6">
           Create your first paste
         </Link>
       </div>
