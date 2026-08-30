@@ -17,9 +17,23 @@ import { loadStickerPack, rememberSticker, type StickerEntry } from '@/lib/stick
 import { lineFont } from './richRender';
 import {
   applyMultiLinePaste,
+  deleteRange,
   mergeLineIntoPrevious,
   splitLineAtOffset,
 } from '@/lib/editorLineOps';
+import {
+  offsetWithinRoot,
+  orderedRange,
+  resolveLinePosition,
+  type LinePos,
+  type SelNode,
+} from '@/lib/editorSelection';
+import {
+  PASTE_MAX_CHARS,
+  PASTE_MAX_LINES,
+  pasteTooLargeMessage,
+  richDocTotals,
+} from '@/lib/pasteLimits';
 import { nekoTokenSet, type NekoGif } from '@/lib/neko';
 
 // The live preview reuses the paste page's rich renderer (including
@@ -313,17 +327,24 @@ export default function Editor({ username }: Props) {
     return text;
   }
 
-  /** Character offset of a (node, offset) caret position within `root`. */
-  function offsetWithin(root: HTMLElement, node: Node, offset: number): number {
-    if (node === root) return offset;
-    let pos = 0;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      const tn = walker.currentNode as Text;
-      if (tn === node) return pos + offset;
-      pos += tn.data.length;
-    }
-    return offset;
+  /**
+   * Resolves a browser selection endpoint to a (line, character offset)
+   * position in RichDoc coordinates. The helpers operate on the
+   * structural shape of nodes (nodeType / data / childNodes /
+   * parentNode), so the editor's HTMLDivElement refs and real DOM nodes
+   * are passed straight through (see lib/editorSelection.ts).
+   */
+  function resolveSelectionEndpoint(node: Node | null, offset: number): LinePos | null {
+    return resolveLinePosition(
+      lineRefs.current as unknown as readonly (SelNode | null)[],
+      node as unknown as SelNode | null,
+      offset,
+    );
+  }
+
+  /** Character offset of a (node, offset) position within a line element. */
+  function offsetAt(root: HTMLElement, node: Node, offset: number): number {
+    return offsetWithinRoot(root as unknown as SelNode, node as unknown as SelNode, offset);
   }
 
   /** Collapses the caret to character `pos` inside `el` (a plain text node). */
@@ -381,19 +402,85 @@ export default function Editor({ username }: Props) {
   }
 
   /**
+   * Deletes a cross-line selection as one doc-level range (see
+   * `deleteRange` in lib/editorLineOps.ts for the exact semantics):
+   * fully-covered lines disappear, the surviving prefix of the first
+   * line and suffix of the last line merge into one line carrying the
+   * first line's formatting and both sticker/GIF url maps, and the
+   * merged line's marks are recomputed. Fresh keys make React mount the
+   * replacement so the ref reseeds its text; the caret is then restored
+   * at the start of the deleted range (the join point).
+   */
+  function deleteSelectedRange(anchor: LinePos, focus: LinePos) {
+    const { start, end } = orderedRange(anchor, focus);
+    const res = deleteRange(rich, start.line, start.offset, end.line, end.offset, nextLineKey);
+    if (!res) return;
+    const lines = res.lines.slice();
+    if (res.changedLine >= 0) {
+      const merged = lines[res.changedLine];
+      if (merged) {
+        const extra = new Set(Object.keys(merged.stickerUrls ?? {}));
+        lines[res.changedLine] = {
+          ...merged,
+          marks: buildInlineMarks(merged.text, stickerTokenSet, extra),
+        };
+      }
+    }
+    setRich({ v: 1, lines });
+    requestAnimationFrame(() => {
+      const el = lineRefs.current[res.caretLine];
+      if (el) {
+        el.focus();
+        placeCaretAt(el, res.caretOffset);
+      }
+      setActiveLine(res.caretLine);
+    });
+  }
+
+  /**
    * Splits a multi-line clipboard paste into separate editor lines instead
    * of embedding literal newlines inside one line. Single-line pastes and
    * non-text payloads are left to the browser's default contentEditable
-   * paste. Every created line inherits the pasted-into line's formatting and
-   * sticker/GIF urls; marks are recomputed from each line's text. No size
-   * limit is imposed and the caret lands at the end of the last pasted line.
+   * paste.
+   *
+   * Size policy (src/lib/pasteLimits.ts): the server rejects pastes beyond
+   * PASTE_MAX_CHARS characters / PASTE_MAX_LINES lines, so a paste that
+   * would cross either limit is rejected here BEFORE anything is inserted,
+   * with the same message the server would return — nothing is ever
+   * silently truncated. Every created line inherits the pasted-into line's
+   * formatting and sticker/GIF urls; marks are recomputed from each line's
+   * text and the caret lands at the end of the last pasted line.
    */
   function handleLinePaste(i: number, e: React.ClipboardEvent<HTMLDivElement>) {
     const pasted = e.clipboardData?.getData('text/plain') ?? '';
-    if (pasted === '' || !pasted.includes('\n')) return; // default handles it
+    if (pasted === '') return; // default handles it (an empty paste is a no-op)
+    const addedLines = pasted.includes('\n') ? pasted.split('\n').length - 1 : 0;
+    // Single-line pastes are inserted by the browser's default handler,
+    // which replaces the current selection when it lies inside this line —
+    // count that removed text so the guard matches the real outcome.
+    let removedChars = 0;
+    if (addedLines === 0) {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed) {
+        const a = resolveSelectionEndpoint(sel.anchorNode, sel.anchorOffset);
+        const f = resolveSelectionEndpoint(sel.focusNode, sel.focusOffset);
+        if (a && f && a.line === f.line) removedChars = Math.abs(f.offset - a.offset);
+      }
+    }
+    if (richChars - removedChars + pasted.length > PASTE_MAX_CHARS) {
+      e.preventDefault();
+      setError(pasteTooLargeMessage('chars'));
+      return;
+    }
+    if (rich.lines.length + addedLines > PASTE_MAX_LINES) {
+      e.preventDefault();
+      setError(pasteTooLargeMessage('lines'));
+      return;
+    }
+    if (addedLines === 0) return; // single-line paste: default handles it
     e.preventDefault();
     const sel = window.getSelection();
-    let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+    let at = sel ? offsetAt(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
     const len = rich.lines[i]?.text.length ?? 0;
     at = Math.max(0, Math.min(at, len));
     const line = rich.lines[i];
@@ -431,7 +518,7 @@ export default function Editor({ username }: Props) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       const sel = window.getSelection();
-      let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+      let at = sel ? offsetAt(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
       const len = rich.lines[i]?.text.length ?? 0;
       at = Math.max(0, Math.min(at, len));
       splitLineAt(i, at);
@@ -450,26 +537,41 @@ export default function Editor({ username }: Props) {
         }
         setActiveLine(i + 1);
       });
-    } else if (e.key === 'Backspace') {
-      // Lines are separate contentEditables, so the browser can't join them
-      // on its own. When the caret is at the very start of a line we join it
-      // with the previous line (or safely do nothing on the first line).
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      // Lines are separate contentEditables, so the browser's default
+      // delete only ever acts inside ONE editing host. A non-collapsed
+      // selection whose endpoints sit in different lines is therefore
+      // handled as a single doc-level range delete; same-line selections
+      // keep the native default (the input event syncs state — single-line
+      // behavior is unchanged).
       const sel = window.getSelection();
-      // A real selection (not just a caret) should delete normally.
-      if (sel && !sel.isCollapsed) return;
-      let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
-      const len = rich.lines[i]?.text.length ?? 0;
-      at = Math.max(0, Math.min(at, len));
-      if (at === 0 && i > 0) {
-        // Caret at line start with a previous line to join with. This also
-        // removes an empty current line sensibly (an empty line merged into
-        // its predecessor just disappears).
-        e.preventDefault();
-        joinWithPrevious(i);
-      } else if (at === 0 && i === 0) {
-        // First line has nothing before it to join — behave safely (nothing
-        // to delete before the caret).
-        e.preventDefault();
+      if (sel && !sel.isCollapsed) {
+        const anchor = resolveSelectionEndpoint(sel.anchorNode, sel.anchorOffset);
+        const focus = resolveSelectionEndpoint(sel.focusNode, sel.focusOffset);
+        if (anchor && focus && anchor.line !== focus.line) {
+          e.preventDefault();
+          deleteSelectedRange(anchor, focus);
+        }
+        return;
+      }
+      if (e.key === 'Backspace') {
+        // The browser can't join separate contentEditables on its own:
+        // Backspace at the very start of a line joins it with the previous
+        // line (or safely does nothing on the first line).
+        let at = sel ? offsetAt(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+        const len = rich.lines[i]?.text.length ?? 0;
+        at = Math.max(0, Math.min(at, len));
+        if (at === 0 && i > 0) {
+          // Caret at line start with a previous line to join with. This also
+          // removes an empty current line sensibly (an empty line merged into
+          // its predecessor just disappears).
+          e.preventDefault();
+          joinWithPrevious(i);
+        } else if (at === 0 && i === 0) {
+          // First line has nothing before it to join — behave safely
+          // (nothing to delete before the caret).
+          e.preventDefault();
+        }
       }
     }
   }
@@ -490,7 +592,7 @@ export default function Editor({ username }: Props) {
       if (sel && sel.rangeCount > 0) {
         const range = sel.getRangeAt(0);
         if (el.contains(range.startContainer)) {
-          at = offsetWithin(el, range.startContainer, range.startOffset);
+          at = offsetAt(el, range.startContainer, range.startOffset);
         }
       }
     }
@@ -569,6 +671,18 @@ export default function Editor({ username }: Props) {
       setError('Paste content is required.');
       return;
     }
+    // The editor enforces the same explicit limits the server validates
+    // (the server remains the final authority), so an oversized paste
+    // fails clearly here instead of a confusing submit round trip.
+    const totals = richDocTotals(rich);
+    if (totals.chars > PASTE_MAX_CHARS) {
+      setError(pasteTooLargeMessage('chars'));
+      return;
+    }
+    if (totals.lines > PASTE_MAX_LINES) {
+      setError(pasteTooLargeMessage('lines'));
+      return;
+    }
     if (passwordProtectionEnabled && !password) {
       setError('Enter a password or turn off password protection.');
       return;
@@ -628,6 +742,8 @@ export default function Editor({ username }: Props) {
 
   const fieldLabel = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
   const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
+  const richLines = rich.lines.length;
+  const overLimit = richChars > PASTE_MAX_CHARS || richLines > PASTE_MAX_LINES;
   const currentLine = rich.lines[activeLine] ?? rich.lines[0];
   const currentFont = FONTS.find((f) => f.id === (currentLine?.font ?? DEFAULT_FONT))?.label ?? 'Mono';
   const currentSize = currentLine?.size ?? 14;
@@ -683,7 +799,15 @@ export default function Editor({ username }: Props) {
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
                 <span>Characters</span>
-                <span className="font-medium text-zinc-200">{richChars.toLocaleString()} / 100,000</span>
+                <span className={`font-medium ${richChars > PASTE_MAX_CHARS ? 'text-red-300' : 'text-zinc-200'}`}>
+                  {richChars.toLocaleString()} / {PASTE_MAX_CHARS.toLocaleString()}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
+                <span>Lines</span>
+                <span className={`font-medium ${richLines > PASTE_MAX_LINES ? 'text-red-300' : 'text-zinc-200'}`}>
+                  {richLines.toLocaleString()} / {PASTE_MAX_LINES.toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
@@ -1027,7 +1151,10 @@ export default function Editor({ username }: Props) {
         }`}
       >
         <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-          <span className="pill">{`${richChars.toLocaleString()} / 100,000 chars`}</span>
+          <span className={`pill ${overLimit ? 'border-red-400/40 text-red-300' : ''}`}>
+            {`${richChars.toLocaleString()} / ${PASTE_MAX_CHARS.toLocaleString()} chars · `}
+            {`${richLines.toLocaleString()} / ${PASTE_MAX_LINES.toLocaleString()} lines`}
+          </span>
           <span className="pill">
             {visibility === 'public' ? 'Public paste' : 'Unlisted paste'} ·{' '}
             {passwordProtectionEnabled ? 'Password protected' : 'No password'}

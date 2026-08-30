@@ -5,6 +5,12 @@ import { getSessionUser, hashPassword } from '@/lib/auth';
 import { generatePasteId, expiryFromId, EXPIRY_OPTIONS } from '@/lib/pastes';
 import { isLanguage } from '@/lib/languages';
 import { isRichDoc, richDocLinksAreSafe, type RichDoc } from '@/lib/pasteFormat';
+import {
+  PASTE_MAX_CHARS,
+  pasteTooLargeMessage,
+  richDocLimitExceeded,
+  richDocTotals,
+} from '@/lib/pasteLimits';
 
 export const runtime = 'nodejs';
 
@@ -45,11 +51,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid rich content.' }, { status: 400 });
     }
     const doc = parsed as RichDoc;
-    // cap total chars
-    const total = doc.lines.reduce((s, l) => s + l.text.length, 0);
-    if (total > 100_000) {
-      return NextResponse.json({ error: 'Paste is too large (100k characters max).' }, { status: 413 });
+    // Explicit size policy, shared with the editor (src/lib/pasteLimits.ts)
+    // and still enforced here as the final authority for every client.
+    const overLimit = richDocLimitExceeded(doc);
+    if (overLimit) {
+      return NextResponse.json({ error: pasteTooLargeMessage(overLimit) }, { status: 413 });
     }
+    const total = richDocTotals(doc).chars;
     if (doc.lines.length === 0 || total === 0) {
       return NextResponse.json({ error: 'Paste content is required.' }, { status: 400 });
     }
@@ -64,8 +72,8 @@ export async function POST(req: Request) {
     if (!content.trim()) {
       return NextResponse.json({ error: 'Paste content is required.' }, { status: 400 });
     }
-    if (content.length > 100_000) {
-      return NextResponse.json({ error: 'Paste is too large (100k characters max).' }, { status: 413 });
+    if (content.length > PASTE_MAX_CHARS) {
+      return NextResponse.json({ error: pasteTooLargeMessage('chars') }, { status: 413 });
     }
   }
 
