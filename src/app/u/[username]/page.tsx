@@ -137,12 +137,6 @@ export default async function ProfilePage({ params }: Props) {
             <div className="min-w-0 pb-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="min-w-0 break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
-                  <EmojiStatus
-                    value={profile.statusEmoji}
-                    pack={statusSticker ? [statusSticker] : undefined}
-                    className="mr-2 inline-block align-[-0.12em] text-[0.85em]"
-                    title={profile.statusText || 'Status'}
-                  />
                   <NameDisplay
                     text={profile.displayName || user.username}
                     from={profile.nameFrom}
@@ -166,14 +160,15 @@ export default async function ProfilePage({ params }: Props) {
                     ))}
                   </div>
                 )}
-              </div>
-              <p className="mt-1.5 break-words text-sm text-zinc-400">
+                {/* Status emoji/GIF sits after the display name + title badges. */}
                 <EmojiStatus
                   value={profile.statusEmoji}
                   pack={statusSticker ? [statusSticker] : undefined}
-                  className="mr-1"
-                  ariaHidden
+                  className="text-xl leading-none sm:text-3xl"
+                  title={profile.statusText || 'Status'}
                 />
+              </div>
+              <p className="mt-1.5 break-words text-sm text-zinc-400">
                 @{user.username} · joined {formatDate(user.createdAt)}
                 {profile.statusText ? <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span> : null}
               </p>
