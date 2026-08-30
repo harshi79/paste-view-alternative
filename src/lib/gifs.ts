@@ -11,6 +11,8 @@
  */
 
 export type GifEntry = {
+  /** Stable Giphy identifier used for trusted server-side importing. */
+  id: string;
   /** Full-size GIF url used when the sticker is inserted into a paste. */
   url: string;
   /** Small preview (thumbnail) url shown in the search grid. */
@@ -48,11 +50,12 @@ export async function searchGifs(q: string, limit = 40): Promise<GifEntry[]> {
     };
     return (data.data ?? [])
       .map((g) => ({
+        id: g.id ?? '',
         url: g.images?.fixed_width?.url ?? g.images?.original?.url ?? '',
         preview: g.images?.preview_gif?.url ?? g.images?.fixed_width_small?.url ?? null,
         label: (g.title || '').replace(/^gif\s*/i, '').trim() || 'GIF',
       }))
-      .filter((g) => g.url);
+      .filter((g) => g.id && g.url);
   } catch {
     return [];
   }
@@ -68,16 +71,44 @@ export async function trendingGifs(limit = 24): Promise<GifEntry[]> {
     clearTimeout(timer);
     if (!res.ok) return [];
     const data = (await res.json()) as {
-      data?: { title?: string; images?: Record<string, { url?: string } | undefined> }[];
+      data?: { id?: string; title?: string; images?: Record<string, { url?: string } | undefined> }[];
     };
     return (data.data ?? [])
       .map((g) => ({
+        id: g.id ?? '',
         url: g.images?.fixed_width?.url ?? '',
         preview: g.images?.preview_gif?.url ?? g.images?.fixed_width_small?.url ?? null,
         label: (g.title || '').replace(/^gif\s*/i, '').trim() || 'GIF',
       }))
-      .filter((g) => g.url);
+      .filter((g) => g.id && g.url);
   } catch {
     return [];
+  }
+}
+
+/** Resolve one trusted Giphy result by stable provider id for importing. */
+export async function getGifById(id: string): Promise<GifEntry | null> {
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return null;
+  try {
+    const url = `${BASE}/${encodeURIComponent(id)}?api_key=${encodeURIComponent(apiKey())}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const payload = (await res.json()) as {
+      data?: { id?: string; title?: string; images?: Record<string, { url?: string } | undefined> };
+    };
+    const gif = payload.data;
+    const resolvedUrl = gif?.images?.fixed_width?.url ?? gif?.images?.original?.url ?? '';
+    if (!gif?.id || !resolvedUrl) return null;
+    return {
+      id: gif.id,
+      url: resolvedUrl,
+      preview: gif.images?.preview_gif?.url ?? gif.images?.fixed_width_small?.url ?? null,
+      label: (gif.title || '').replace(/^gif\s*/i, '').trim() || 'Giphy GIF',
+    };
+  } catch {
+    return null;
   }
 }

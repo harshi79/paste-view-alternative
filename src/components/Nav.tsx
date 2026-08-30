@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Logo from './Logo';
+import EmojiStatus from './EmojiStatus';
+import type { StickerEntry } from '@/lib/stickerPack';
 
 export type NavUser = {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   statusEmoji?: string | null;
+  statusSticker?: StickerEntry | null;
 } | null;
 
 export default function Nav({ session }: { session: NavUser }) {
@@ -117,7 +120,11 @@ export default function Nav({ session }: { session: NavUser }) {
                     </span>
                   )}
                   <span className="hidden max-w-[132px] truncate sm:block">
-                    {session.statusEmoji && <span className="mr-1">{session.statusEmoji}</span>}
+                    <EmojiStatus
+                      value={session.statusEmoji}
+                      pack={session.statusSticker ? [session.statusSticker] : undefined}
+                      className="mr-1"
+                    />
                     {session.displayName || session.username}
                   </span>
                   <span className={`hidden text-zinc-500 transition-transform sm:block ${accountOpen ? 'rotate-180' : ''}`}>

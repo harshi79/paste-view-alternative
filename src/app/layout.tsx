@@ -4,6 +4,7 @@ import './globals.css';
 import Nav from '@/components/Nav';
 import Logo from '@/components/Logo';
 import { getSessionUser } from '@/lib/auth';
+import { loadStickerByToken } from '@/lib/stickerPack.server';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -19,6 +20,9 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const session = await getSessionUser();
+  const statusSticker = session?.profile.statusEmoji
+    ? await loadStickerByToken(session.profile.statusEmoji)
+    : null;
 
   return (
     <html lang="en">
@@ -38,6 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   displayName: session.profile?.displayName ?? null,
                   avatarUrl: session.profile?.avatarUrl ?? null,
                   statusEmoji: session.profile?.statusEmoji ?? null,
+                  statusSticker,
                 }
               : null
           }

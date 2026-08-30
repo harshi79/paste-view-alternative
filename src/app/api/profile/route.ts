@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { profiles } from '@/lib/db/schema';
+import { profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
+import { sql } from 'drizzle-orm';
+import { isStickerToken, normalizeUnicodeStatus } from '@/lib/statusEmoji';
 
 export const runtime = 'nodejs';
 
@@ -46,8 +48,8 @@ export async function PATCH(req: Request) {
   const displayName = String(body.displayName ?? '').trim().slice(0, 40) || null;
   const bio = String(body.bio ?? '').slice(0, 1000);
   const bioEnabled = body.bioEnabled !== false;
-  // Emoji status: a short emoji + optional one-line status text.
-  const statusEmoji = String(body.statusEmoji ?? '').trim().slice(0, 8);
+  // Emoji status is either compact Unicode or a canonical persistent sticker token.
+  const requestedStatusEmoji = String(body.statusEmoji ?? '').trim();
   const statusText = String(body.statusText ?? '').trim().slice(0, 60);
   const nameStyle = NAME_STYLES.includes(String(body.nameStyle)) ? String(body.nameStyle) : 'gradient';
   const nameEffect = NAME_EFFECTS.includes(String(body.nameEffect)) ? String(body.nameEffect) : 'none';
@@ -88,6 +90,28 @@ export async function PATCH(req: Request) {
   }
 
   const db = await getDb();
+  let statusEmoji = '';
+  if (requestedStatusEmoji) {
+    const canonicalToken = requestedStatusEmoji.toLowerCase();
+    if (isStickerToken(canonicalToken)) {
+      const [sticker] = await db
+        .select({ token: stickers.token })
+        .from(stickers)
+        .where(sql`lower(${stickers.token}) = ${canonicalToken}`)
+        .limit(1);
+      if (!sticker) {
+        return NextResponse.json({ error: 'Choose a sticker from the current sticker pack.' }, { status: 400 });
+      }
+      statusEmoji = canonicalToken;
+    } else {
+      const unicode = normalizeUnicodeStatus(requestedStatusEmoji);
+      if (!unicode) {
+        return NextResponse.json({ error: 'Status must be a compact Unicode emoji or sticker-pack item.' }, { status: 400 });
+      }
+      statusEmoji = unicode;
+    }
+  }
+
   const values = {
     displayName,
     bio,

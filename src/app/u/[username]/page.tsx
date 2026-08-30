@@ -13,6 +13,8 @@ import SafeImage from '@/components/SafeImage';
 import PasteCard from '@/components/PasteCard';
 import AdminTags from '@/components/AdminTags';
 import TagBadge from '@/components/TagBadge';
+import EmojiStatus from '@/components/EmojiStatus';
+import { loadStickerByToken } from '@/lib/stickerPack.server';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +60,7 @@ export default async function ProfilePage({ params }: Props) {
     statusText: '',
   };
 
-  const [session, adminStatus, userTags, userPastes] = await Promise.all([
+  const [session, adminStatus, userTags, userPastes, statusSticker] = await Promise.all([
     getSessionUser(),
     isAdmin(),
     getUserTags(user.id),
@@ -68,6 +70,7 @@ export default async function ProfilePage({ params }: Props) {
       .where(eq(pastes.userId, user.id))
       .orderBy(desc(pastes.pinned), desc(pastes.createdAt))
       .limit(100),
+    loadStickerByToken(profile.statusEmoji, db),
   ]);
 
   const isOwner = session?.user.id === user.id;
@@ -134,14 +137,12 @@ export default async function ProfilePage({ params }: Props) {
             <div className="min-w-0 pb-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <h1 className="min-w-0 break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
-                  {profile.statusEmoji && (
-                    <span
-                      className="mr-2 inline-block align-[-0.12em] text-[0.85em]"
-                      title={profile.statusText || 'Status'}
-                    >
-                      {profile.statusEmoji}
-                    </span>
-                  )}
+                  <EmojiStatus
+                    value={profile.statusEmoji}
+                    pack={statusSticker ? [statusSticker] : undefined}
+                    className="mr-2 inline-block align-[-0.12em] text-[0.85em]"
+                    title={profile.statusText || 'Status'}
+                  />
                   <NameDisplay
                     text={profile.displayName || user.username}
                     from={profile.nameFrom}
@@ -167,11 +168,12 @@ export default async function ProfilePage({ params }: Props) {
                 )}
               </div>
               <p className="mt-1.5 break-words text-sm text-zinc-400">
-                {profile.statusEmoji ? (
-                  <span className="mr-1" aria-hidden>
-                    {profile.statusEmoji}
-                  </span>
-                ) : null}
+                <EmojiStatus
+                  value={profile.statusEmoji}
+                  pack={statusSticker ? [statusSticker] : undefined}
+                  className="mr-1"
+                  ariaHidden
+                />
                 @{user.username} · joined {formatDate(user.createdAt)}
                 {profile.statusText ? <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span> : null}
               </p>

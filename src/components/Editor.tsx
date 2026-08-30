@@ -12,13 +12,10 @@ import {
   DEFAULT_FONT,
   buildInlineMarks,
 } from '@/lib/pasteFormat';
-import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
+import { loadStickerPack, rememberSticker, type StickerEntry } from '@/lib/stickerPack';
 import { splitLine, lineFont } from './richRender';
 import StickerImage from './StickerImage';
 import { nekoTokenSet, type NekoGif } from '@/lib/neko';
-import { customAlphabet } from 'nanoid';
-
-const gifId = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 8);
 
 type Props = { username: string | null };
 
@@ -134,8 +131,9 @@ export default function Editor({ username }: Props) {
   const [rich, setRich] = useState<RichDoc>(emptyDoc);
   const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
   const [nekoGifs, setNekoGifs] = useState<NekoGif[]>([]);
-  const [gifResults, setGifResults] = useState<Array<{ url: string; preview: string | null; label: string }>>([]);
+  const [gifResults, setGifResults] = useState<Array<{ id: string; url: string; preview: string | null; label: string }>>([]);
   const [searchingGifs, setSearchingGifs] = useState(false);
+  const [importingGif, setImportingGif] = useState<string | null>(null);
   const [activeLine, setActiveLine] = useState(0);
   const [showStickers, setShowStickers] = useState(false);
   const [stickerTab, setStickerTab] = useState<'pack' | 'anime'>('pack');
@@ -207,7 +205,7 @@ export default function Editor({ username }: Props) {
       try {
         const res = await fetch(`/api/gifs?q=${encodeURIComponent(query)}`);
         const data = (await res.json()) as {
-          gifs?: Array<{ url: string; preview: string | null; label: string }>;
+          gifs?: Array<{ id: string; url: string; preview: string | null; label: string }>;
         };
         setGifResults(Array.isArray(data.gifs) ? data.gifs : []);
       } catch {
@@ -261,7 +259,7 @@ export default function Editor({ username }: Props) {
   }
 
   /** Recomputes links + sticker/emoji marks for one line from its text. */
-  function syncLineMarks(i: number, text: string) {
+  function syncLineMarks(i: number, text: string, additionalTokens: readonly string[] = []) {
     // Any token that has an explicit url stored on the line counts as a
     // sticker (covers live/search GIFs inserted via stickerUrls).
     // IMPORTANT: Compute marks INSIDE the functional updater to read the
@@ -272,7 +270,7 @@ export default function Editor({ username }: Props) {
     setRich((doc) => {
       const lines = doc.lines.slice();
       if (i < 0 || i >= lines.length) return doc;
-      const extra = new Set<string>();
+      const extra = new Set<string>(additionalTokens);
       for (const key of Object.keys(lines[i]?.stickerUrls ?? {})) extra.add(key);
       const marks = buildInlineMarks(text, stickerTokenSet, extra);
       lines[i] = { ...lines[i], text, marks };
@@ -388,7 +386,7 @@ export default function Editor({ username }: Props) {
    * resolved GIF url for live anime stickers; pack stickers pass `undefined`
    * and resolve via the DB pack at render time.
    */
-  function applyStickerToActiveLine(token: string, url?: string | null) {
+  function applyStickerToActiveLine(token: string, url?: string | null, newlyPersisted = false) {
     const i = activeLine;
     const el = lineRefs.current[i];
     const currentText = el ? readLineText(el) : (rich.lines[i]?.text ?? '');
@@ -403,7 +401,7 @@ export default function Editor({ username }: Props) {
       }
     }
     const newText = currentText.slice(0, at) + token + currentText.slice(at);
-    syncLineMarks(i, newText);
+    syncLineMarks(i, newText, newlyPersisted ? [token] : []);
     if (url) {
       setRich((doc) => {
         const lines = doc.lines.slice();
@@ -424,45 +422,40 @@ export default function Editor({ username }: Props) {
     setActiveLine(i);
   }
 
-  /**
-   * Inserts a searched GIF into the active line at the caret by giving it a
-   * fresh shortcode token and recording its url on the line, so it renders
-   * as an inline image in the paste (see stickerUrls + buildInlineMarks).
-   */
-  function insertGifUrl(url: string) {
-    const token = `:gif-${gifId()}:`;
-    const i = activeLine;
-    const el = lineRefs.current[i];
-    const currentText = el ? readLineText(el) : (rich.lines[i]?.text ?? '');
-    let at = currentText.length;
-    if (el && document.activeElement === el) {
-      const sel = window.getSelection();
-      if (sel && sel.rangeCount > 0) {
-        const range = sel.getRangeAt(0);
-        if (el.contains(range.startContainer)) {
-          at = offsetWithin(el, range.startContainer, range.startOffset);
-        }
+  /** Promote a trusted provider result to the pack, then insert its stable token. */
+  async function importAndInsertGif(
+    key: string,
+    payload: { source: 'giphy'; id: string } | { source: 'neko'; url: string; category: string },
+  ) {
+    setImportingGif(key);
+    setError('');
+    try {
+      const res = await fetch('/api/stickers/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as { sticker?: StickerEntry; error?: string };
+      if (!res.ok || !data.sticker) {
+        setError(data.error || 'Could not add that GIF to the sticker pack.');
+        return;
       }
+      const sticker = data.sticker;
+      rememberSticker(sticker);
+      setStickerPack((pack) =>
+        pack.some((item) => item.token.toLowerCase() === sticker.token.toLowerCase())
+          ? pack
+          : [...pack, sticker].sort((a, b) => a.token.localeCompare(b.token)),
+      );
+      // The mark is built immediately even though React has not committed the
+      // updated pack state yet. No paste-local URL is needed for new imports.
+      applyStickerToActiveLine(sticker.token, null, true);
+      setGifResults([]);
+    } catch {
+      setError('Could not add that GIF to the sticker pack.');
+    } finally {
+      setImportingGif(null);
     }
-    const newText = currentText.slice(0, at) + token + currentText.slice(at);
-    setRich((doc) => {
-      const lines = doc.lines.slice();
-      if (i < 0 || i >= lines.length) return doc;
-      const s = { ...(lines[i].stickerUrls || {}) };
-      s[token] = url;
-      lines[i] = { ...lines[i], stickerUrls: s };
-      return { ...doc, lines };
-    });
-    syncLineMarks(i, newText);
-    if (el) {
-      el.textContent = newText;
-      placeCaretAt(el, at + token.length);
-      el.focus();
-    }
-    setShowStickers(false);
-    setStickerQuery('');
-    setGifResults([]);
-    setActiveLine(i);
   }
 
   function switchStickerTab(tab: 'pack' | 'anime') {
@@ -1035,7 +1028,8 @@ export default function Editor({ username }: Props) {
                         type="button"
                         key={g.url}
                         title={g.label}
-                        onClick={() => insertGifUrl(g.url)}
+                        disabled={importingGif === g.url}
+                        onClick={() => importAndInsertGif(g.url, { source: 'giphy', id: g.id })}
                         className="flex aspect-square min-h-[58px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                       >
                         <img
@@ -1058,7 +1052,16 @@ export default function Editor({ username }: Props) {
                       type="button"
                       key={g.token}
                       title={`${g.token} — ${g.label}`}
-                      onClick={() => applyStickerToActiveLine(g.token, g.url)}
+                      disabled={!!g.url && importingGif === g.url}
+                      onClick={() =>
+                        g.url
+                          ? importAndInsertGif(g.url, {
+                              source: 'neko',
+                              url: g.url,
+                              category: g.token.slice(':anime-'.length, -1),
+                            })
+                          : applyStickerToActiveLine(g.token)
+                      }
                       className="flex aspect-square min-h-[58px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
                     >
                       {g.url ? (

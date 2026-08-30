@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import NameDisplay, { type NameStyle, type NameEffect, NAME_EFFECTS } from './NameDisplay';
+import EmojiStatus from './EmojiStatus';
+import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
 
 type LinkItem = { label: string; url: string; color: string };
 
@@ -52,6 +54,19 @@ export default function ProfileCustomizer({
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'profile' | 'name' | 'links'>('profile');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [statusPickerTab, setStatusPickerTab] = useState<'unicode' | 'stickers'>('unicode');
+  const [statusStickers, setStatusStickers] = useState<StickerEntry[]>([]);
+
+  useEffect(() => {
+    if (!showEmojiPicker || statusStickers.length > 0) return;
+    let cancelled = false;
+    loadStickerPack().then((pack) => {
+      if (!cancelled) setStatusStickers(pack);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEmojiPicker, statusStickers.length]);
 
   function set<K extends keyof ProfileState>(key: K, value: ProfileState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -180,7 +195,7 @@ export default function ProfileCustomizer({
                 <input
                   className={`${input} w-20 shrink-0 text-center text-xl`}
                   value={state.statusEmoji}
-                  maxLength={8}
+                  maxLength={64}
                   placeholder="😎"
                   aria-label="Status emoji"
                   onChange={(e) => set('statusEmoji', e.target.value)}
@@ -204,22 +219,66 @@ export default function ProfileCustomizer({
               </div>
 
               {showEmojiPicker && (
-                <div className="animate-pop mt-3 grid max-w-md grid-cols-6 gap-1 rounded-xl border border-white/10 bg-night-900/70 p-2 sm:grid-cols-8">
-                  {STATUS_EMOJIS.map((emoji) => (
+                <div className="animate-pop mt-3 max-w-md rounded-xl border border-white/10 bg-night-900/70 p-2">
+                  <div className="mb-2 flex gap-1 rounded-lg bg-black/20 p-1">
                     <button
-                      key={emoji}
                       type="button"
-                      onClick={() => {
-                        set('statusEmoji', emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      className={`grid h-9 w-9 place-items-center rounded-lg text-lg transition hover:bg-white/10 ${
-                        state.statusEmoji === emoji ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
-                      }`}
+                      onClick={() => setStatusPickerTab('unicode')}
+                      className={tabBtn(statusPickerTab === 'unicode')}
                     >
-                      {emoji}
+                      Emoji
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setStatusPickerTab('stickers')}
+                      className={tabBtn(statusPickerTab === 'stickers')}
+                    >
+                      Custom stickers & GIFs
+                    </button>
+                  </div>
+                  {statusPickerTab === 'unicode' ? (
+                    <div className="grid grid-cols-6 gap-1 sm:grid-cols-8">
+                      {STATUS_EMOJIS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          title={emoji}
+                          onClick={() => {
+                            set('statusEmoji', emoji);
+                            setShowEmojiPicker(false);
+                          }}
+                          className={`grid h-9 w-9 place-items-center rounded-lg text-lg transition hover:bg-white/10 ${
+                            state.statusEmoji === emoji ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  ) : statusStickers.length === 0 ? (
+                    <p className="px-2 py-3 text-xs text-zinc-500">Loading sticker pack…</p>
+                  ) : (
+                    <div className="grid max-h-56 grid-cols-5 gap-1 overflow-y-auto sm:grid-cols-7">
+                      {statusStickers.map((sticker) => (
+                        <button
+                          key={sticker.token}
+                          type="button"
+                          title={`${sticker.token} — ${sticker.label}`}
+                          onClick={() => {
+                            set('statusEmoji', sticker.token.toLowerCase());
+                            setShowEmojiPicker(false);
+                          }}
+                          className={`grid h-11 w-11 place-items-center rounded-lg text-xl transition hover:bg-white/10 ${
+                            state.statusEmoji.toLowerCase() === sticker.token.toLowerCase()
+                              ? 'bg-brand-500/25 ring-1 ring-brand-400/60'
+                              : ''
+                          }`}
+                        >
+                          <EmojiStatus value={sticker.token} pack={statusStickers} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -553,11 +612,11 @@ export default function ProfileCustomizer({
               </span>
             )}
             <h3 className="mt-3 break-words text-2xl font-black tracking-tight">
-              {state.statusEmoji && (
-                <span className="mr-1.5 inline-block align-[-0.12em] text-[0.85em]">
-                  {state.statusEmoji}
-                </span>
-              )}
+              <EmojiStatus
+                value={state.statusEmoji}
+                pack={statusStickers.length > 0 ? statusStickers : undefined}
+                className="mr-1.5 inline-block align-[-0.12em] text-[0.85em]"
+              />
               <NameDisplay
                 text={state.displayName || username}
                 from={state.nameFrom}
@@ -569,7 +628,11 @@ export default function ProfileCustomizer({
               />
             </h3>
             <p className="mt-0.5 break-words text-xs text-zinc-500">
-              {state.statusEmoji && <span className="mr-1">{state.statusEmoji}</span>}
+              <EmojiStatus
+                value={state.statusEmoji}
+                pack={statusStickers.length > 0 ? statusStickers : undefined}
+                className="mr-1"
+              />
               @{username}
               {state.statusText && <span className="text-zinc-600"> · {state.statusText}</span>}
             </p>

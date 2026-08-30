@@ -350,6 +350,15 @@ body::before {
 /* line height or overflow the layout.                                 */
 /* ------------------------------------------------------------------ */
 
+.status-emoji-asset {
+  display: inline-block;
+  height: 1.15em;
+  max-width: 1.6em;
+  width: auto;
+  object-fit: contain;
+  vertical-align: -0.15em;
+}
+
 .paste-sticker {
   display: inline-block;
   height: 1.3em;
