@@ -33,5 +33,16 @@ local.db
 local.db-wal
 local.db-shm
 
+# production / Turso database files — contain real user data, NEVER commit
+vibebin.db
+vibebin.db-wal
+vibebin.db-shm
+vibebin-turso.db
+vibebin-turso.db-wal
+vibebin-turso.db-shm
+*.db
+*.sqlite
+*.sqlite3
+
 # migration exports
 exports/

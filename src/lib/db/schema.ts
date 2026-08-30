@@ -171,9 +171,52 @@ export const stickers = sqliteTable('stickers', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 });
 
+// ------------------------------------------------------------------
+// Email verification / OTP recovery — one recovery email per user,
+// one account per email. Only the SHA-256 hash of a pending 6-digit
+// OTP is ever stored (never the code itself).
+// ------------------------------------------------------------------
+export const emailVerifications = sqliteTable(
+  'email_verifications',
+  {
+    id: text('id').primaryKey(), // UUID stored as text
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    // Normalized (trimmed, lower-cased) at write time.
+    email: text('email').notNull(),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
+    // Pending OTP (at most one at a time per account).
+    otpHash: text('otp_hash'), // sha256 hex of the current 6-digit code, or null
+    // 'verify' (settings) or 'recovery' (forgot password)
+    otpPurpose: text('otp_purpose'),
+    otpExpiresAt: integer('otp_expires_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('email_verifications_user_idx').on(t.userId)],
+);
+
+// ------------------------------------------------------------------
+// Generic fixed-window rate limiting (OTP requests / verification
+// attempts). Keyed per account or per mailbox as appropriate.
+// ------------------------------------------------------------------
+export const rateLimits = sqliteTable(
+  'rate_limits',
+  {
+    key: text('key').notNull(),
+    kind: text('kind').notNull(),
+    windowStart: integer('window_start', { mode: 'timestamp_ms' }).notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.key, t.kind] })],
+);
+
 export type User = typeof users.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
 export type Like = typeof likes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
+export type EmailVerification = typeof emailVerifications.$inferSelect;
+export type RateLimit = typeof rateLimits.$inferSelect;

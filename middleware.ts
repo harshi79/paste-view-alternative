@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { getAuthSecretOrNull } from './src/lib/secret';
 
-function getSecret(): Uint8Array {
-  const raw =
-    process.env.AUTH_SECRET ||
-    'vibebin-dev-secret-do-not-use-in-production-change-me';
-  return new TextEncoder().encode(raw);
+/**
+ * No fallback secret: when AUTH_SECRET is missing, weak, or a known
+ * compromised value this is null and every presented token is rejected
+ * (protected pages redirect to login / admin login).
+ */
+function getSecret(): Uint8Array | null {
+  return getAuthSecretOrNull();
 }
 
 /**
@@ -23,7 +26,7 @@ export async function middleware(req: NextRequest) {
   if (path.startsWith('/admin') && path !== '/admin/login') {
     const token = req.cookies.get('vb_admin')?.value;
     let ok = false;
-    if (token) {
+    if (token && secret) {
       try {
         const { payload } = await jwtVerify(token, secret);
         ok = payload.admin === true;
@@ -46,7 +49,7 @@ export async function middleware(req: NextRequest) {
   ) {
     const token = req.cookies.get('vb_session')?.value;
     let ok = false;
-    if (token) {
+    if (token && secret) {
       try {
         await jwtVerify(token, secret);
         ok = true;

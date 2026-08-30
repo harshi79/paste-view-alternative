@@ -3,36 +3,90 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
+type Stage = 'request' | 'code' | 'token';
+
 export default function ForgotPasswordForm() {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [stage, setStage] = useState<Stage>('request');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [resetToken, setResetToken] = useState<string | null>(null);
-  const [generic, setGeneric] = useState(false);
+  const [code, setCode] = useState('');
 
-  async function submit(e: React.FormEvent) {
+  const looksLikeEmail = identifier.includes('@');
+
+  async function request(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    setGeneric(false);
     setResetToken(null);
+    setCode('');
     setBusy(true);
     try {
-      const res = await fetch('/api/auth/forgot-password', {
+      // 1) Signed-in device path (unchanged): if this browser is signed in
+      //    to the very account named, a one-time reset link is generated
+      //    here immediately — no email involved.
+      if (!looksLikeEmail) {
+        const res = await fetch('/api/auth/forgot-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: identifier }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.resetToken) {
+            setResetToken(data.resetToken as string);
+            setStage('token');
+            setBusy(false);
+            return;
+          }
+        }
+      }
+      // 2) Recovery-email path: a 6-digit code is sent to the account's
+      //    verified recovery email (if one exists). The response is
+      //    uniform, so this step reveals nothing about the account.
+      const body = looksLikeEmail
+        ? { purpose: 'recovery', email: identifier }
+        : { purpose: 'recovery', username: identifier };
+      const res = await fetch('/api/auth/email-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
+      setBusy(false);
       if (!res.ok) {
-        setError(data.error || 'Something went wrong. Try again.');
-        setBusy(false);
+        setError(data.error || 'Too many requests. Try again in a few minutes.');
         return;
       }
+      setStage('code');
+    } catch {
+      setError('Network error. Try again.');
       setBusy(false);
-      if (data.resetToken) {
+    }
+  }
+
+  async function submitCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const body = {
+        purpose: 'recovery',
+        code,
+        ...(looksLikeEmail ? { email: identifier } : { username: identifier }),
+      };
+      const res = await fetch('/api/auth/email-otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setBusy(false);
+      if (res.ok && data.resetToken) {
         setResetToken(data.resetToken as string);
+        setStage('token');
       } else {
-        setGeneric(true);
+        setError('The code is incorrect, expired, or was already used. Request a new one.');
       }
     } catch {
       setError('Network error. Try again.');
@@ -51,14 +105,15 @@ export default function ForgotPasswordForm() {
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30">
               🔑
             </div>
-            <h1 className="text-2xl font-extrabold text-white">Reset your password</h1>
+            <h1 className="text-2xl font-extrubold text-white">Reset your password</h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Enter your username. A one-time reset link (valid 30 minutes) will be generated for
-              this device.
+              {stage === 'code'
+                ? 'Enter the 6-digit code sent to the recovery email.'
+                : 'Enter your username or recovery email.'}
             </p>
           </div>
 
-          {resetToken ? (
+          {stage === 'token' && resetToken ? (
             <div className="space-y-4">
               <p className="animate-pop rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
                 Reset link generated. Open it on this device, or copy the one-time code below.
@@ -83,30 +138,66 @@ export default function ForgotPasswordForm() {
                 </Link>
               </p>
             </div>
-          ) : generic ? (
-            <div className="space-y-4">
-              <p className="animate-pop rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
-                If an account exists for <span className="font-semibold">@{username}</span>, a reset
-                link was generated for this device. Refresh this page to see it.
+          ) : stage === 'code' ? (
+            <form onSubmit={submitCode} className="space-y-4">
+              <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
+                If <span className="font-semibold">{looksLikeEmail ? identifier : `@${identifier}`}</span>{' '}
+                has a verified recovery email, a 6-digit code was just sent there. Codes expire
+                in 10 minutes and work only once.
               </p>
-              <Link
-                href="/login"
-                className="block w-full rounded-xl border border-white/10 bg-white/5 py-3 text-center text-sm font-semibold text-zinc-200 transition hover:bg-white/10"
-              >
-                Back to login
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={submit} className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                  Username
+                  6-digit code
                 </label>
                 <input
                   autoFocus
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="username"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  inputMode="numeric"
+                  className={input}
+                />
+              </div>
+              {error && (
+                <p className="animate-pop rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                disabled={busy || code.length !== 6}
+                className="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-bold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:opacity-50"
+              >
+                {busy ? 'Please wait…' : 'Verify code'}
+              </button>
+              <p className="text-xs leading-relaxed text-zinc-500">
+                No code arrived? If you are signed in to the account on this device, go back and
+                request again — a reset link is generated instantly. Otherwise, verify a recovery
+                email in Account settings first.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStage('request');
+                  setError('');
+                  setCode('');
+                }}
+                className="w-full rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
+              >
+                Use a different username or email
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={request} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  Username or recovery email
+                </label>
+                <input
+                  autoFocus
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="username or you@example.com"
                   autoComplete="username"
                   className={input}
                 />
@@ -120,10 +211,10 @@ export default function ForgotPasswordForm() {
 
               <button
                 type="submit"
-                disabled={busy || !username}
+                disabled={busy || !identifier.trim()}
                 className="w-full rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 py-3 text-sm font-bold text-white shadow-lg shadow-brand-600/30 transition hover:brightness-110 disabled:opacity-50"
               >
-                {busy ? 'Please wait…' : 'Generate reset link'}
+                {busy ? 'Please wait…' : 'Send recovery code'}
               </button>
             </form>
           )}
