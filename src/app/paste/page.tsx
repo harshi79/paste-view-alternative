@@ -13,21 +13,18 @@ export default async function PastePage() {
   const [session] = await Promise.all([getSessionUser(), purgeExpiredIfDue(db)]);
 
   return (
-    <div className="animate-fade-up pb-2 pt-3 sm:pt-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
+    <div className="animate-fade-up pb-4 pt-2 sm:pt-5">
+      {/* Centred, focused workspace: the editor is the page. */}
+      <div className="mx-auto w-full max-w-5xl">
+        <header className="mb-4 px-0.5 sm:mb-5">
           <p className="eyebrow">New paste</p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
             Create a paste
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-[15px]">
-            A focused workspace — title, language, visibility, expiration, password, and rich
-            formatting all in one canvas.
-          </p>
-        </div>
-      </header>
+        </header>
 
-      <Editor username={session?.user.username ?? null} />
+        <Editor username={session?.user.username ?? null} />
+      </div>
     </div>
   );
 }
