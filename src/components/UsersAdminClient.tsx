@@ -120,27 +120,33 @@ export default function UsersAdminClient({
         ) : (
           <div className="space-y-2">
             {users.map((u) => (
-              <button
+              <div
                 key={u.id}
-                onClick={() => openUser(u.id)}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-night-800/60 p-4 text-left transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-2xl border bg-night-800/60 p-4 text-left transition-colors ${
                   activeId === u.id
                     ? 'border-amber-400/60'
                     : 'border-white/10 hover:border-white/20'
                 }`}
               >
-                <span className="font-mono text-sm text-zinc-200">@{u.username}</span>
-                <span className="text-xs text-zinc-500">
-                  {new Date(u.createdAt).toLocaleDateString()}
-                </span>
+                {/* The row opens the user's tag manager via a real <button>;
+                    the "view →" profile link is a sibling <a> (a <Link>), so no
+                    interactive element is nested inside another. */}
+                <button
+                  onClick={() => openUser(u.id)}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+                >
+                  <span className="font-mono text-sm text-zinc-200">@{u.username}</span>
+                  <span className="text-xs text-zinc-500">
+                    {new Date(u.createdAt).toLocaleDateString()}
+                  </span>
+                </button>
                 <Link
                   href={`/u/${u.username}`}
-                  className="text-xs text-brand-300 hover:text-brand-200"
-                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 text-xs text-brand-300 hover:text-brand-200"
                 >
                   view →
                 </Link>
-              </button>
+              </div>
             ))}
           </div>
         )}

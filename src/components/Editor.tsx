@@ -15,6 +15,11 @@ import {
 } from '@/lib/pasteFormat';
 import { loadStickerPack, rememberSticker, type StickerEntry } from '@/lib/stickerPack';
 import { lineFont } from './richRender';
+import {
+  applyMultiLinePaste,
+  mergeLineIntoPrevious,
+  splitLineAtOffset,
+} from '@/lib/editorLineOps';
 import { nekoTokenSet, type NekoGif } from '@/lib/neko';
 
 // The live preview reuses the paste page's rich renderer (including
@@ -336,35 +341,90 @@ export default function Editor({ username }: Props) {
 
   function splitLineAt(i: number, at: number) {
     const text = rich.lines[i]?.text ?? '';
-    const stickerUrls = { ...(rich.lines[i]?.stickerUrls || {}) };
-    setRich((doc) => {
-      const lines = doc.lines.slice();
-      const line = lines[i];
-      if (!line || at < 0 || at > line.text.length) return doc;
-      // Both halves get fresh stable keys so React mounts NEW nodes that
-      // re-seed their text via the ref (positional keys would reuse the
-      // old node, whose "seeded" flag would stop the right half from ever
-      // displaying its content when splitting in the middle of the doc).
-      const left: RichLine = { ...line, _key: nextLineKey(), text: line.text.slice(0, at), marks: undefined, stickerUrls };
-      const right: RichLine = {
-        _key: nextLineKey(),
-        text: line.text.slice(at),
-        font: line.font,
-        size: line.size,
-        color: line.color,
-        stickerUrls,
-      };
-      lines.splice(i, 1, left, right);
-      return { ...doc, lines };
-    });
+    // Both halves get fresh stable keys so React mounts NEW nodes that
+    // re-seed their text via the ref (positional keys would reuse the
+    // old node, whose "seeded" flag would stop the right half from ever
+    // displaying its content when splitting in the middle of the doc).
+    setRich((doc) => splitLineAtOffset(doc, i, at, nextLineKey));
     // Marks for both halves are recomputed on the next input; compute now.
     syncLineMarks(i, text.slice(0, at));
     syncLineMarks(i + 1, text.slice(at));
   }
 
+  /**
+   * Joins line `i` into the previous line — the transform behind a
+   * Backspace at the start of a line. Preserves the previous line's
+   * formatting, merges both lines' sticker/GIF url maps, then recomputes
+   * the merged line's marks (links/emoji are derived from text). After the
+   * new merged node mounts, the caret is placed at the join point and the
+   * active line moves up.
+   */
+  function joinWithPrevious(i: number) {
+    const prevText = rich.lines[i - 1]?.text ?? '';
+    const mergedText = prevText + (rich.lines[i]?.text ?? '');
+    setRich((doc) => mergeLineIntoPrevious(doc, i, nextLineKey));
+    syncLineMarks(i - 1, mergedText);
+    const atJoin = prevText.length;
+    requestAnimationFrame(() => {
+      const el = lineRefs.current[i - 1];
+      if (el) {
+        el.focus();
+        placeCaretAt(el, atJoin);
+      }
+      setActiveLine(i - 1);
+    });
+  }
+
   function handleLineInput(i: number, e: React.FormEvent<HTMLDivElement>) {
     const text = readLineText(e.currentTarget);
     syncLineMarks(i, text);
+  }
+
+  /**
+   * Splits a multi-line clipboard paste into separate editor lines instead
+   * of embedding literal newlines inside one line. Single-line pastes and
+   * non-text payloads are left to the browser's default contentEditable
+   * paste. Every created line inherits the pasted-into line's formatting and
+   * sticker/GIF urls; marks are recomputed from each line's text. No size
+   * limit is imposed and the caret lands at the end of the last pasted line.
+   */
+  function handleLinePaste(i: number, e: React.ClipboardEvent<HTMLDivElement>) {
+    const pasted = e.clipboardData?.getData('text/plain') ?? '';
+    if (pasted === '' || !pasted.includes('\n')) return; // default handles it
+    e.preventDefault();
+    const sel = window.getSelection();
+    let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+    const len = rich.lines[i]?.text.length ?? 0;
+    at = Math.max(0, Math.min(at, len));
+    const line = rich.lines[i];
+    if (!line) return;
+    const parts = applyMultiLinePaste(line, at, pasted, nextLineKey);
+    if (!parts) return;
+    setRich((doc) => {
+      const lines = doc.lines.slice();
+      if (i < 0 || i >= lines.length) return doc;
+      lines.splice(
+        i,
+        1,
+        ...parts.lines.map((nl) => {
+          // Rebuild each new line's marks (links/stickers/emoji) from its text.
+          const extra = new Set(Object.keys(nl.stickerUrls ?? {}));
+          return { ...nl, marks: buildInlineMarks(nl.text, stickerTokenSet, extra) };
+        }),
+      );
+      return { ...doc, lines };
+    });
+    // The new lines mount under fresh keys; place the caret at the end of the
+    // last pasted line's text (before the original suffix).
+    const targetIndex = i + parts.lines.length - 1;
+    requestAnimationFrame(() => {
+      const el = lineRefs.current[targetIndex];
+      if (el) {
+        el.focus();
+        placeCaretAt(el, parts.caretInLastLine);
+      }
+      setActiveLine(targetIndex);
+    });
   }
 
   function handleLineKey(i: number, e: React.KeyboardEvent<HTMLDivElement>) {
@@ -390,6 +450,27 @@ export default function Editor({ username }: Props) {
         }
         setActiveLine(i + 1);
       });
+    } else if (e.key === 'Backspace') {
+      // Lines are separate contentEditables, so the browser can't join them
+      // on its own. When the caret is at the very start of a line we join it
+      // with the previous line (or safely do nothing on the first line).
+      const sel = window.getSelection();
+      // A real selection (not just a caret) should delete normally.
+      if (sel && !sel.isCollapsed) return;
+      let at = sel ? offsetWithin(e.currentTarget, sel.focusNode ?? e.currentTarget, sel.focusOffset) : 0;
+      const len = rich.lines[i]?.text.length ?? 0;
+      at = Math.max(0, Math.min(at, len));
+      if (at === 0 && i > 0) {
+        // Caret at line start with a previous line to join with. This also
+        // removes an empty current line sensibly (an empty line merged into
+        // its predecessor just disappears).
+        e.preventDefault();
+        joinWithPrevious(i);
+      } else if (at === 0 && i === 0) {
+        // First line has nothing before it to join — behave safely (nothing
+        // to delete before the caret).
+        e.preventDefault();
+      }
     }
   }
 
@@ -905,6 +986,7 @@ export default function Editor({ username }: Props) {
                     data-placeholder={i === 0 ? 'Type or paste your content…' : `Line ${i + 1}`}
                     onInput={(e) => handleLineInput(i, e)}
                     onKeyDown={(e) => handleLineKey(i, e)}
+                    onPaste={(e) => handleLinePaste(i, e)}
                     onFocus={() => setActiveLine(i)}
                     className="rich-line min-h-[1.7em] whitespace-pre-wrap break-words rounded-lg px-2 py-0.5 outline-none transition-colors focus:bg-white/[0.04]"
                     style={{

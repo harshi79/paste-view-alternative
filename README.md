@@ -74,18 +74,20 @@ No database setup needed. A demo account is seeded on first run:
 | -------- | ---------- |
 | `demo`   | `demo1234` |
 
-## Deploy to Vercel + Neon (free)
+## Deploy to Vercel + Turso (free)
 
-1. Create a free database at [neon.tech](https://neon.tech) and copy the **pooled** connection
-   string.
+1. Create a free database at [turso.tech](https://turso.tech). From your database's dashboard,
+   copy the database URL (a `libsql://…` string) and create an **auth token** — these become the
+   `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` env vars below.
 2. Push this repo to GitHub and import it on [Vercel](https://vercel.com).
 3. Add these environment variables in Vercel → Settings → Environment Variables:
 
-   | Variable         | Value                                                                 |
-   | ---------------- | --------------------------------------------------------------------- |
-   | `DATABASE_URL`   | your Neon pooled connection string                                    |
-   | `AUTH_SECRET`    | any long random string (required)                                     |
-   | `ADMIN_PASSWORD` | the password for the `/admin` panel (long, keep it secret)            |
+   | Variable             | Value                                                          |
+   | -------------------- | -------------------------------------------------------------- |
+   | `TURSO_DATABASE_URL` | your Turso database URL (e.g. `libsql://your-db.turso.io`)     |
+   | `TURSO_AUTH_TOKEN`   | your Turso auth token (required for remote databases)          |
+   | `AUTH_SECRET`        | any long random string (required)                              |
+   | `ADMIN_PASSWORD`     | the password for the `/admin` panel (long, keep it secret)     |
 
    Generate a secret with:
    ```bash
@@ -93,8 +95,10 @@ No database setup needed. A demo account is seeded on first run:
    ```
 4. Deploy. Tables are created automatically on first request. Done.
 
-The `ADMIN_PASSWORD` value is **never** committed to git — `.env.example` is the only file that
-mentions its name, and Vercel injects the real value at runtime.
+`TURSO_DATABASE_URL` is **required on Vercel** — the app refuses to boot in production without it
+(there is no local database on the server). The `ADMIN_PASSWORD` value is **never** committed to
+git — `.env.example` is the only file that mentions its name, and Vercel injects the real value at
+runtime.
 
 ## Project layout
 
@@ -119,7 +123,7 @@ src/
     passwordReset.ts      one-time reset tokens (sha256, 30 min TTL, single-use)
     highlight.ts          server-side highlight.js (only the 18 exposed languages)
     stickerPack.ts        cached client sticker-pack loader
-    db/                   schema, driver switch (Neon ⇄ PGlite), seed
+    db/                   schema, driver switch (Turso ⇄ local SQLite), seed
     pasteFormat.ts        rich-text format, link detection, sticker shortcodes
     ip.ts                 client IP resolver
     pastes.ts             expiry, id generation
@@ -130,7 +134,7 @@ middleware.ts             edge guard for /dashboard /settings /account /admin
 
 - **Next.js 15** (App Router, React 19, TypeScript) — Vercel-ready
 - **Tailwind CSS 4**
-- **Drizzle ORM** over `postgres` (Neon) or **PGlite** (embedded dev fallback)
+- **Drizzle ORM** over **Turso** (libSQL/SQLite), with a local SQLite file for development
 - **highlight.js**, **jose** (JWT), **bcryptjs**, **nanoid**
 
 ## License

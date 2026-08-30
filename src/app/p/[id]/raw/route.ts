@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes } from '@/lib/db/schema';
-import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
+import { purgeExpiredIfDue, incrementPasteViews } from '@/lib/pastes';
 import { parsePasteContent, richDocToPlainText } from '@/lib/pasteFormat';
 
 type Props = { params: Promise<{ id: string }> };
@@ -9,7 +9,8 @@ type Props = { params: Promise<{ id: string }> };
 export async function GET(req: Request, { params }: Props) {
   const { id } = await params;
   const db = await getDb();
-  await purgeExpired(db);
+  // Throttled expiry purge — avoids a DELETE on every raw/download request.
+  await purgeExpiredIfDue(db);
 
   const [paste] = await db.select().from(pastes).where(eq(pastes.id, id)).limit(1);
 
