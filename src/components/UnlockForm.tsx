@@ -52,28 +52,32 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="card animate-pop mx-auto max-w-lg rounded-[28px] p-8 text-center shadow-2xl shadow-black/40">
-      <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-brand-500/30 to-cyan-400/20 text-2xl">
+    <div className="card animate-pop mx-auto max-w-md rounded-[24px] p-6 text-center shadow-2xl shadow-black/40 sm:p-8">
+      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-brand-500/20 to-cyan-400/20 text-2xl">
         🔒
       </div>
-      <p className="eyebrow justify-center">Protected paste</p>
-      <h2 className="mt-4 text-2xl font-black tracking-tight text-white">Unlock to view</h2>
+      <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">Password protected</h2>
       <p className="mb-6 mt-2 text-sm leading-6 text-zinc-400">
-        This paste uses password protection. Enter the password below to fetch and render its
-        contents.
+        Enter the password to view this paste.
       </p>
-      <input
-        type="password"
-        autoFocus
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Password"
-        className="input"
-      />
-      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-      <button type="submit" disabled={busy || !password} className="btn-primary mt-4 w-full justify-center py-3 text-sm">
-        {busy ? 'Unlocking…' : 'Unlock paste'}
-      </button>
-    </form>
+      <form onSubmit={submit}>
+        <input
+          type="password"
+          autoFocus
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Password"
+          className="input text-center"
+        />
+        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+        <button
+          type="submit"
+          disabled={busy || !password}
+          className="btn-primary mt-4 w-full justify-center py-2.5 text-sm font-semibold"
+        >
+          {busy ? 'Unlocking…' : 'Unlock paste'}
+        </button>
+      </form>
+    </div>
   );
 }

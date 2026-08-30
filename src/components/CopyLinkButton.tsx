@@ -27,7 +27,11 @@ export default function CopyLinkButton({ id }: { id: string }) {
   }
 
   return (
-    <button onClick={copy} className="btn-primary !px-3.5 !py-2 text-xs font-semibold xl:w-full">
+    <button
+      type="button"
+      onClick={copy}
+      className="btn-primary !px-3.5 !py-2 text-xs font-semibold"
+    >
       {copied ? '✓ Link copied' : 'Copy link'}
     </button>
   );

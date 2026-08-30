@@ -36,33 +36,39 @@ export default function OwnerActions({
     }
   }
 
-  const btn = compact
-    ? 'btn-ghost !px-3 !py-2 text-xs'
-    : 'btn-ghost !justify-center !px-3.5 !py-2 text-xs xl:w-full';
+  const btn = 'btn-ghost !px-3.5 !py-2 text-xs font-semibold';
 
   return (
-    <span className="inline-flex w-full flex-wrap items-center gap-2 xl:flex-col xl:items-stretch">
-      <button onClick={togglePin} disabled={busy} className={btn} title="Show on top of your profile">
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={togglePin}
+        disabled={busy}
+        className={btn}
+        title="Show on top of your profile"
+      >
         {pinned ? '📌 Unpin' : '📌 Pin'}
       </button>
       {confirming ? (
-        <span className="inline-flex w-full flex-wrap items-center gap-2 xl:flex-col xl:items-stretch">
+        <span className="inline-flex items-center gap-2">
           <button
+            type="button"
             onClick={remove}
             disabled={busy}
-            className="rounded-xl border border-red-500/40 bg-red-500/20 px-3.5 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/30 disabled:opacity-50 xl:w-full"
+            className="rounded-xl border border-red-500/40 bg-red-500/20 px-3.5 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/30 disabled:opacity-50"
           >
             Really delete?
           </button>
-          <button onClick={() => setConfirming(false)} className={btn}>
+          <button type="button" onClick={() => setConfirming(false)} className={btn}>
             Cancel
           </button>
         </span>
       ) : (
         <button
+          type="button"
           onClick={() => setConfirming(true)}
           disabled={busy}
-          className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-zinc-200 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50 xl:w-full"
+          className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-zinc-200 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
         >
           Delete
         </button>
