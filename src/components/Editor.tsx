@@ -41,28 +41,6 @@ function serializeDoc(doc: RichDoc): RichDoc {
   return { v: doc.v, lines: doc.lines.map(({ _key: _omit, ...rest }) => rest) };
 }
 
-function TextIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
-      <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function RichIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M10 2.5 11.6 7 16 8.6 11.6 10.2 10 14.7 8.4 10.2 4 8.6 8.4 7 10 2.5Z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <path d="M15.5 13.5v3.5M13.75 15.25h3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function SlidersIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   return (
     <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
@@ -127,10 +105,21 @@ function AlertIcon({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
+/**
+ * The unified paste editor.
+ *
+ * There is no "Text" vs "Rich" mode any more: a single line-based rich
+ * composer handles everything. Untouched lines are exactly what a plain
+ * text paste used to be (they render in the default mono font, links and
+ * sticker/emoji shortcodes auto-resolve); clicking a font/size/color or
+ * inserting a sticker/GIF layers rich formatting on top of the same doc.
+ * Submission always posts the serialised `RichDoc` as `format: "rich"` —
+ * plain text is simply an unstyled RichDoc. Legacy 'plain' pastes are
+ * still read and rendered by the existing viewer paths.
+ */
 export default function Editor({ username }: Props) {
   const router = useRouter();
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
   const [language, setLanguage] = useState('plaintext');
   const [visibility, setVisibility] = useState<'public' | 'unlisted'>('public');
   const [expiresIn, setExpiresIn] = useState('never');
@@ -141,7 +130,7 @@ export default function Editor({ username }: Props) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // rich-text state
+  // document state (the single unified editor — no plain/rich mode)
   const [rich, setRich] = useState<RichDoc>(emptyDoc);
   const [stickerPack, setStickerPack] = useState<StickerEntry[]>([]);
   const [nekoGifs, setNekoGifs] = useState<NekoGif[]>([]);
@@ -152,7 +141,6 @@ export default function Editor({ username }: Props) {
   const [stickerTab, setStickerTab] = useState<'pack' | 'anime'>('pack');
   const [showPreview, setShowPreview] = useState(false);
   const [stickerQuery, setStickerQuery] = useState('');
-  const [format, setFormat] = useState<'plain' | 'rich'>('plain');
 
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
   const packLoaded = useRef(false);
@@ -166,7 +154,7 @@ export default function Editor({ username }: Props) {
     [stickerPack],
   );
 
-  /** Loads the sticker pack on first need (panel open or rich mode). */
+  /** Loads the sticker pack once (mount + first open of the picker panel). */
   const ensureStickerPack = useCallback(() => {
     if (packLoaded.current) return;
     packLoaded.current = true;
@@ -224,9 +212,11 @@ export default function Editor({ username }: Props) {
     [],
   );
 
+  // The unified editor always resolves sticker/emoji shortcodes, so the
+  // pack is needed immediately on mount (marks are rebuilt when it lands).
   useEffect(() => {
-    if (format === 'rich') ensureStickerPack();
-  }, [format, ensureStickerPack]);
+    ensureStickerPack();
+  }, [ensureStickerPack]);
 
   // Debounced GIF search while the Anime GIFs tab is open.
   useEffect(() => {
@@ -462,13 +452,8 @@ export default function Editor({ username }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (format === 'rich') {
-      const text = rich.lines.map((l) => l.text).join('\n').trim();
-      if (!text) {
-        setError('Paste content is required.');
-        return;
-      }
-    } else if (!content.trim()) {
+    const text = rich.lines.map((l) => l.text).join('\n').trim();
+    if (!text) {
       setError('Paste content is required.');
       return;
     }
@@ -480,11 +465,11 @@ export default function Editor({ username }: Props) {
     try {
       const body: Record<string, unknown> = {
         title: title.trim() || 'Untitled',
-        format,
-        content:
-          format === 'rich'
-            ? JSON.stringify(serializeDoc(rich))
-            : content,
+        // The unified editor always posts a RichDoc. Plain text is an
+        // unstyled doc — the server keeps accepting format 'plain' too so
+        // stored pastes and any existing clients keep working unchanged.
+        format: 'rich',
+        content: JSON.stringify(serializeDoc(rich)),
         language,
         visibility,
         expiresIn,
@@ -531,19 +516,7 @@ export default function Editor({ username }: Props) {
       .slice(0, 30);
   }, [stickerQuery, stickerPack]);
 
-  const switching = (mode: 'plain' | 'rich') => {
-    setFormat(mode);
-    if (mode === 'rich') ensureStickerPack();
-    setShowPreview(false);
-  };
-
-  const modeBtn = (active: boolean) =>
-    `relative inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-      active ? 'bg-white/10 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-200'
-    }`;
-
   const fieldLabel = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-zinc-500';
-  const languageLabel = LANGUAGES.find((l) => l.id === language)?.label ?? 'Plain text';
   const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
 
   return (
@@ -580,109 +553,76 @@ export default function Editor({ username }: Props) {
         </p>
       </div>
 
-      {/* Toolbar — content mode, inline formatting (rich), options. */}
+      {/* Toolbar — line formatting (applies to the focused line), options. */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] px-4 py-2.5 sm:px-5">
-        <div
-          role="tablist"
-          aria-label="Content mode"
-          className="flex items-center rounded-lg border border-white/10 bg-white/[0.05] p-0.5"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={format === 'plain'}
-            onClick={() => switching('plain')}
-            className={modeBtn(format === 'plain')}
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Line formatting">
+          <select
+            className="input !w-auto !px-2 !py-1.5 !text-xs"
+            aria-label="Font"
+            title="Font"
+            value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
+            onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
           >
-            <TextIcon />
-            Text
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={format === 'rich'}
-            onClick={() => switching('rich')}
-            className={modeBtn(format === 'rich')}
+            {FONTS.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.label}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input !w-auto !px-2 !py-1.5 !text-xs"
+            aria-label="Font size"
+            title="Font size"
+            value={rich.lines[activeLine]?.size ?? 14}
+            onChange={(e) => updateLine(activeLine, { size: Number(e.target.value) })}
           >
-            <RichIcon />
-            Rich
-          </button>
+            {FONT_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s}px
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1 pl-1">
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                title={`Text color ${c}`}
+                aria-label={`Text color ${c}`}
+                onClick={() => updateLine(activeLine, { color: c })}
+                className={`h-[18px] w-[18px] rounded-[5px] border transition-transform hover:scale-110 ${
+                  (rich.lines[activeLine]?.color ?? '#dbe1f1') === c
+                    ? 'border-white/80 ring-1 ring-white/40'
+                    : 'border-white/15'
+                }`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
         </div>
-
-        {format === 'rich' && (
-          <>
-            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Line formatting">
-              <select
-                className="input !w-auto !px-2 !py-1.5 !text-xs"
-                aria-label="Font"
-                title="Font"
-                value={rich.lines[activeLine]?.font ?? DEFAULT_FONT}
-                onChange={(e) => updateLine(activeLine, { font: e.target.value as FontId })}
-              >
-                {FONTS.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="input !w-auto !px-2 !py-1.5 !text-xs"
-                aria-label="Font size"
-                title="Font size"
-                value={rich.lines[activeLine]?.size ?? 14}
-                onChange={(e) => updateLine(activeLine, { size: Number(e.target.value) })}
-              >
-                {FONT_SIZES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}px
-                  </option>
-                ))}
-              </select>
-              <div className="flex items-center gap-1 pl-1">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    title={`Text color ${c}`}
-                    aria-label={`Text color ${c}`}
-                    onClick={() => updateLine(activeLine, { color: c })}
-                    className={`h-[18px] w-[18px] rounded-[5px] border transition-transform hover:scale-110 ${
-                      (rich.lines[activeLine]?.color ?? '#dbe1f1') === c
-                        ? 'border-white/80 ring-1 ring-white/40'
-                        : 'border-white/15'
-                    }`}
-                    style={{ background: c }}
-                  />
-                ))}
-              </div>
-            </div>
-            <span className="hidden h-4 w-px bg-white/10 sm:block" />
-            <button
-              type="button"
-              className={showStickers ? `${tb} ${tbActive}` : tb}
-              aria-expanded={showStickers}
-              aria-controls="sticker-picker"
-              onClick={() => {
-                setShowStickers((v) => !v);
-                ensureStickerPack();
-              }}
-            >
-              <GridIcon />
-              Stickers
-            </button>
-            <button
-              type="button"
-              className={`${tb} ${showPreview ? tbActive : ''}`}
-              aria-pressed={showPreview}
-              onClick={() => setShowPreview((v) => !v)}
-            >
-              <EyeIcon />
-              Preview
-            </button>
-          </>
-        )}
-
+        <span className="hidden h-4 w-px bg-white/10 sm:block" />
+        <button
+          type="button"
+          className={showStickers ? `${tb} ${tbActive}` : tb}
+          aria-expanded={showStickers}
+          aria-controls="sticker-picker"
+          onClick={() => {
+            setShowStickers((v) => !v);
+            ensureStickerPack();
+          }}
+        >
+          <GridIcon />
+          Stickers
+        </button>
+        <button
+          type="button"
+          className={`${tb} ${showPreview ? tbActive : ''}`}
+          aria-pressed={showPreview}
+          onClick={() => setShowPreview((v) => !v)}
+        >
+          <EyeIcon />
+          Preview
+        </button>
         <button
           type="button"
           className={`${tb} ml-auto`}
@@ -815,25 +755,11 @@ export default function Editor({ username }: Props) {
         </div>
       )}
 
-      {/* The paste body — one large, quiet workspace. */}
+      {/* The paste body — one large, quiet workspace. Plain text and rich
+          formatting live in the same doc: lines are plain unless you apply
+          a font/size/color or a shortcode resolves to a sticker/emoji. */}
       <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-        {format === 'plain' ? (
-          <div className="relative overflow-hidden rounded-xl border border-white/[0.1] bg-white/[0.03] backdrop-blur-sm transition-colors focus-within:border-brand-400/40 focus-within:ring-4 focus-within:ring-brand-500/10">
-            <textarea
-              id="content"
-              aria-label="Paste content"
-              className="block min-h-[420px] w-full resize-y bg-transparent px-4 py-4 font-mono text-[13px] leading-6 text-zinc-100 placeholder-zinc-600 outline-none md:min-h-[520px]"
-              placeholder="Paste your code or text here…"
-              value={content}
-              maxLength={100_000}
-              onChange={(e) => setContent(e.target.value)}
-              spellCheck={false}
-            />
-            <span className="pointer-events-none absolute right-3 top-3 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-              {languageLabel}
-            </span>
-          </div>
-        ) : showPreview ? (
+        {showPreview ? (
           <div
             aria-label="Live preview"
             className="min-h-[420px] overflow-x-auto rounded-xl border border-white/[0.1] bg-white/[0.02] px-4 py-4 backdrop-blur-sm md:min-h-[520px]"
@@ -885,15 +811,15 @@ export default function Editor({ username }: Props) {
           </div>
         )}
 
-        {format === 'rich' && !showPreview && (
+        {!showPreview && (
           <p className="mt-2 px-1 text-xs text-zinc-600">
-            Formatting applies to the line you last clicked · use a shortcode like{' '}
+            Plain text needs nothing extra · formatting applies to the line you last clicked · use a shortcode like{' '}
             <code className="font-mono text-zinc-500">:wave:</code> to insert a sticker
           </p>
         )}
 
         {/* Sticker picker — inline panel, always in reach on mobile. */}
-        {format === 'rich' && showStickers && (
+        {showStickers && (
           <div id="sticker-picker" className="glass animate-pop mt-3 rounded-xl p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div
@@ -1056,11 +982,7 @@ export default function Editor({ username }: Props) {
         }`}
       >
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-          <span>
-            {format === 'rich'
-              ? `${richChars.toLocaleString()} chars`
-              : `${content.length.toLocaleString()} / 100,000 chars`}
-          </span>
+          <span>{`${richChars.toLocaleString()} / 100,000 chars`}</span>
           <span className="hidden h-3 w-px bg-white/10 sm:block" />
           <span>
             {visibility === 'public' ? 'Public' : 'Unlisted'} ·{' '}
@@ -1068,9 +990,7 @@ export default function Editor({ username }: Props) {
           </span>
           <span className="hidden h-3 w-px bg-white/10 sm:block" />
           <span className="hidden md:inline">
-            {format === 'rich'
-              ? 'URLs auto-link · no previews generated'
-              : 'links auto-link · no previews generated'}
+            URLs auto-link · no previews generated
           </span>
           <kbd className="hidden rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-zinc-400 lg:inline-block">
             Ctrl/⌘ + Enter

@@ -17,6 +17,9 @@ export async function POST(req: Request) {
   }
 
   const title = String(body.title ?? 'Untitled').slice(0, 120) || 'Untitled';
+  // The unified editor always posts format 'rich' (plain text is simply an
+  // unstyled RichDoc). 'plain' stays accepted so pre-unification clients and
+  // any scripted creators keep working against the same endpoint unchanged.
   const format = body.format === 'rich' ? 'rich' : 'plain';
   const language = String(body.language ?? 'plaintext');
   const visibility = body.visibility === 'unlisted' ? 'unlisted' : 'public';

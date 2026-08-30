@@ -56,3 +56,4 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] V3.6. Unified paste page with a clear Basic/Rich toggle at the top
 - [x] V3.7. Sticker/GIF shortcodes (`:wave:` / `;fire;`) auto-convert in rich pastes; animated stickers render in composer preview and result; no shortcode text shown
 - [x] V3.8. Password management: forgot-password flow (one-time 30-min reset code, single-use), reset page, change-password in Account (confirms current password), safe error messages for expired/invalid/used links
+- [x] V3.9. Unified paste creation: Text/Rich mode toggle removed — one editor, one paste that mixes plain text and rich content (unstyled lines = plain text; font/size/color/stickers layered per line). Legacy 'plain' rows kept 100% compatible (same URLs, same viewer, byte-identical raw); raw/download + unlock flow now render the readable text of rich docs; "Rich" badge reflects actual formatting. No schema change, no migration.

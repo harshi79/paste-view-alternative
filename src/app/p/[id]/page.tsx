@@ -9,7 +9,7 @@ import { getClientIp } from '@/lib/ip';
 import { getLikeState, likeActor } from '@/lib/likes';
 import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
 import { formatViews, timeAgo } from '@/lib/format';
-import { parsePasteContent, isRichDoc } from '@/lib/pasteFormat';
+import { parsePasteContent, isRichDoc, hasRichFormatting, richDocToPlainText } from '@/lib/pasteFormat';
 import PasteViewer from '@/components/PasteViewer';
 import RichPasteView from '@/components/RichPasteView';
 import UnlockForm from '@/components/UnlockForm';
@@ -128,7 +128,11 @@ export default async function PastePage({ params }: Props) {
 
   const rawUrl = `/p/${paste.id}/raw`;
   const isRich = paste.format === 'rich';
+  // One read path for both eras of storage: legacy 'plain' strings and
+  // unified/legacy 'rich' RichDocs. Invalid rich rows fall back to raw
+  // text rendering, exactly as before.
   const parsed = parsePasteContent(paste.format, paste.content);
+  const richDoc = isRichDoc(parsed) ? parsed : null;
 
   return (
     <div className="pt-8">
@@ -166,7 +170,9 @@ export default async function PastePage({ params }: Props) {
                 🔒 Protected
               </span>
             )}
-            {isRich && (
+            {/* Unified pastes are stored as rich docs; only badge the ones
+                that actually carry formatting (font/size/color/tokens). */}
+            {!!richDoc && hasRichFormatting(richDoc) && (
               <span className="chip">
                 Rich
               </span>
@@ -178,8 +184,8 @@ export default async function PastePage({ params }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <LikeButton pasteId={paste.id} initialCount={likeState.count} initialLiked={likeState.liked} />
           <CopyLinkButton id={paste.id} />
-          {!locked && isRich && isRichDoc(parsed) && (
-            <CopyButton text={extractPlainText(parsed)} label="Copy content" />
+          {!locked && richDoc && (
+            <CopyButton text={richDocToPlainText(richDoc)} label="Copy content" />
           )}
           {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" />}
           {!locked && (
@@ -204,9 +210,9 @@ export default async function PastePage({ params }: Props) {
 
       {locked ? (
         <UnlockForm pasteId={paste.id} />
-      ) : isRich && isRichDoc(parsed) ? (
+      ) : richDoc ? (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
-          <RichPasteView doc={parsed} stickers={stickerRows} />
+          <RichPasteView doc={richDoc} stickers={stickerRows} />
         </div>
       ) : (
         <div className="animate-fade-up" style={{ animationDelay: '60ms' }}>
@@ -215,13 +221,4 @@ export default async function PastePage({ params }: Props) {
       )}
     </div>
   );
-}
-
-function extractPlainText(doc: { lines: { text: string }[] }): string {
-  return doc.lines
-    .map((l) => {
-      // strip sticker/emoji replacement tokens from raw text
-      return l.text;
-    })
-    .join('\n');
 }

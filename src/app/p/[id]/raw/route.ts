@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes } from '@/lib/db/schema';
 import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
+import { parsePasteContent, richDocToPlainText } from '@/lib/pasteFormat';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -25,6 +26,14 @@ export async function GET(req: Request, { params }: Props) {
   // Count the raw view too, so "Raw" and "Download" links contribute.
   await incrementPasteViews(paste.id);
 
+  // Unified pastes store a RichDoc (even plain-text ones). Raw/Download
+  // always serve the readable text rendering: legacy 'plain' rows pass
+  // through byte-for-byte, rich docs are flattened line by line. Invalid
+  // rich JSON falls back to the stored string (parsePasteContent), never
+  // to an error.
+  const parsed = parsePasteContent(paste.format, paste.content);
+  const body = typeof parsed === 'string' ? parsed : richDocToPlainText(parsed);
+
   const url = new URL(req.url);
   const headers: Record<string, string> = {
     'Content-Type': 'text/plain; charset=utf-8',
@@ -33,5 +42,5 @@ export async function GET(req: Request, { params }: Props) {
   if (url.searchParams.get('download')) {
     headers['Content-Disposition'] = `attachment; filename="${paste.id}.txt"`;
   }
-  return new Response(paste.content, { headers });
+  return new Response(body, { headers });
 }
