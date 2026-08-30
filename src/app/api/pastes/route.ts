@@ -4,7 +4,7 @@ import { pastes } from '@/lib/db/schema';
 import { getSessionUser, hashPassword } from '@/lib/auth';
 import { generatePasteId, expiryFromId, EXPIRY_OPTIONS } from '@/lib/pastes';
 import { isLanguage } from '@/lib/languages';
-import { isRichDoc, type RichDoc } from '@/lib/pasteFormat';
+import { isRichDoc, richDocLinksAreSafe, type RichDoc } from '@/lib/pasteFormat';
 
 export const runtime = 'nodejs';
 
@@ -52,6 +52,13 @@ export async function POST(req: Request) {
     }
     if (doc.lines.length === 0 || total === 0) {
       return NextResponse.json({ error: 'Paste content is required.' }, { status: 400 });
+    }
+    // Link marks are rendered as `<a href>`, so their values are gated here
+    // server-side: a hand-crafted RichDoc must never store an executable
+    // (javascript:/data:/…) or otherwise unsafe link. The editor's own
+    // links (http/https/mailto/tel) all pass unchanged.
+    if (!richDocLinksAreSafe(doc)) {
+      return NextResponse.json({ error: 'Invalid link in paste content.' }, { status: 400 });
     }
   } else {
     if (!content.trim()) {
