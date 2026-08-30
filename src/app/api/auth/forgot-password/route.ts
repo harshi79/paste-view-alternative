@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
-import { sql } from 'drizzle-orm';
+import { getSessionUser } from '@/lib/auth';
+import { requestPasswordReset, purgeExpiredResets } from '@/lib/passwordReset';
 import { getDb } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { issuePasswordReset, purgeExpiredResets } from '@/lib/passwordReset';
 
 export const runtime = 'nodejs';
 
@@ -11,9 +10,13 @@ export const runtime = 'nodejs';
  *
  * VibeBin accounts have no email address, so the one-time reset link /
  * code is returned to the device that requested it (the same single-user
- * assumption as the login page). The response for unknown usernames is
- * deliberately generic, and rate-limiting failures also return `ok:true`
- * so the endpoint does not reveal which accounts exist.
+ * assumption as the login page). Proof of device control is required:
+ * the requester must be signed in to the account being reset, so a token
+ * is only ever issued to a valid session of that account. Anyone else —
+ * an unauthenticated attacker who merely knows the username, or a
+ * signed-in user targeting a different account — receives the same
+ * uniform `ok:true` response without a token, which also prevents
+ * username enumeration.
  */
 export async function POST(req: Request) {
   let body: { username?: string };
@@ -24,31 +27,27 @@ export async function POST(req: Request) {
   }
 
   const username = (body.username || '').trim();
-  if (!username) {
-    return NextResponse.json({ ok: true });
-  }
 
   const db = await getDb();
   await purgeExpiredResets();
 
-  const [user] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(sql`lower(${users.username}) = ${username.toLowerCase()}`)
-    .limit(1);
-
-  if (!user) {
-    // Do not reveal whether the account exists.
-    return NextResponse.json({ ok: true });
-  }
-
+  const session = await getSessionUser();
+  let result;
   try {
-    const { token, expiresIn } = await issuePasswordReset(user.id);
-    return NextResponse.json({ ok: true, resetToken: token, expiresIn });
-  } catch (err) {
-    if (err instanceof Error && err.message === 'rate-limited') {
-      return NextResponse.json({ ok: true });
-    }
+    result = await requestPasswordReset({
+      username,
+      sessionUserId: session?.user.id ?? null,
+    });
+  } catch {
     return NextResponse.json({ error: 'Something went wrong. Try again.' }, { status: 500 });
   }
+
+  // Token is only ever returned to the account's own active session.
+  // Every other case (unauthenticated, unknown username, username that
+  // does not match the session, rate-limited) returns the identical
+  // uniform response.
+  if (result.issued) {
+    return NextResponse.json({ ok: true, resetToken: result.token, expiresIn: result.expiresIn });
+  }
+  return NextResponse.json({ ok: true });
 }

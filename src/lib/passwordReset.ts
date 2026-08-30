@@ -33,11 +33,78 @@ export async function issuePasswordReset(userId: string): Promise<{ token: strin
   const token = 'vbpr_' + randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + RESET_TTL_MS);
 
-  // Replace any previous (still unused) tokens for this user.
-  await db.delete(passwordResets).where(and(eq(passwordResets.userId, userId), isNull(passwordResets.usedAt)));
-  await db.insert(passwordResets).values({ id: randomUUID(), userId, tokenHash: sha256(token), expiresAt, createdAt: new Date() });
+  // Replace any previous (still unused) tokens for this user. The
+  // delete + insert run in one transaction so two concurrent requests
+  // cannot leave two live (unused, unexpired) tokens for the same user.
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(passwordResets)
+      .where(and(eq(passwordResets.userId, userId), isNull(passwordResets.usedAt)));
+    await tx.insert(passwordResets).values({
+      id: randomUUID(),
+      userId,
+      tokenHash: sha256(token),
+      expiresAt,
+      createdAt: new Date(),
+    });
+  });
 
   return { token, expiresIn: RESET_TTL_MS / 1000 };
+}
+
+export type ResetRequestOutcome =
+  | { issued: true; token: string; expiresIn: number }
+  | { issued: false; reason: 'not-signed-in' | 'user-not-found' | 'username-mismatch' | 'rate-limited' };
+
+/**
+ * Issues a password-reset token for `username`, gated on proof of device
+ * control: the requester must hold a valid session (`sessionUserId`) for
+ * the very account being reset.
+ *
+ * VibeBin accounts have no email or phone, so the only in-app proof that
+ * "this device belongs to this account" is the account's own session
+ * cookie. An unauthenticated requester who merely knows the username —
+ * or a signed-in attacker targeting a different account — can never
+ * obtain a token.
+ *
+ * Every failure returns the same shape (`{ issued: false }`, no token),
+ * so callers can respond identically and the API never reveals whether a
+ * username exists or whether it belongs to the requesting session
+ * (no username enumeration).
+ */
+export async function requestPasswordReset(input: {
+  username: string;
+  sessionUserId: string | null;
+}): Promise<ResetRequestOutcome> {
+  // No session at all → no proof of device control. This is the
+  // unauthenticated-attacker case; it is indistinguishable from every
+  // other failure.
+  if (!input.sessionUserId) return { issued: false, reason: 'not-signed-in' };
+
+  const username = (input.username || '').trim();
+  if (!username) return { issued: false, reason: 'user-not-found' };
+
+  const db = await getDb();
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.username}) = ${username.toLowerCase()}`)
+    .limit(1);
+  if (!user) return { issued: false, reason: 'user-not-found' };
+
+  // The session must belong to the account being reset: a signed-in user
+  // can only reset their own account, never someone else's.
+  if (user.id !== input.sessionUserId) return { issued: false, reason: 'username-mismatch' };
+
+  try {
+    const { token, expiresIn } = await issuePasswordReset(user.id);
+    return { issued: true, token, expiresIn };
+  } catch (err) {
+    if (err instanceof Error && err.message === 'rate-limited') {
+      return { issued: false, reason: 'rate-limited' };
+    }
+    throw err;
+  }
 }
 
 export type ResetError = 'invalid' | 'expired' | 'used';

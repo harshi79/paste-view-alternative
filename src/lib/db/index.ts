@@ -14,7 +14,33 @@ import { seedIfEmpty } from './seed';
  */
 export type DB = LibSQLDatabase<typeof schema>;
 
+// Tables added after initial launch. Idempotent (CREATE ... IF NOT EXISTS):
+// included in the fresh-database schema AND re-run on every boot of
+// pre-existing databases so they pick up new tables without a migration tool.
+const MIGRATION_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS email_verifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL UNIQUE,
+    email_verified INTEGER NOT NULL DEFAULT 0,
+    otp_hash TEXT,
+    otp_purpose TEXT,
+    otp_expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS email_verifications_user_idx ON email_verifications (user_id)`,
+  `CREATE TABLE IF NOT EXISTS rate_limits (
+    key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    window_start INTEGER NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (key, kind)
+  )`,
+];
+
 const SCHEMA_STATEMENTS = [
+  ...MIGRATION_STATEMENTS,
   // Base users table.
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -169,7 +195,11 @@ export async function getDb(): Promise<DB> {
       );
 
       if (exists.length > 0) {
-        // Existing deployment: schema already exists, just seed if needed
+        // Existing deployment: schema already exists — apply the
+        // idempotent additions for newer tables, then seed if needed.
+        for (const stmt of MIGRATION_STATEMENTS) {
+          await db.run(sql.raw(stmt));
+        }
         await seedIfEmpty(db);
         return db;
       }

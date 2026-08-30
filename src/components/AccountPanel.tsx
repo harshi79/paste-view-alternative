@@ -7,6 +7,7 @@ type Initial = {
   username: string;
   createdAt: string;
   usernameChangedAt: string | null;
+  recoveryEmail: { email: string; verified: boolean } | null;
 };
 
 const RENAME_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -32,6 +33,13 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwError, setPwError] = useState('');
   const [pwMsg, setPwMsg] = useState('');
+  const [recoveryEmail, setRecoveryEmail] = useState(initial.recoveryEmail);
+  const [newEmail, setNewEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [reBusy, setReBusy] = useState(false);
+  const [reError, setReError] = useState('');
+  const [reMsg, setReMsg] = useState('');
 
   const alreadyRenamed = !!initial.usernameChangedAt;
   const createdAt = new Date(initial.createdAt);
@@ -101,6 +109,52 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
     setPwMsg('Password updated. Use the new password next time you sign in.');
   }
 
+  async function sendRecoveryOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setReError('');
+    setReMsg('');
+    setOtpSent(false);
+    setOtpCode('');
+    if (!newEmail) return;
+    setReBusy(true);
+    const res = await fetch('/api/auth/email-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'verify', email: newEmail }),
+    });
+    const data = await res.json();
+    setReBusy(false);
+    if (!res.ok) {
+      setReError(data.error || 'Could not send the code. Try again.');
+      return;
+    }
+    setOtpSent(true);
+    setReMsg(`A 6-digit code was sent to ${newEmail}. It expires in 10 minutes.`);
+  }
+
+  async function verifyRecoveryOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setReError('');
+    setReBusy(true);
+    const res = await fetch('/api/auth/email-otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purpose: 'verify', code: otpCode }),
+    });
+    const data = await res.json();
+    setReBusy(false);
+    if (!res.ok) {
+      setReError(data.error || 'Could not verify the code.');
+      return;
+    }
+    setRecoveryEmail({ email: data.email, verified: true });
+    setNewEmail('');
+    setOtpCode('');
+    setOtpSent(false);
+    setReMsg(`Recovery email verified: ${data.email}`);
+    router.refresh();
+  }
+
   const input =
     'w-full rounded-xl border border-white/10 bg-night-800 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
   const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
@@ -156,6 +210,79 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
           {error && (
             <p className="mt-3 text-sm text-red-400">{error}</p>
           )}
+        </div>
+
+        <div className={card}>
+          <h2 className="mb-4 font-bold text-white">Recovery email</h2>
+          <p className="mb-3 text-sm text-zinc-400">
+            Used for password recovery when you can&apos;t sign in. A one-time code is sent to the
+            email to verify it — it only becomes your recovery email after a successful code.
+          </p>
+
+          {recoveryEmail && (
+            <p className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-300">
+              Current: <span className="font-mono text-zinc-100">{recoveryEmail.email}</span>{' '}
+              {recoveryEmail.verified ? (
+                <span className="text-emerald-400">✓ verified</span>
+              ) : (
+                <span className="text-amber-400">— pending verification</span>
+              )}
+            </p>
+          )}
+
+          <form onSubmit={otpSent ? verifyRecoveryOtp : sendRecoveryOtp} className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                className={input}
+                type="email"
+                placeholder="you@example.com"
+                value={newEmail}
+                maxLength={254}
+                disabled={otpSent}
+                onChange={(e) => setNewEmail(e.target.value)}
+              />
+              {!otpSent && (
+                <button
+                  type="submit"
+                  disabled={reBusy || !newEmail}
+                  className="shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+                >
+                  {reBusy ? 'Sending…' : 'Send code'}
+                </button>
+              )}
+            </div>
+            {otpSent && (
+              <div className="flex gap-2">
+                <input
+                  className={input}
+                  inputMode="numeric"
+                  placeholder="6-digit code"
+                  value={otpCode}
+                  maxLength={6}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                />
+                <button
+                  type="submit"
+                  disabled={reBusy || otpCode.length !== 6}
+                  className="shrink-0 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110 disabled:opacity-60"
+                >
+                  {reBusy ? 'Verifying…' : 'Verify'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpSent(false);
+                    setOtpCode('');
+                  }}
+                  className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-300 hover:bg-white/10"
+                >
+                  Back
+                </button>
+              </div>
+            )}
+            {reMsg && <p className="text-sm text-emerald-400">{reMsg}</p>}
+            {reError && <p className="text-sm text-red-400">{reError}</p>}
+          </form>
         </div>
 
         <div className={card}>

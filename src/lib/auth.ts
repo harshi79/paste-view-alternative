@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { eq, sql } from 'drizzle-orm';
 import { getDb } from './db';
+import { getAuthSecret } from './secret';
 import {
   users,
   profiles,
@@ -20,11 +21,18 @@ const MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 const ADMIN_COOKIE = 'vb_admin';
 const ADMIN_MAX_AGE = 60 * 60 * 8; // 8 hours
 
+/**
+ * JWT signing/verification key. No fallback: if AUTH_SECRET is missing,
+ * weak, or a known compromised value, this throws.
+ *
+ * - In verification paths (getSessionUser / isAdmin) the throw is caught by
+ *   the surrounding try/catch, so every presented token is simply rejected.
+ * - In issuance paths (createSession / createAdminSession) it propagates to
+ *   the API route, which fails with a 500 instead of signing with a
+ *   predictable key.
+ */
 function secret(): Uint8Array {
-  const raw =
-    process.env.AUTH_SECRET ||
-    'vibebin-dev-secret-do-not-use-in-production-change-me';
-  return new TextEncoder().encode(raw);
+  return getAuthSecret();
 }
 
 async function getCookieOptions(maxAge: number) {
@@ -70,10 +78,17 @@ export async function createSession(user: { id: string; username: string }) {
   store.set(COOKIE, token, options);
 }
 
+/**
+ * Expires the session cookie using the EXACT attributes it was created
+ * with (getCookieOptions is the single source for both). This matters on
+ * HTTPS, where the cookie is Secure + SameSite=None + Partitioned (CHIPS):
+ * a deletion cookie whose attributes don't all match targets a different
+ * cookie slot, and the original partitioned cookie keeps working.
+ */
 export async function destroySession() {
   const store = await cookies();
-  store.delete(COOKIE);
-  store.set(COOKIE, '', { maxAge: 0, path: '/' });
+  const options = await getCookieOptions(0);
+  store.set(COOKIE, '', { ...options, maxAge: 0, expires: new Date(0) });
 }
 
 export type SessionUser = { user: User; profile: Profile };
@@ -158,10 +173,14 @@ export async function createAdminSession() {
   store.set(ADMIN_COOKIE, token, options);
 }
 
+/**
+ * Expires the admin cookie using the EXACT attributes it was created
+ * with (see destroySession for why attribute matching is required).
+ */
 export async function destroyAdminSession() {
   const store = await cookies();
-  store.delete(ADMIN_COOKIE);
-  store.set(ADMIN_COOKIE, '', { maxAge: 0, path: '/' });
+  const options = await getCookieOptions(0);
+  store.set(ADMIN_COOKIE, '', { ...options, maxAge: 0, expires: new Date(0) });
 }
 
 export async function isAdmin(): Promise<boolean> {
