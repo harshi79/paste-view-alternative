@@ -1,14 +1,15 @@
 // ------------------------------------------------------------------
-// Pure editor line operations (the composer's split/join).
+// Pure editor line operations (the composer's split/join/delete).
 //
 // The rich composer renders each line as its own uncontrolled
 // contentEditable. Enter splits the active line; Backspace at the start
-// of a line must join it with the previous line (the browser cannot join
-// across separate contentEditables on its own). Both transforms are pure
-// doc → doc functions so the exact behavior is unit-testable in Node
-// without a DOM. Each new line gets a fresh stable `_key` from the
-// caller so React mounts a new node that re-seeds its text via the ref
-// (see Editor.tsx).
+// of a line must join it with the previous line; Delete/Backspace over
+// a multi-line selection removes the whole range (the browser cannot
+// delete or join across separate contentEditables on its own). All
+// transforms are pure doc → doc functions so the exact behavior is
+// unit-testable in Node without a DOM. Each new line gets a fresh
+// stable `_key` from the caller so React mounts a new node that
+// re-seeds its text via the ref (see Editor.tsx).
 // ------------------------------------------------------------------
 
 import type { RichDoc, RichLine } from '@/lib/pasteFormat';
@@ -115,7 +116,9 @@ export type PasteResult = {
  * Returns null for single-line pastes (no `\n`) — those are left to the
  * browser's default contentEditable paste. Leading/trailing newlines are
  * preserved: they produce leading/trailing (empty) lines, matching the
- * editor's Enter-split behavior. No artificial paste-size limit is applied.
+ * editor's Enter-split behavior. No size limit is applied here — the
+ * transform never truncates; size policy lives with the editor's paste
+ * guard and the server (see src/lib/pasteLimits.ts).
  */
 export function applyMultiLinePaste(
   line: RichLine,
@@ -141,4 +144,129 @@ export function applyMultiLinePaste(
   }
   lines.push({ ...base, _key: newKey(), text: parts[parts.length - 1] + suffix });
   return { lines, caretInLastLine: parts[parts.length - 1].length };
+}
+
+/** Result of deleting a character range across lines. */
+export type DeleteRangeResult = {
+  /** The full replacement lines array. */
+  lines: RichLine[];
+  /**
+   * Index of the single line whose text was rebuilt (its marks should be
+   * recomputed by the caller), or -1 when the covered block was dropped
+   * entirely (nothing to recompute).
+   */
+  changedLine: number;
+  /** Where the caret should land after the DOM updates. */
+  caretLine: number;
+  caretOffset: number;
+};
+
+/**
+ * Deletes the character range [start, end) across the line model — the
+ * transform behind Delete/Backspace over a multi-line selection.
+ *
+ * The range is specified in RichDoc coordinates: it starts at character
+ * `aOffset` of line `aLine` and ends at character `bOffset` of line
+ * `bLine`. Reversed endpoints are normalized here, so a backward drag
+ * deletes exactly the same text as a forward one.
+ *
+ * Semantics:
+ * - Same-line ranges replace the line with its remaining prefix +
+ *   suffix. The line itself always survives a single-line deletion
+ *   (an empty remainder is kept as an empty line) — single-line
+ *   behavior is unchanged.
+ * - Cross-line ranges remove every fully-covered line between start and
+ *   end. The surviving prefix of the first line and suffix of the last
+ *   line merge into ONE line that keeps the first line's formatting
+ *   (font/size/color) and merges both lines' stickerUrls; marks are
+ *   reset for the caller to recompute.
+ * - When that merged remainder is empty, the whole covered block is
+ *   dropped: fully selected lines disappear and the surrounding lines
+ *   join naturally — EXCEPT that a doc always keeps its minimum
+ *   one-line structure (select-all + delete leaves one empty line).
+ * - The caret lands at the start of the deleted range: the join point of
+ *   the merged line, or the start of the line that followed a dropped
+ *   block (end of the previous line when deleting through the last one).
+ *
+ * Returns null for empty or out-of-range selections (the doc is left
+ * untouched).
+ */
+export function deleteRange(
+  doc: RichDoc,
+  aLine: number,
+  aOffset: number,
+  bLine: number,
+  bOffset: number,
+  newKey: NewLineKey,
+): DeleteRangeResult | null {
+  const lines = doc.lines;
+  const n = lines.length;
+  if (n === 0) return null;
+  let startLine = aLine;
+  let startOffset = aOffset;
+  let endLine = bLine;
+  let endOffset = bOffset;
+  if (endLine < startLine || (endLine === startLine && endOffset < startOffset)) {
+    [startLine, startOffset, endLine, endOffset] = [endLine, endOffset, startLine, startOffset];
+  }
+  if (startLine < 0 || endLine >= n) return null;
+  const first = lines[startLine];
+  const last = lines[endLine];
+  startOffset = Math.max(0, Math.min(startOffset, first.text.length));
+  endOffset = Math.max(0, Math.min(endOffset, last.text.length));
+
+  if (startLine === endLine) {
+    if (startOffset >= endOffset) return null;
+    const replacement: RichLine = {
+      ...first,
+      _key: newKey(),
+      text: first.text.slice(0, startOffset) + first.text.slice(endOffset),
+      marks: undefined,
+    };
+    const out = lines.slice();
+    out.splice(startLine, 1, replacement);
+    return {
+      lines: out,
+      changedLine: startLine,
+      caretLine: startLine,
+      caretOffset: startOffset,
+    };
+  }
+
+  const mergedText = first.text.slice(0, startOffset) + last.text.slice(endOffset);
+  const out = lines.slice();
+  if (mergedText.length > 0) {
+    const replacement: RichLine = {
+      _key: newKey(),
+      text: mergedText,
+      font: first.font,
+      size: first.size,
+      color: first.color,
+      stickerUrls: { ...(first.stickerUrls || {}), ...(last.stickerUrls || {}) },
+    };
+    out.splice(startLine, endLine - startLine + 1, replacement);
+    return {
+      lines: out,
+      changedLine: startLine,
+      caretLine: startLine,
+      caretOffset: startOffset,
+    };
+  }
+
+  // The fully-covered block collapses to nothing. Keep the minimum
+  // one-line structure when the whole doc was selected.
+  out.splice(startLine, endLine - startLine + 1);
+  if (out.length === 0) {
+    out.push({
+      _key: newKey(),
+      text: '',
+      font: first.font,
+      size: first.size,
+      color: first.color,
+    });
+    return { lines: out, changedLine: 0, caretLine: 0, caretOffset: 0 };
+  }
+  const caretLine = startLine < out.length ? startLine : out.length - 1;
+  const caretOffset = startLine < out.length ? 0 : (out[out.length - 1]?.text.length ?? 0);
+  return { lines: out, changedLine: -1, caretLine, caretOffset };
 }
