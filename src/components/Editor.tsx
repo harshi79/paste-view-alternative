@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { LANGUAGES } from '@/lib/languages';
 import { EXPIRY_OPTIONS } from '@/lib/expiry';
 import {
@@ -13,9 +14,21 @@ import {
   buildInlineMarks,
 } from '@/lib/pasteFormat';
 import { loadStickerPack, rememberSticker, type StickerEntry } from '@/lib/stickerPack';
-import { splitLine, lineFont } from './richRender';
-import StickerImage from './StickerImage';
+import { lineFont } from './richRender';
 import { nekoTokenSet, type NekoGif } from '@/lib/neko';
+
+// The live preview reuses the paste page's rich renderer (including
+// language-driven syntax highlighting). Loaded lazily only when the
+// preview panel opens so highlight.js + grammars stay out of the editor's
+// initial bundle; the editable surface itself is never highlighted.
+const RichPreview = dynamic(() => import('./RichPreview'), {
+  ssr: false,
+  loading: () => (
+    <div className="grid h-[clamp(280px,55dvh,560px)] place-items-center text-sm text-zinc-500">
+      Preparing preview…
+    </div>
+  ),
+});
 
 type Props = { username: string | null };
 
@@ -707,7 +720,7 @@ export default function Editor({ username }: Props) {
                   </option>
                 ))}
               </select>
-              <p className="mt-2 text-xs leading-5 text-zinc-500">Controls syntax highlighting for legacy plain/code views and the raw source language label.</p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">Controls syntax highlighting when the paste is viewed. Plain text stays unhighlighted; rich colors, stickers, links and emoji always keep their own styling.</p>
             </div>
 
             <div className="surface-subtle rounded-2xl p-4">
@@ -846,18 +859,15 @@ export default function Editor({ username }: Props) {
           {showPreview ? (
             <div
               aria-label="Live preview"
-              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 md:px-4"
+              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)]"
             >
-              <div className="text-sm leading-7">
-                {rich.lines.map((line, i) => (
-                  <div key={i} className="grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5">
-                    <span aria-hidden className="pt-1 text-right font-mono text-[11px] text-zinc-600">
-                      {i + 1}
-                    </span>
-                    <PreviewLine line={line} pack={stickerPack} />
-                  </div>
-                ))}
-              </div>
+              {/* Same renderer the final paste page uses — including the
+                  language-driven syntax highlighting. Loaded on demand. */}
+              <RichPreview
+                doc={serializeDoc(rich)}
+                language={language}
+                pack={stickerPack}
+              />
             </div>
           ) : (
             <div
@@ -1117,31 +1127,5 @@ export default function Editor({ username }: Props) {
         )}
     </div>
 
-  );
-}
-
-/** Renders one rich line as it will appear in the final paste. */
-function PreviewLine({ line, pack }: { line: RichLine; pack: StickerEntry[] }) {
-  const segments = splitLine(line, {
-    renderSticker: (m, slice, stickerUrls) => (
-      <StickerImage token={m.value} fallback={slice} pack={pack} url={stickerUrls?.[m.value]} />
-    ),
-    renderEmoji: (m) => (
-      <span className="text-[1.05em]" title={m.value}>
-        {m.value}
-      </span>
-    ),
-  });
-  return (
-    <div
-      className="whitespace-pre-wrap break-words"
-      style={{
-        fontFamily: lineFont(line),
-        fontSize: line.size ? `${line.size}px` : '14px',
-        color: line.color ?? '#dbe1f1',
-      }}
-    >
-      {segments}
-    </div>
   );
 }

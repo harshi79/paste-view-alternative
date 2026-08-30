@@ -1,4 +1,5 @@
 import type { RichDoc, RichLine } from '@/lib/pasteFormat';
+import { richDocLineHighlights } from '@/lib/highlight';
 import { splitLine, lineFont } from './richRender';
 import StickerImage from './StickerImage';
 
@@ -9,15 +10,67 @@ export type StickerPackEntry = {
   label: string;
 };
 
-type Props = { doc: RichDoc; stickers?: StickerPackEntry[] };
+type Props = {
+  doc: RichDoc;
+  stickers?: StickerPackEntry[];
+  /**
+   * Stored language id. Drives presentation-only syntax highlighting for
+   * unified pastes: plaintext/unknown languages render exactly as before.
+   */
+  language?: string;
+  /**
+   * Bare mode renders just the line list (no window chrome/header) so the
+   * editor's live preview can embed the same renderer without a nested
+   * card. Defaults to the full framed paste view.
+   */
+  bare?: boolean;
+};
 
 /**
- * Server component: renders a rich paste. Links are clickable, never
- * previewed; stickers/emoji render as inline images with no shortcode
- * text visible. The sticker pack is passed from the server so the page
- * needs no extra client fetch or flash of `:wave:` text.
+ * Server component (also safe to load in a lazily-loaded client chunk for
+ * password-unlock and the composer preview): renders a rich paste. Links
+ * are clickable, never previewed; stickers/emoji render as inline images
+ * with no shortcode text visible. The sticker pack is passed from the
+ * server so the page needs no extra client fetch or flash of `:wave:`
+ * text.
+ *
+ * Syntax highlighting is an additive, presentation-only feature: the
+ * stored RichDoc is never mutated, raw/download output is untouched, and
+ * lines with explicit rich colors or inline marks (links, stickers,
+ * emoji) keep their existing rendering — token spans only wrap the plain
+ * text around them.
  */
-export default function RichPasteView({ doc, stickers }: Props) {
+export default function RichPasteView({ doc, stickers, language, bare = false }: Props) {
+  // Presentation-only: computed from the stored language + untouched doc.
+  // Null for plaintext/unknown languages (and on any failure), in which
+  // case splitLine renders every line exactly as it did before.
+  const lineHighlights = language ? richDocLineHighlights(doc, language) : null;
+
+  const body = (
+    <div className="overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_30%)] px-3 py-4 md:px-4">
+      {doc.lines.length === 0 ? (
+        <p className="px-2 py-1 text-sm italic text-zinc-500">(empty paste)</p>
+      ) : (
+        doc.lines.map((line, i) => (
+          <div key={i} className="grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5">
+            <span aria-hidden className="select-none pt-1 text-right font-mono text-[11px] text-zinc-600">
+              {i + 1}
+            </span>
+            <RichLine
+              line={line}
+              stickers={stickers}
+              highlightRuns={lineHighlights?.[i]}
+            />
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  if (bare) {
+    return <div className="text-sm leading-7">{body}</div>;
+  }
+
   return (
     <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#060912]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_28px_70px_-42px_rgba(0,0,0,0.95)]">
       <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] bg-black/25 px-4 py-2.5 sm:px-5">
@@ -27,32 +80,29 @@ export default function RichPasteView({ doc, stickers }: Props) {
             <span className="window-dot bg-amber-400/80" />
             <span className="window-dot bg-emerald-400/80" />
           </span>
-          <span className="truncate font-mono text-xs font-medium text-zinc-400">rich text</span>
+          <span className="truncate font-mono text-xs font-medium text-zinc-400">
+            {language && language !== 'plaintext' ? language : 'rich text'}
+          </span>
         </div>
         <span className="shrink-0 font-mono text-xs text-zinc-500">
           {doc.lines.length.toLocaleString()} {doc.lines.length === 1 ? 'line' : 'lines'}
         </span>
       </div>
 
-      <div className="overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_30%)] px-3 py-4 md:px-4">
-        {doc.lines.length === 0 ? (
-          <p className="px-2 py-1 text-sm italic text-zinc-500">(empty paste)</p>
-        ) : (
-          doc.lines.map((line, i) => (
-            <div key={i} className="grid grid-cols-[auto_1fr] gap-4 rounded-xl px-2 py-1.5">
-              <span aria-hidden className="select-none pt-1 text-right font-mono text-[11px] text-zinc-600">
-                {i + 1}
-              </span>
-              <RichLine line={line} stickers={stickers} />
-            </div>
-          ))
-        )}
-      </div>
+      {body}
     </div>
   );
 }
 
-function RichLine({ line, stickers }: { line: RichLine; stickers?: StickerPackEntry[] }) {
+function RichLine({
+  line,
+  stickers,
+  highlightRuns,
+}: {
+  line: RichLine;
+  stickers?: StickerPackEntry[];
+  highlightRuns?: Parameters<typeof splitLine>[1]['highlightRuns'];
+}) {
   const segments = splitLine(line, {
     renderSticker: (mark, slice, stickerUrls) => (
       <StickerImage
@@ -67,10 +117,11 @@ function RichLine({ line, stickers }: { line: RichLine; stickers?: StickerPackEn
         {mark.value}
       </span>
     ),
+    highlightRuns,
   });
   return (
     <div
-      className="whitespace-pre-wrap break-words"
+      className="hljs whitespace-pre-wrap break-words"
       style={{
         fontFamily: lineFont(line),
         fontSize: line.size ? `${line.size}px` : '14px',
