@@ -52,6 +52,17 @@ export default function NameDisplay({
     [safeFrom, safeTo],
   );
 
+  // speed 0–100 maps to animation-duration scalar (lower speed = slower).
+  // Rules of Hooks: this useMemo (like every hook above) MUST run before the
+  // typewriter early-return below. This component re-renders with a
+  // different `effect` when the user changes the Effect select in the
+  // profile customizer's live preview, so the number and order of hooks
+  // called must be identical for every effect id — otherwise React throws
+  // "Rendered more hooks than during the previous render" (or "fewer")
+  // and the whole page crashes.
+  const durationScale = useMemo(() => durationFor(safeSpeed), [safeSpeed]);
+
+  // This early return is only legal AFTER all hook calls above.
   if (safeEffect === 'typewriter') {
     return (
       <span className={className} style={vars}>
@@ -75,8 +86,6 @@ export default function NameDisplay({
         : '';
   const inlineColor = cls === '' ? { color: safeFrom } : undefined;
 
-  // speed 0–100 maps to animation-duration scalar (lower speed = slower).
-  const durationScale = useMemo(() => durationFor(safeSpeed), [safeSpeed]);
   const style2: React.CSSProperties = {
     ...vars,
     ...inlineColor,
