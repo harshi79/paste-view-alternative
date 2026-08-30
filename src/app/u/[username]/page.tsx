@@ -7,7 +7,8 @@ import { pastes, profiles, users } from '@/lib/db/schema';
 import { getSessionUser, getUserTags, isAdmin } from '@/lib/auth';
 import { computeBadges } from '@/lib/badges';
 import { formatDate, formatViews } from '@/lib/format';
-import NameDisplay, { type NameEffect } from '@/components/NameDisplay';
+import NameDisplay from '@/components/NameDisplay';
+import { sanitizeNameEffect } from '@/lib/nameEffects';
 import Avatar from '@/components/Avatar';
 import SafeImage from '@/components/SafeImage';
 import PasteCard from '@/components/PasteCard';
@@ -144,7 +145,7 @@ export default async function ProfilePage({ params }: Props) {
                     from={profile.nameFrom}
                     to={profile.nameTo}
                     style={profile.nameStyle as 'solid' | 'gradient'}
-                    effect={profile.nameEffect as NameEffect}
+                    effect={sanitizeNameEffect(profile.nameEffect)}
                     speed={profile.effectSpeed}
                     intensity={profile.effectIntensity}
                   />

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import NameDisplay, { type NameStyle, type NameEffect, NAME_EFFECTS } from './NameDisplay';
+import NameDisplay from './NameDisplay';
+import { NAME_EFFECTS, EFFECT_CATEGORIES, type NameEffect, type NameStyle } from '@/lib/nameEffects';
 import EmojiStatus from './EmojiStatus';
 import SocialPlatformIcon from './SocialPlatformIcon';
 import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
@@ -112,7 +113,7 @@ export default function ProfileCustomizer({
     { id: 'gold', label: 'Gold', from: '#fde68a', to: '#b45309', effect: 'gold' as const },
     { id: 'aurora', label: 'Aurora', from: '#4ade80', to: '#a78bfa', effect: 'aurora' as const },
     { id: 'glitch', label: 'Glitch', from: '#f87171', to: '#22d3ee', effect: 'glitch' as const },
-    { id: 'wave', label: 'Wave', from: '#60a5fa', to: '#a78bfa', effect: 'wave' as const },
+    { id: 'float', label: 'Float', from: '#60a5fa', to: '#a78bfa', effect: 'float' as const },
   ];
 
   function applyTemplate(t: (typeof templates)[number]) {
@@ -428,11 +429,19 @@ export default function ProfileCustomizer({
                     value={state.nameEffect}
                     onChange={(e) => set('nameEffect', e.target.value as NameEffect)}
                   >
-                    {NAME_EFFECTS.map((effect) => (
-                      <option key={effect.id} value={effect.id}>
-                        {effect.emoji} {effect.label}
-                      </option>
-                    ))}
+                    {EFFECT_CATEGORIES.map((category) => {
+                      const items = NAME_EFFECTS.filter((effect) => effect.category === category);
+                      if (items.length === 0) return null;
+                      return (
+                        <optgroup key={category} label={category}>
+                          {items.map((effect) => (
+                            <option key={effect.id} value={effect.id}>
+                              {effect.emoji} {effect.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

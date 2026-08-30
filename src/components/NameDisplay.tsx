@@ -1,32 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getEffectDef, sanitizeNameEffect, type NameEffect, type NameStyle } from '@/lib/nameEffects';
 
-export type NameStyle = 'solid' | 'gradient';
-export type NameEffect =
-  | 'none'
-  | 'typewriter'
-  | 'shimmer'
-  | 'neon'
-  | 'rainbow'
-  | 'fire'
-  | 'glitch'
-  | 'wave'
-  | 'aurora'
-  | 'gold';
-
-export const NAME_EFFECTS: { id: NameEffect; label: string; emoji: string }[] = [
-  { id: 'none', label: 'None', emoji: '◻' },
-  { id: 'typewriter', label: 'Typewriter', emoji: '⌨' },
-  { id: 'shimmer', label: 'Shimmer', emoji: '✨' },
-  { id: 'neon', label: 'Neon glow', emoji: '💡' },
-  { id: 'rainbow', label: 'Rainbow', emoji: '🌈' },
-  { id: 'fire', label: 'Fire', emoji: '🔥' },
-  { id: 'glitch', label: 'Glitch', emoji: '📺' },
-  { id: 'wave', label: 'Wave', emoji: '🌊' },
-  { id: 'aurora', label: 'Aurora', emoji: '🌌' },
-  { id: 'gold', label: 'Gold', emoji: '🥇' },
-];
+export { NAME_EFFECTS, EFFECT_CATEGORIES } from '@/lib/nameEffects';
+export type { NameEffect, NameStyle } from '@/lib/nameEffects';
 
 type Props = {
   text: string;
@@ -65,42 +43,16 @@ export default function NameDisplay({
   const safeTo = typeof to === 'string' && to ? to : FALLBACK_TO;
   const safeSpeed = clamp100(speed, 50);
   const safeIntensity = clamp100(intensity, 60);
+  // Unknown / removed effect ids (e.g. the legacy "wave" value still stored
+  // on older profiles) render as the neutral "none" effect.
+  const safeEffect = sanitizeNameEffect(effect);
 
   const vars = useMemo(
     () => ({ '--name-from': safeFrom, '--name-to': safeTo }) as React.CSSProperties,
     [safeFrom, safeTo],
   );
 
-  if (effect === 'wave') {
-    return <Wave text={safeText} vars={vars} intensity={safeIntensity} className={className} />;
-  }
-
-  let cls = '';
-  if (effect === 'shimmer') cls = 'effect-shimmer';
-  else if (effect === 'neon') cls = 'effect-neon';
-  else if (effect === 'rainbow') cls = 'effect-rainbow';
-  else if (effect === 'fire') cls = 'effect-fire';
-  else if (effect === 'glitch') cls = 'effect-glitch';
-  else if (effect === 'aurora') cls = 'effect-aurora';
-  else if (effect === 'gold') cls = 'effect-gold';
-  else if (style === 'gradient') cls = 'effect-gradient-text';
-  const inlineColor = cls === '' ? { color: safeFrom } : undefined;
-
-  // speed 0–100 maps to animation-duration scalar (lower speed = slower)
-  const durationScale = useMemo(() => durationFor(safeSpeed), [safeSpeed]);
-  const style2: React.CSSProperties = {
-    ...vars,
-    ...inlineColor,
-    animationDuration:
-      effect === 'none' || cls === 'effect-gradient-text' ? undefined : `${durationScale}s`,
-    // intensity tweaks shadow strength for neon/fire/glitch
-    filter:
-      effect === 'neon' || effect === 'fire'
-        ? `drop-shadow(0 0 ${Math.round(safeIntensity / 8)}px ${safeFrom}88)`
-        : undefined,
-  };
-
-  if (effect === 'typewriter') {
+  if (safeEffect === 'typewriter') {
     return (
       <span className={className} style={vars}>
         <Typewriter
@@ -113,6 +65,28 @@ export default function NameDisplay({
       </span>
     );
   }
+
+  const def = getEffectDef(safeEffect);
+  const cls =
+    def && def.kind === 'css' && def.className
+      ? def.className
+      : style === 'gradient'
+        ? 'effect-gradient-text'
+        : '';
+  const inlineColor = cls === '' ? { color: safeFrom } : undefined;
+
+  // speed 0–100 maps to animation-duration scalar (lower speed = slower).
+  const durationScale = useMemo(() => durationFor(safeSpeed), [safeSpeed]);
+  const style2: React.CSSProperties = {
+    ...vars,
+    ...inlineColor,
+    animationDuration: safeEffect !== 'none' ? `${durationScale}s` : undefined,
+    // intensity tweaks shadow strength for neon/fire (unchanged behaviour).
+    filter:
+      safeEffect === 'neon' || safeEffect === 'fire'
+        ? `drop-shadow(0 0 ${Math.round(safeIntensity / 8)}px ${safeFrom}88)`
+        : undefined,
+  };
 
   if (safeText === '') return null;
 
@@ -191,61 +165,5 @@ function Typewriter({
       </span>
       <span className="caret" style={{ height: '0.9em', verticalAlign: '-0.08em' }} />
     </>
-  );
-}
-
-// ------------------------------------------------------------------
-// Wave — each letter bobs on a phase offset.
-// The @keyframes wave-letter lives in globals.css (styled-jsx is not
-// SSR'd in the App Router, which previously left the animation broken
-// and coupled it to an out-of-band runtime).
-// ------------------------------------------------------------------
-const WAVE_MAX_LETTERS = 80;
-
-function Wave({
-  text,
-  vars,
-  intensity,
-  className,
-}: {
-  text: string;
-  vars: React.CSSProperties;
-  intensity: number;
-  className: string;
-}) {
-  const amplitude = Math.max(1, Math.round(intensity / 10)); // 1..10 px
-
-  // Memoize the letter spans: the component re-renders on parent state
-  // changes (e.g. every keystroke in the settings preview) and rebuilding
-  // a per-letter animated span every time is wasted work.
-  const letters = useMemo(() => {
-    const chars = Array.from(text.slice(0, WAVE_MAX_LETTERS));
-    return chars.map((ch, i) => (
-      <span
-        key={`${i}-${ch === ' ' ? 'sp' : ch}`}
-        className="inline-block"
-        style={
-          {
-            color: 'var(--name-from)',
-            animation: `wave-letter 1.2s ease-in-out ${(i * 80) % 1200}ms infinite`,
-            '--amp': `${amplitude}px`,
-          } as React.CSSProperties
-        }
-      >
-        {ch === ' ' ? '\u00A0' : ch}
-      </span>
-    ));
-  }, [text, amplitude]);
-
-  if (letters.length === 0) return null;
-
-  return (
-    <span
-      className={`effect-wave ${className}`}
-      style={{ ...vars, animation: 'none' }}
-      aria-label={text}
-    >
-      {letters}
-    </span>
   );
 }
