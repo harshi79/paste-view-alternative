@@ -853,7 +853,7 @@ export default function Editor({ username }: Props) {
           {showPreview ? (
             <div
               aria-label="Live preview"
-              className="h-[clamp(280px,55dvh,560px)] overflow-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 md:px-4"
+              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 md:px-4"
             >
               <div className="text-sm leading-7">
                 {rich.lines.map((line, i) => (
@@ -871,7 +871,7 @@ export default function Editor({ username }: Props) {
               onClick={(e) => {
                 if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
               }}
-              className="h-[clamp(280px,55dvh,560px)] overflow-y-auto overscroll-contain bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 transition-colors focus-within:ring-4 focus-within:ring-brand-500/10 md:px-4"
+              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-y-auto overscroll-contain bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 transition-colors focus-within:ring-4 focus-within:ring-brand-500/10 md:px-4"
             >
               {rich.lines.map((line, i) => (
                 <div
