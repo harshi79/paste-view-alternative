@@ -14,7 +14,7 @@ export default function NotFound() {
           The page you&apos;re looking for doesn&apos;t exist or the paste was removed.
         </p>
         <Link
-          href="/"
+          href="/paste"
           className="mt-6 inline-block rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-600/30 hover:brightness-110"
         >
           Create a paste

@@ -40,7 +40,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             The underlying routes and sharing behavior stay exactly the same.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link href="/" className="btn-primary">
+            <Link href="/paste" className="btn-primary">
               Create new paste
             </Link>
             <Link href={`/u/${user.username}`} className="btn-ghost">
