@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db';
 import { getGifById } from '@/lib/gifs';
 import { NEKO_CATEGORIES } from '@/lib/neko';
 import { isTrustedGiphyGifUrl, isTrustedNekoGifUrl, persistImportedSticker } from '@/lib/stickerImport';
+import { isAdmin } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -14,8 +15,15 @@ type ImportBody =
  * Promote a result from one of the app's server-backed GIF providers into
  * the persistent sticker pack. Arbitrary URLs and client-selected tokens
  * are deliberately not accepted.
+ *
+ * Requires an active admin session — anonymous and regular users are
+ * rejected with 403.
  */
 export async function POST(req: Request) {
+  if (!(await isAdmin())) {
+    return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+  }
+
   let body: ImportBody;
   try {
     body = await req.json();
