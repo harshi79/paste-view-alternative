@@ -6,8 +6,11 @@ import { getSessionUser } from '@/lib/auth';
 export const metadata: Metadata = { title: 'Log in' };
 export const dynamic = 'force-dynamic';
 
-export default async function LoginPage() {
+type Props = { searchParams: Promise<{ next?: string }> };
+
+export default async function LoginPage({ searchParams }: Props) {
   const session = await getSessionUser();
   if (session) redirect('/dashboard');
-  return <AuthForm mode="login" />;
+  const { next } = await searchParams;
+  return <AuthForm mode="login" next={next ?? null} />;
 }

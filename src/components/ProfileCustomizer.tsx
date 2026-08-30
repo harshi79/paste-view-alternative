@@ -632,8 +632,10 @@ export default function ProfileCustomizer({
                 {(state.displayName || username).slice(0, 1).toUpperCase()}
               </span>
             )}
+            {/* Mirrors the public profile header: display name → status
+                emoji/GIF in one aligned row (inline-flex + items-center). */}
             <div className="mt-3 flex flex-wrap items-center gap-x-2">
-              <h3 className="min-w-0 break-words text-2xl font-black tracking-tight">
+              <h3 className="inline-flex min-w-0 items-center break-words text-2xl font-black tracking-tight">
                 <NameDisplay
                   text={state.displayName || username}
                   from={state.nameFrom}
@@ -648,7 +650,7 @@ export default function ProfileCustomizer({
               <EmojiStatus
                 value={state.statusEmoji}
                 pack={statusStickers.length > 0 ? statusStickers : undefined}
-                className="text-xl leading-none"
+                className="inline-flex shrink-0 items-center text-xl leading-none"
               />
             </div>
             <p className="mt-0.5 break-words text-xs text-zinc-500">

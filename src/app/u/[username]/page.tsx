@@ -17,7 +17,10 @@ import { detectSocialPlatform } from '@/lib/socialPlatform';
 import AdminTags from '@/components/AdminTags';
 import TagBadge from '@/components/TagBadge';
 import EmojiStatus from '@/components/EmojiStatus';
+import FollowButton from '@/components/FollowButton';
+import FollowStats from '@/components/FollowStats';
 import { loadStickerByToken } from '@/lib/stickerPack.server';
+import { getFollowCounts, isFollowingUser } from '@/lib/follows';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +66,7 @@ export default async function ProfilePage({ params }: Props) {
     statusText: '',
   };
 
-  const [session, adminStatus, userTags, userPastes, statusSticker] = await Promise.all([
+  const [session, adminStatus, userTags, userPastes, statusSticker, followCounts] = await Promise.all([
     getSessionUser(),
     isAdmin(),
     getUserTags(user.id),
@@ -74,9 +77,12 @@ export default async function ProfilePage({ params }: Props) {
       .orderBy(desc(pastes.pinned), desc(pastes.createdAt))
       .limit(100),
     loadStickerByToken(profile.statusEmoji, db),
+    getFollowCounts(user.id),
   ]);
 
   const isOwner = session?.user.id === user.id;
+  const isFollowing =
+    session && !isOwner ? await isFollowingUser(session.user.id, user.id) : false;
 
   const nowVisible = userPastes.filter(
     (paste) =>
@@ -138,8 +144,12 @@ export default async function ProfilePage({ params }: Props) {
               />
             </div>
             <div className="min-w-0 pb-1">
+              {/* One logical row: display name → title/tag → EmojiStatus.
+                  Every child is an inline-flex with items-center so the
+                  unicode status and the animated sticker/GIF status share
+                  the exact same vertically-centered slot. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="min-w-0 break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
+                <h1 className="inline-flex min-w-0 items-center break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
                   <NameDisplay
                     text={profile.displayName || user.username}
                     from={profile.nameFrom}
@@ -151,7 +161,7 @@ export default async function ProfilePage({ params }: Props) {
                   />
                 </h1>
                 {userTags.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="inline-flex flex-wrap items-center gap-1.5">
                     {userTags.map((tag) => (
                       <TagBadge
                         key={tag.id}
@@ -167,16 +177,26 @@ export default async function ProfilePage({ params }: Props) {
                 <EmojiStatus
                   value={profile.statusEmoji}
                   pack={statusSticker ? [statusSticker] : undefined}
-                  className="text-xl leading-none sm:text-3xl"
+                  className="inline-flex shrink-0 items-center text-xl leading-none sm:text-3xl"
                   title={profile.statusText || 'Status'}
                 />
               </div>
+              {/* Second line: username · joined date · text status */}
               <p className="mt-1.5 break-words text-sm text-zinc-400">
                 @{user.username} · joined {formatDate(user.createdAt)}
                 {profile.statusText ? <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span> : null}
               </p>
             </div>
           </div>
+          {!isOwner && (
+            <div className="flex shrink-0 items-center self-start pt-1 sm:self-end">
+              <FollowButton
+                username={user.username}
+                initialFollowing={isFollowing}
+                guest={!session}
+              />
+            </div>
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -190,6 +210,12 @@ export default async function ProfilePage({ params }: Props) {
               {badge.emoji} {badge.label}
             </span>
           ))}
+          <FollowStats
+            username={user.username}
+            followersCount={followCounts.followers}
+            followingCount={followCounts.following}
+            guest={!session}
+          />
           <span className="chip">{formatViews(profile.views)} profile views</span>
           <span className="chip">{nowVisible.length} pastes</span>
           <span className="chip">{formatViews(totalViews)} paste views</span>

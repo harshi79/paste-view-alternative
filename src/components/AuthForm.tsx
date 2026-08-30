@@ -3,13 +3,34 @@
 import { useState } from 'react';
 import Link from 'next/link';
 
-export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
+/**
+ * Only allow same-site paths as a post-auth redirect target (a guest
+ * clicking Follow is sent to /register?next=/u/…, and we must never
+ * turn that into an open redirect).
+ */
+export function safeNext(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (!value.startsWith('/')) return null;
+  if (value.startsWith('//')) return null;
+  return value;
+}
+
+export default function AuthForm({
+  mode,
+  next = null,
+}: {
+  mode: 'login' | 'register';
+  /** Optional same-site destination preserved from the follow guest flow. */
+  next?: string | null;
+}) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const isRegister = mode === 'register';
+  const destination = safeNext(next) || (isRegister ? '/settings' : '/dashboard');
+  const nextQuery = safeNext(next) ? `?next=${encodeURIComponent(safeNext(next)!)}` : '';
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +47,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       setBusy(false);
       return;
     }
-    window.location.href = isRegister ? '/settings' : '/dashboard';
+    window.location.href = destination;
   }
 
   return (
@@ -118,14 +139,14 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               {isRegister ? (
                 <>
                   Already have an account?{' '}
-                  <Link href="/login" className="font-semibold text-brand-300 hover:text-brand-200">
+                  <Link href={`/login${nextQuery}`} className="font-semibold text-brand-300 hover:text-brand-200">
                     Log in
                   </Link>
                 </>
               ) : (
                 <>
                   New here?{' '}
-                  <Link href="/register" className="font-semibold text-brand-300 hover:text-brand-200">
+                  <Link href={`/register${nextQuery}`} className="font-semibold text-brand-300 hover:text-brand-200">
                     Create an account
                   </Link>
                 </>

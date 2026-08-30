@@ -4,10 +4,14 @@ import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes, users, profiles, stickers } from '@/lib/db/schema';
-import { getSessionUser } from '@/lib/auth';
+import { getSessionUser, getUserTags } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
 import { getLikeState, likeActor } from '@/lib/likes';
 import { purgeExpiredIfDue, incrementPasteViews } from '@/lib/pastes';
+import { getFollowCounts, isFollowingUser, countPublicPastes } from '@/lib/follows';
+import { sanitizeNameEffect, type NameStyle } from '@/lib/nameEffects';
+import { loadStickerByToken } from '@/lib/stickerPack.server';
+import ProfileHoverCard, { type ProfileHoverData } from '@/components/ProfileHoverCard';
 import { formatViews, timeAgo } from '@/lib/format';
 import {
   parsePasteContent,
@@ -96,6 +100,14 @@ export default async function PastePage({ params }: Props) {
             displayName: profiles.displayName,
             avatarUrl: profiles.avatarUrl,
             accent: profiles.accent,
+            statusEmoji: profiles.statusEmoji,
+            statusText: profiles.statusText,
+            nameFrom: profiles.nameFrom,
+            nameTo: profiles.nameTo,
+            nameStyle: profiles.nameStyle,
+            nameEffect: profiles.nameEffect,
+            effectSpeed: profiles.effectSpeed,
+            effectIntensity: profiles.effectIntensity,
           })
           .from(users)
           .leftJoin(profiles, eq(users.id, profiles.userId))
@@ -119,6 +131,42 @@ export default async function PastePage({ params }: Props) {
   ]);
   const authorRow = authorRows[0] ?? null;
 
+  // Profile-preview data for the author identity chip (hover card).
+  // Bounded: a handful of indexed queries for one author — no N+1.
+  let authorHover: ProfileHoverData | null = null;
+  let followingAuthor = false;
+  if (authorRow && paste.userId) {
+    const [authorTags, authorCounts, authorFollowState, authorPastes, authorStatusSticker] =
+      await Promise.all([
+        getUserTags(paste.userId),
+        getFollowCounts(paste.userId),
+        session && session.user.id !== paste.userId
+          ? isFollowingUser(session.user.id, paste.userId)
+          : Promise.resolve(false),
+        countPublicPastes(paste.userId),
+        authorRow.statusEmoji ? loadStickerByToken(authorRow.statusEmoji, db) : Promise.resolve(null),
+      ]);
+    followingAuthor = authorFollowState;
+    authorHover = {
+      username: authorRow.username,
+      displayName: authorRow.displayName,
+      avatarUrl: authorRow.avatarUrl,
+      statusEmoji: authorRow.statusEmoji ?? '',
+      statusText: authorRow.statusText ?? '',
+      statusSticker: authorStatusSticker,
+      tags: authorTags,
+      followersCount: authorCounts.followers,
+      followingCount: authorCounts.following,
+      pastesCount: authorPastes,
+      nameFrom: authorRow.nameFrom ?? '#a78bfa',
+      nameTo: authorRow.nameTo ?? '#22d3ee',
+      nameStyle: (authorRow.nameStyle as NameStyle) ?? 'gradient',
+      nameEffect: sanitizeNameEffect(authorRow.nameEffect ?? 'none'),
+      effectSpeed: authorRow.effectSpeed ?? 50,
+      effectIntensity: authorRow.effectIntensity ?? 60,
+    };
+  }
+
   const rawUrl = `/p/${paste.id}/raw`;
   const isRich = paste.format === 'rich';
   const parsed = parsePasteContent(paste.format, paste.content);
@@ -136,14 +184,16 @@ export default async function PastePage({ params }: Props) {
           </h1>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-400 sm:text-sm">
-            {authorRow ? (
-              <Link
-                href={`/u/${authorRow.username}`}
-                className="inline-flex min-w-0 max-w-[200px] items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08] sm:max-w-[240px]"
-              >
-                <Avatar value={authorRow.avatarUrl} label={authorRow.username} className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="min-w-0 truncate">{authorRow.displayName || authorRow.username}</span>
-              </Link>
+            {authorRow && authorHover ? (
+              <ProfileHoverCard data={authorHover} following={followingAuthor} guest={!session}>
+                <Link
+                  href={`/u/${authorRow.username}`}
+                  className="inline-flex min-w-0 max-w-[200px] items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08] sm:max-w-[240px]"
+                >
+                  <Avatar value={authorRow.avatarUrl} label={authorRow.username} className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <span className="min-w-0 truncate">{authorRow.displayName || authorRow.username}</span>
+                </Link>
+              </ProfileHoverCard>
             ) : (
               <span className="pill !py-1 !text-xs">Guest author</span>
             )}
