@@ -37,6 +37,14 @@ const MIGRATION_STATEMENTS = [
     count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (key, kind)
   )`,
+
+  // Bootstrap initialization marker (records that first-install seed data
+  // has been applied — see src/lib/db/seed.ts). Idempotent + safe on every
+  // boot of pre-existing databases.
+  `CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`,
 ];
 
 const SCHEMA_STATEMENTS = [
