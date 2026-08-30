@@ -3,6 +3,7 @@ import Link from 'next/link';
 import './globals.css';
 import Nav from '@/components/Nav';
 import Logo from '@/components/Logo';
+import CursorTrail from '@/components/CursorTrail';
 import { getSessionUser } from '@/lib/auth';
 import { loadStickerByToken } from '@/lib/stickerPack.server';
 
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="relative font-sans antialiased">
+        <CursorTrail />
         <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
           <div className="absolute left-1/2 top-0 h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-brand-600/[0.18] blur-[130px]" />
           <div className="absolute right-0 top-24 h-[360px] w-[420px] rounded-full bg-cyan-500/[0.1] blur-[120px]" />
