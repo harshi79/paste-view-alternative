@@ -620,12 +620,10 @@ export default function Editor({ username }: Props) {
 
   const filteredStickers = useMemo(() => {
     const q = stickerQuery.toLowerCase().trim();
-    if (!q) return stickerPack.slice(0, 30);
-    return stickerPack
-      .filter(
-        (s) => s.token.toLowerCase().includes(q) || (s.label ?? '').toLowerCase().includes(q),
-      )
-      .slice(0, 30);
+    if (!q) return stickerPack;
+    return stickerPack.filter(
+      (s) => s.token.toLowerCase().includes(q) || (s.label ?? '').toLowerCase().includes(q),
+    );
   }, [stickerQuery, stickerPack]);
 
   const fieldLabel = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
