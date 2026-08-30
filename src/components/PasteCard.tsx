@@ -41,30 +41,31 @@ export default function PasteCard({ paste }: { paste: PasteCardData }) {
   return (
     <Link
       href={`/p/${paste.id}`}
-      className="card group animate-pop flex flex-col gap-2 p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:shadow-lg hover:shadow-brand-600/10"
+      className="card group animate-pop flex min-h-[172px] flex-col gap-4 rounded-[24px] p-5 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:shadow-[0_24px_60px_-42px_rgba(124,58,237,0.75)]"
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3
-          className="line-clamp-1 font-semibold text-zinc-100 transition-colors group-hover:text-white"
-          style={paste.titleColor ? { color: paste.titleColor } : undefined}
-        >
-          {paste.title}
-        </h3>
-        {paste.pinned && <span title="Pinned">📌</span>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Paste</p>
+          <h3
+            className="mt-2 line-clamp-2 text-lg font-semibold leading-7 text-zinc-100 transition-colors group-hover:text-white"
+            style={paste.titleColor ? { color: paste.titleColor } : undefined}
+          >
+            {paste.title}
+          </h3>
+        </div>
+        {paste.pinned && <span className="pill">📌 Pinned</span>}
       </div>
 
-      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-        <span className="flex items-center gap-1.5">
+      <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+        <span className="pill">
           <span className="h-2 w-2 rounded-full" style={{ background: dot }} />
           {paste.language}
         </span>
-        <span>👁 {formatViews(paste.views)}</span>
-        {!!paste.likesCount && <span>♥ {paste.likesCount.toLocaleString()}</span>}
-        <span>{timeAgo(paste.createdAt)}</span>
-        {paste.expiresAt && <span title="Expires">⏳ expires</span>}
-        {paste.author && (
-          <span className="ml-auto truncate text-brand-300/80">@{paste.author.username}</span>
-        )}
+        <span className="pill">👁 {formatViews(paste.views)}</span>
+        {!!paste.likesCount && <span className="pill">♥ {paste.likesCount.toLocaleString()}</span>}
+        <span className="pill">{timeAgo(paste.createdAt)}</span>
+        {paste.expiresAt && <span className="pill">⏳ expires</span>}
+        {paste.author && <span className="pill">@{paste.author.username}</span>}
       </div>
     </Link>
   );

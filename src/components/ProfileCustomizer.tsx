@@ -76,13 +76,14 @@ export default function ProfileCustomizer({
     router.refresh();
   }
 
-  const input =
-    'w-full rounded-xl border border-white/10 bg-night-800 px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 outline-none focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-  const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
-  const card = 'rounded-2xl border border-white/10 bg-night-800/60 p-5 backdrop-blur';
+  const input = 'input';
+  const label = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
+  const card = 'card rounded-[28px] p-5 sm:p-6';
   const tabBtn = (active: boolean) =>
-    `rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
-      active ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'
+    `rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+      active
+        ? 'bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+        : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
     }`;
 
   // Effect templates — one-click sets the name effect + colors at once.
@@ -108,18 +109,26 @@ export default function ProfileCustomizer({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-start">
       <div className="animate-fade-up space-y-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={tabBtn(tab === 'profile')} onClick={() => setTab('profile')}>
-            Profile & media
-          </button>
-          <button type="button" className={tabBtn(tab === 'name')} onClick={() => setTab('name')}>
-            Name & effects
-          </button>
-          <button type="button" className={tabBtn(tab === 'links')} onClick={() => setTab('links')}>
-            Links
-          </button>
+        <div className="card rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+          <p className="eyebrow">Profile studio</p>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Customize your public presence</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+            Fine-tune your avatar, banner, display name, animated effects, links, and profile copy.
+            The preview updates live so you can polish the final result before saving.
+          </p>
+          <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-1">
+            <button type="button" className={tabBtn(tab === 'profile')} onClick={() => setTab('profile')}>
+              Profile & media
+            </button>
+            <button type="button" className={tabBtn(tab === 'name')} onClick={() => setTab('name')}>
+              Name & effects
+            </button>
+            <button type="button" className={tabBtn(tab === 'links')} onClick={() => setTab('links')}>
+              Links
+            </button>
+          </div>
         </div>
 
         {tab === 'profile' && (
@@ -480,12 +489,8 @@ export default function ProfileCustomizer({
           </div>
         )}
 
-        <div className="flex items-center gap-4">
-          <button
-            onClick={save}
-            disabled={busy}
-            className="rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-brand-600/40 transition hover:brightness-110 disabled:opacity-60"
-          >
+        <div className="flex flex-wrap items-center gap-4">
+          <button onClick={save} disabled={busy} className="btn-primary px-8 py-3 text-sm disabled:opacity-60">
             {busy ? 'Saving…' : 'Save changes'}
           </button>
           {saved && <span className="animate-pop text-sm font-semibold text-emerald-400">Saved</span>}
@@ -493,11 +498,9 @@ export default function ProfileCustomizer({
         </div>
       </div>
 
-      <div className="lg:sticky lg:top-20 lg:self-start">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Live preview
-        </p>
-        <div className="animate-fade-up overflow-hidden rounded-3xl border border-white/10 bg-night-900 shadow-2xl shadow-black/50">
+      <div className="lg:sticky lg:top-24 lg:self-start">
+        <p className="eyebrow">Live preview</p>
+        <div className="animate-fade-up mt-3 overflow-hidden rounded-[28px] border border-white/10 bg-night-900 shadow-2xl shadow-black/50">
           <div className="relative h-36">
             {state.bannerUrl && state.bannerType === 'video' ? (
               <video
