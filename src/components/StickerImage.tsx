@@ -10,6 +10,8 @@ type Props = {
   pack?: StickerEntry[] | null;
   /** Explicit resolved url for this token (e.g. a live anime GIF). */
   url?: string | null;
+  /** Optional sizing override; paste stickers remain the default. */
+  className?: string;
 };
 
 /**
@@ -17,7 +19,7 @@ type Props = {
  * Renders the sticker image/GIF when the pack resolves — never the raw
  * shortcode unless the sticker is unknown.
  */
-export default function StickerImage({ token, fallback, pack, url }: Props) {
+export default function StickerImage({ token, fallback, pack, url, className = 'paste-sticker' }: Props) {
   const [loaded, setLoaded] = useState<StickerEntry[] | null>(pack ?? null);
   const [broken, setBroken] = useState(false);
 
@@ -46,7 +48,7 @@ export default function StickerImage({ token, fallback, pack, url }: Props) {
         title={hit?.label || hit?.token || token}
         loading="lazy"
         decoding="async"
-        className="paste-sticker"
+        className={className}
         onError={() => setBroken(true)}
       />
     );

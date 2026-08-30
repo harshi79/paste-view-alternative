@@ -33,6 +33,13 @@ export async function loadStickerPack(): Promise<StickerEntry[]> {
   return inflight;
 }
 
+/** Adds an imported item to the current page cache without replacing tokens. */
+export function rememberSticker(sticker: StickerEntry): void {
+  if (!cached) return;
+  if (cached.some((item) => item.token.toLowerCase() === sticker.token.toLowerCase())) return;
+  cached = [...cached, sticker].sort((a, b) => a.token.localeCompare(b.token));
+}
+
 /** Looks a sticker up by token in a pack (case-insensitive). */
 export function findSticker(pack: StickerEntry[] | null | undefined, token: string): StickerEntry | null {
   if (!pack) return null;
