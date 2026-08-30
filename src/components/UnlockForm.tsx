@@ -48,19 +48,23 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
   }
 
   if (unlocked) {
-    return richDoc ? <RichPasteViewClient doc={richDoc} /> : <PasteViewerClient content={unlocked.content} language={unlocked.language} />;
+    return richDoc ? (
+      <RichPasteViewClient doc={richDoc} />
+    ) : (
+      <PasteViewerClient content={unlocked.content} language={unlocked.language} />
+    );
   }
 
   return (
-    <div className="card animate-pop mx-auto max-w-md rounded-[24px] p-6 text-center shadow-2xl shadow-black/40 sm:p-8">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-brand-500/20 to-cyan-400/20 text-2xl">
+    <div className="card animate-pop mx-auto max-w-md rounded-[26px] p-5 text-center shadow-2xl shadow-black/40 sm:p-7">
+      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-brand-500/20 to-cyan-400/20 text-2xl sm:h-14 sm:w-14">
         🔒
       </div>
       <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">Password protected</h2>
       <p className="mb-6 mt-2 text-sm leading-6 text-zinc-400">
         Enter the password to view this paste.
       </p>
-      <form onSubmit={submit}>
+      <form onSubmit={submit} className="space-y-4">
         <input
           type="password"
           autoFocus
@@ -69,11 +73,11 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
           placeholder="Password"
           className="input text-center"
         />
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+        {error && <p className="feedback-error text-left">{error}</p>}
         <button
           type="submit"
           disabled={busy || !password}
-          className="btn-primary mt-4 w-full justify-center py-2.5 text-sm font-semibold"
+          className="btn-primary w-full justify-center py-2.5 text-sm font-semibold"
         >
           {busy ? 'Unlocking…' : 'Unlock paste'}
         </button>

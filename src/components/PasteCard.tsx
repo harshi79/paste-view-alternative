@@ -38,22 +38,23 @@ const LANG_COLORS: Record<string, string> = {
 
 export default function PasteCard({ paste }: { paste: PasteCardData }) {
   const dot = LANG_COLORS[paste.language] ?? '#71717a';
+
   return (
     <Link
       href={`/p/${paste.id}`}
-      className="card group animate-pop flex min-h-[172px] flex-col gap-4 rounded-[24px] p-5 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:shadow-[0_24px_60px_-42px_rgba(124,58,237,0.75)]"
+      className="card group animate-pop flex min-h-[160px] flex-col gap-4 rounded-[24px] p-4 transition-all hover:-translate-y-0.5 hover:border-brand-400/40 hover:shadow-[0_24px_60px_-42px_rgba(124,58,237,0.75)] sm:p-5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Paste</p>
           <h3
-            className="mt-2 line-clamp-2 text-lg font-semibold leading-7 text-zinc-100 transition-colors group-hover:text-white"
+            className="mt-2 line-clamp-2 break-words text-base font-semibold leading-6 text-zinc-100 transition-colors group-hover:text-white sm:text-lg sm:leading-7"
             style={paste.titleColor ? { color: paste.titleColor } : undefined}
           >
             {paste.title}
           </h3>
         </div>
-        {paste.pinned && <span className="pill">📌 Pinned</span>}
+        {paste.pinned && <span className="pill !py-1 !text-[11px]">📌 Pinned</span>}
       </div>
 
       <div className="mt-auto flex flex-wrap items-center gap-2 text-xs text-zinc-400">

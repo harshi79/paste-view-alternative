@@ -13,14 +13,17 @@ export default async function PastePage() {
   const [session] = await Promise.all([getSessionUser(), purgeExpiredIfDue(db)]);
 
   return (
-    <div className="animate-fade-up pb-4 pt-2 sm:pt-5">
-      {/* Centred, focused workspace: the editor is the page. */}
-      <div className="mx-auto w-full max-w-5xl">
+    <div className="animate-fade-up pb-6 pt-2 sm:pt-4">
+      <div className="mx-auto w-full max-w-6xl">
         <header className="mb-4 px-0.5 sm:mb-5">
           <p className="eyebrow">New paste</p>
-          <h1 className="mt-2 text-xl font-semibold tracking-tight text-white sm:text-2xl">
+          <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
             Create a paste
           </h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400 sm:text-[15px]">
+            Use the unified editor to publish plain text, code, or rich content without changing the
+            existing creation flow.
+          </p>
         </header>
 
         <Editor username={session?.user.username ?? null} />

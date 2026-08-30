@@ -50,13 +50,13 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
 
   if (done) {
     return (
-      <div className="grid min-h-[75vh] place-items-center py-8">
-        <div className="card animate-fade-up w-full max-w-md rounded-[30px] p-8 text-center shadow-2xl shadow-black/40">
-          <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-400 text-xl shadow-lg shadow-emerald-600/30">
+      <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
+        <div className="card animate-fade-up w-full max-w-md rounded-[28px] p-6 text-center shadow-2xl shadow-black/40 sm:p-8">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-400 text-xl shadow-lg shadow-emerald-600/30 sm:h-14 sm:w-14">
             ✅
           </div>
           <p className="eyebrow justify-center">Password updated</p>
-          <h1 className="mt-4 text-3xl font-black tracking-tight text-white">All set</h1>
+          <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">All set</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             You can now sign in with your new password. The reset link has been used and can no
             longer be reused.
@@ -76,15 +76,17 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
   }
 
   return (
-    <div className="grid min-h-[75vh] place-items-center py-8">
+    <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
       <div className="animate-fade-up w-full max-w-lg">
-        <div className="card rounded-[30px] p-8 shadow-2xl shadow-black/40">
+        <div className="card rounded-[28px] p-6 shadow-2xl shadow-black/40 sm:p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30 sm:h-14 sm:w-14">
               🔒
             </div>
             <p className="eyebrow justify-center">Choose a new password</p>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-white">Secure your account</h1>
+            <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+              Secure your account
+            </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
               Enter the one-time code from your reset link, then pick a secure new password.
             </p>
@@ -130,9 +132,13 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
               />
             </div>
 
-            {error && <p className="animate-pop rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</p>}
+            {error && <p className="feedback-error animate-pop">{error}</p>}
 
-            <button type="submit" disabled={busy || !token || !password || !confirm} className="btn-primary w-full justify-center py-3 text-sm">
+            <button
+              type="submit"
+              disabled={busy || !token || !password || !confirm}
+              className="btn-primary w-full justify-center py-3 text-sm"
+            >
               {busy ? 'Saving…' : 'Set new password'}
             </button>
           </form>

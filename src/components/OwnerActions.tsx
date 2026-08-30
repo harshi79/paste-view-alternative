@@ -36,7 +36,7 @@ export default function OwnerActions({
     }
   }
 
-  const btn = 'btn-ghost !px-3.5 !py-2 text-xs font-semibold';
+  const btn = 'btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold';
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
@@ -55,7 +55,7 @@ export default function OwnerActions({
             type="button"
             onClick={remove}
             disabled={busy}
-            className="rounded-xl border border-red-500/40 bg-red-500/20 px-3.5 py-2 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/30 disabled:opacity-50"
+            className="btn-danger !rounded-xl !px-3.5 !py-2 text-xs disabled:opacity-50"
           >
             Really delete?
           </button>
@@ -68,7 +68,7 @@ export default function OwnerActions({
           type="button"
           onClick={() => setConfirming(true)}
           disabled={busy}
-          className="rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-zinc-200 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+          className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
         >
           Delete
         </button>
