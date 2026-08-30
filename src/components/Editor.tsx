@@ -164,12 +164,17 @@ export default function Editor({ username }: Props) {
       .then((pack) => {
         setStickerPack(pack);
         // Mark any tokens already typed/loaded in every line.
+        // IMPORTANT: Pass extraTokens from line.stickerUrls so custom tokens
+        // (like searched GIFs) are preserved when the pack loads.
         setRich((doc) => ({
           ...doc,
-          lines: doc.lines.map((line) => ({
-            ...line,
-            marks: buildInlineMarks(line.text ?? '', new Set(pack.map((s) => s.token))),
-          })),
+          lines: doc.lines.map((line) => {
+            const extra = new Set(Object.keys(line.stickerUrls ?? {}));
+            return {
+              ...line,
+              marks: buildInlineMarks(line.text ?? '', new Set(pack.map((s) => s.token)), extra),
+            };
+          }),
         }));
       })
       .catch(() => {
@@ -259,12 +264,17 @@ export default function Editor({ username }: Props) {
   function syncLineMarks(i: number, text: string) {
     // Any token that has an explicit url stored on the line counts as a
     // sticker (covers live/search GIFs inserted via stickerUrls).
-    const extra = new Set<string>();
-    for (const key of Object.keys(rich.lines[i]?.stickerUrls ?? {})) extra.add(key);
-    const marks = buildInlineMarks(text, stickerTokenSet, extra);
+    // IMPORTANT: Compute marks INSIDE the functional updater to read the
+    // latest stickerUrls from the doc, not from the closure. This fixes
+    // a race condition where insertGifUrl/applyStickerToActiveLine call
+    // setRich to add stickerUrls, then call syncLineMarks, but the closure
+    // still has the old stickerUrls, so custom tokens aren't recognized.
     setRich((doc) => {
       const lines = doc.lines.slice();
       if (i < 0 || i >= lines.length) return doc;
+      const extra = new Set<string>();
+      for (const key of Object.keys(lines[i]?.stickerUrls ?? {})) extra.add(key);
+      const marks = buildInlineMarks(text, stickerTokenSet, extra);
       lines[i] = { ...lines[i], text, marks };
       return { ...doc, lines };
     });
