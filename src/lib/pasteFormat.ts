@@ -258,6 +258,85 @@ export function buildInlineMarks(
 
 const EMPTY_SET: ReadonlySet<string> = new Set();
 
+// ------------------------------------------------------------------
+// Link-mark URL safety (server-side stored-XSS defense).
+//
+// The rich renderer puts a link mark's `value` straight into an <a href>.
+// The editor only ever produces safe URLs, but the creation API must not
+// trust a hand-crafted RichDoc: a link value that could become an
+// executable (or otherwise dangerous) href must be rejected BEFORE the doc
+// is stored. Validation lives here so every RichDoc write path shares one
+// rule; stored legacy docs are left untouched and keep rendering as before.
+// ------------------------------------------------------------------
+
+/**
+ * Schemes a stored link mark may use. `http:`/`https:` are the intended web
+ * schemes; `mailto:`/`tel:` are the two non-executable schemes the editor
+ * itself emits for emails/phone numbers (rejecting them would break
+ * ordinary editor saves).
+ */
+const SAFE_LINK_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+/**
+ * ASCII control characters + all whitespace. The WHATWG URL parser silently
+ * strips tab/newline/CR (and leading/trailing C0/space), so these must be
+ * rejected up front — `\tjavascript:alert(1)` would otherwise normalize to
+ * `javascript:alert(1)` inside `new URL`.
+ */
+const UNSAFE_LINK_CHARS = /[\u0000-\u001f\u007f\s]/;
+
+/** Must start with `<scheme>:` — rejects protocol-relative (`//…`), empty
+ * and scheme-less values outright. Case-insensitive: the URL parse below
+ * is the authoritative (lower-cased) check. */
+const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i;
+
+/**
+ * True when a link mark value is safe to store as an `<a href>`:
+ * a well-formed absolute URL on an allowed, non-executable scheme.
+ */
+export function isSafeLinkValue(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  if (value.length === 0) return false;
+  if (UNSAFE_LINK_CHARS.test(value)) return false;
+  if (!SCHEME_PREFIX.test(value)) return false;
+  // http(s) values must use the full `scheme://` form: the WHATWG parser
+  // happily normalizes `http:/x` / `http:x` into a web URL, but such
+  // half-formed values are malformed input and rejected outright.
+  if (!/^https?:\/\//i.test(value)) {
+    const scheme = value.slice(0, value.indexOf(':')).toLowerCase();
+    if (scheme === 'http' || scheme === 'https') return false;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (!SAFE_LINK_SCHEMES.has(url.protocol)) return false;
+  // http(s) needs a real host — `http://?x` parses but is malformed.
+  if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname === '') {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * True when every link mark in the doc carries a safe value. Non-link marks
+ * (sticker, emoji) and per-line font/size/color are never inspected;
+ * malformed mark shapes (non-arrays, non-object entries) are skipped
+ * defensively — the renderer already ignores them.
+ */
+export function richDocLinksAreSafe(doc: RichDoc): boolean {
+  return doc.lines.every((line) => {
+    if (!Array.isArray(line.marks)) return true;
+    return line.marks.every((m) => {
+      if (!m || typeof m !== 'object') return true;
+      const { kind, value } = m as Partial<InlineMark>;
+      return kind !== 'link' || isSafeLinkValue(value);
+    });
+  });
+}
+
 /** Sorts and drops invalid/overlapping marks defensively (bad data safety). */
 export function sanitizeMarks(marks: InlineMark[] | undefined, textLength: number): InlineMark[] {
   if (!marks || marks.length === 0) return [];
