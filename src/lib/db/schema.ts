@@ -112,6 +112,29 @@ export const pastes = sqliteTable(
 );
 
 // ------------------------------------------------------------------
+// Follows — one directed relationship per row (follower → following).
+// The composite primary key makes duplicate follows impossible at the
+// DB level; self-follows are rejected by the API/library layer.
+// ------------------------------------------------------------------
+export const follows = sqliteTable(
+  'follows',
+  {
+    followerId: text('follower_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    followingId: text('following_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.followerId, t.followingId] }),
+    index('follows_following_idx').on(t.followingId),
+    index('follows_follower_idx').on(t.followerId),
+  ],
+);
+
+// ------------------------------------------------------------------
 // Likes — one per paste per signed-in user OR per anonymous visitor
 // (tracked by a salted IP hash). A paste can be liked OR unliked;
 // there is no dislike. Dedupe is enforced by partial unique indexes.
@@ -234,6 +257,7 @@ export type Profile = typeof profiles.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
 export type Like = typeof likes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
+export type Follow = typeof follows.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type RateLimit = typeof rateLimits.$inferSelect;

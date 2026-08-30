@@ -45,6 +45,19 @@ const MIGRATION_STATEMENTS = [
     key TEXT PRIMARY KEY,
     value TEXT
   )`,
+
+  // Follow system — one row per directed follow relationship. The
+  // composite primary key makes duplicate follows impossible; self-follows
+  // are rejected by the API/library layer. Indexes keep the follower and
+  // following counts and list queries indexed.
+  `CREATE TABLE IF NOT EXISTS follows (
+    follower_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    following_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (follower_id, following_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS follows_following_idx ON follows (following_id)`,
+  `CREATE INDEX IF NOT EXISTS follows_follower_idx ON follows (follower_id)`,
 ];
 
 const SCHEMA_STATEMENTS = [

@@ -6,8 +6,11 @@ import { getSessionUser } from '@/lib/auth';
 export const metadata: Metadata = { title: 'Create account' };
 export const dynamic = 'force-dynamic';
 
-export default async function RegisterPage() {
+type Props = { searchParams: Promise<{ next?: string }> };
+
+export default async function RegisterPage({ searchParams }: Props) {
   const session = await getSessionUser();
   if (session) redirect('/dashboard');
-  return <AuthForm mode="register" />;
+  const { next } = await searchParams;
+  return <AuthForm mode="register" next={next ?? null} />;
 }
