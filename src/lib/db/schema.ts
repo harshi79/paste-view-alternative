@@ -175,6 +175,20 @@ export const stickers = sqliteTable('stickers', {
 });
 
 // ------------------------------------------------------------------
+// Bootstrap initialization marker.
+//
+// Records that the app's first-install seed data (demo users, default
+// tags, default stickers, ...) has already been applied to this database.
+// This is what lets a genuine "first install" receive its seed data while
+// guaranteeing that admin-deleted seed rows are NOT resurrected on a later
+// boot. See src/lib/db/seed.ts.
+// ------------------------------------------------------------------
+export const appMeta = sqliteTable('app_meta', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+});
+
+// ------------------------------------------------------------------
 // Email verification / OTP recovery — one recovery email per user,
 // one account per email. Only the SHA-256 hash of a pending 6-digit
 // OTP is ever stored (never the code itself).

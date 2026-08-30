@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
-import { sql } from 'drizzle-orm';
-import { users, profiles, pastes, tags, stickers } from './schema';
+import { eq, sql } from 'drizzle-orm';
+import { users, profiles, pastes, tags, stickers, appMeta } from './schema';
 import type { DB } from './index';
 
 const HOUR = 3600 * 1000;
@@ -53,12 +53,50 @@ const SEED_STICKERS = [
   { token: ':anime-wave:', url: null, emoji: '👋', label: 'Anime wave' },
 ];
 
+// ------------------------------------------------------------------
+// Initialization marker
+// ------------------------------------------------------------------
+// Once the database has been initialized (its first-install seed data was
+// applied on a previous boot), we must NEVER re-seed. Re-seeding on every
+// boot is exactly what used to resurrect admin-deleted seed stickers/tags:
+// every seed row was (re)inserted with a fresh random UUID and only the
+// unique token/label guarded against duplicates — a deleted row no longer
+// conflicts, so it came back. The marker makes initialization happen
+// exactly once; after that, a restart is a no-op for seeding.
+const SEED_MARKER_KEY = 'seed:initialized';
+const SEED_MARKER_VALUE = '1';
+
+async function isInitialized(db: DB): Promise<boolean> {
+  const rows = await db
+    .select({ value: appMeta.value })
+    .from(appMeta)
+    .where(eq(appMeta.key, SEED_MARKER_KEY))
+    .limit(1);
+  return rows.length > 0 && rows[0].value === SEED_MARKER_VALUE;
+}
+
+async function markInitialized(db: DB): Promise<void> {
+  await db
+    .insert(appMeta)
+    .values({ key: SEED_MARKER_KEY, value: SEED_MARKER_VALUE })
+    .onConflictDoUpdate({ target: appMeta.key, set: { value: SEED_MARKER_VALUE } });
+}
+
 export async function seedIfEmpty(db: DB) {
+  // If this database was already initialized on a previous boot, do not
+  // re-seed. This is the core of the fix: an admin's deletion of a seeded
+  // sticker/tag is now permanent across restarts.
+  if (await isInitialized(db)) {
+    return;
+  }
+
   const rows = await db.select({ n: sql<number>`count(*)` }).from(users);
   if (Number(rows[0]?.n ?? 0) > 0) {
-    // Even if users exist, make sure the default tags/stickers are
-    // present (idempotent on a fresh deploy with no seed data).
+    // Pre-existing deployment (predates the initialization marker): bring
+    // the default tags/stickers up to date ONCE, then mark as initialized
+    // so a later boot never resurrects a deliberately deleted seed row.
     await ensureStickersAndTags(db);
+    await markInitialized(db);
     return;
   }
 
@@ -189,6 +227,7 @@ print(' '.join(w[::-1] for w in sentence.split()))`,
     await db.insert(stickers).values({ id: randomUUID(), ...s, createdAt: new Date(now) }).onConflictDoNothing();
   }
 
+  await markInitialized(db);
   console.log('[vibebin] seeded demo data (demo/demo1234)');
 }
 
