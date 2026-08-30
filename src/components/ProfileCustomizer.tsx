@@ -611,28 +611,26 @@ export default function ProfileCustomizer({
                 {(state.displayName || username).slice(0, 1).toUpperCase()}
               </span>
             )}
-            <h3 className="mt-3 break-words text-2xl font-black tracking-tight">
+            <div className="mt-3 flex flex-wrap items-center gap-x-2">
+              <h3 className="min-w-0 break-words text-2xl font-black tracking-tight">
+                <NameDisplay
+                  text={state.displayName || username}
+                  from={state.nameFrom}
+                  to={state.nameTo}
+                  style={state.nameStyle}
+                  effect={state.nameEffect}
+                  speed={state.effectSpeed}
+                  intensity={state.effectIntensity}
+                />
+              </h3>
+              {/* Status emoji/GIF sits after the display name, matching the profile page. */}
               <EmojiStatus
                 value={state.statusEmoji}
                 pack={statusStickers.length > 0 ? statusStickers : undefined}
-                className="mr-1.5 inline-block align-[-0.12em] text-[0.85em]"
+                className="text-xl leading-none"
               />
-              <NameDisplay
-                text={state.displayName || username}
-                from={state.nameFrom}
-                to={state.nameTo}
-                style={state.nameStyle}
-                effect={state.nameEffect}
-                speed={state.effectSpeed}
-                intensity={state.effectIntensity}
-              />
-            </h3>
+            </div>
             <p className="mt-0.5 break-words text-xs text-zinc-500">
-              <EmojiStatus
-                value={state.statusEmoji}
-                pack={statusStickers.length > 0 ? statusStickers : undefined}
-                className="mr-1"
-              />
               @{username}
               {state.statusText && <span className="text-zinc-600"> · {state.statusText}</span>}
             </p>
