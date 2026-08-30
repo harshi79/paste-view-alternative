@@ -79,8 +79,11 @@ export const passwordResets = sqliteTable(
 );
 
 // ------------------------------------------------------------------
-// Pastes — content may be plain text OR rich-text JSON (the new
-// "rich" format that supports font / color / emoji tokens).
+// Pastes — the unified editor creates every new paste as a 'rich' row:
+// content is a JSON `RichDoc` whose lines may be completely unstyled
+// (that IS the plain text case) or carry font / size / color / token
+// formatting. 'plain' rows (raw text content) are the legacy format:
+// still served and rendered exactly as before, never newly created.
 // ------------------------------------------------------------------
 export const pastes = sqliteTable(
   'pastes',

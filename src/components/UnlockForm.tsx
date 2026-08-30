@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { parsePasteContent, isRichDoc } from '@/lib/pasteFormat';
 
 // Loaded only after the visitor unlocks a protected paste — keeps
 // highlight.js out of the initial bundle of the paste page.
@@ -10,12 +11,30 @@ const PasteViewerClient = dynamic(() => import('./PasteViewerClient'), {
   loading: () => <div className="py-10 text-center text-sm text-zinc-500">Unlocking…</div>,
 });
 
+// Unified (rich-doc) pastes render through the same viewer the public
+// paste page uses; stickers resolve via the shared client-side pack loader.
+const RichPasteViewClient = dynamic(() => import('./RichPasteView'), {
+  ssr: false,
+  loading: () => <div className="py-10 text-center text-sm text-zinc-500">Unlocking…</div>,
+});
+
+type Unlocked = { content: string; language: string; format: string };
+
 /** Password gate for protected pastes — content is only fetched after unlock. */
 export default function UnlockForm({ pasteId }: { pasteId: string }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [unlocked, setUnlocked] = useState<{ content: string; language: string } | null>(null);
+  const [unlocked, setUnlocked] = useState<Unlocked | null>(null);
+
+  // Same dispatch as the paste page: 'rich' rows that parse as a valid
+  // RichDoc go to the rich renderer, everything else (legacy 'plain' rows,
+  // or malformed rich rows) falls back to the plain viewer.
+  const richDoc = useMemo(() => {
+    if (!unlocked) return null;
+    const parsed = parsePasteContent(unlocked.format, unlocked.content);
+    return isRichDoc(parsed) ? parsed : null;
+  }, [unlocked]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,11 +51,15 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
       setError(data.error || 'Wrong password.');
       return;
     }
-    setUnlocked({ content: data.content, language: data.language });
+    setUnlocked({ content: data.content, language: data.language, format: data.format ?? 'plain' });
   }
 
   if (unlocked) {
-    return <PasteViewerClient content={unlocked.content} language={unlocked.language} />;
+    return richDoc ? (
+      <RichPasteViewClient doc={richDoc} />
+    ) : (
+      <PasteViewerClient content={unlocked.content} language={unlocked.language} />
+    );
   }
 
   return (

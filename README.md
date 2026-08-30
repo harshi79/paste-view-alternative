@@ -7,11 +7,14 @@ custom colors and links, badges) is free for everyone.
 ## Features
 
 ### Pastes
-- One unified paste page with a clear **Basic / Rich** toggle at the top — the same form, options
-  and permission rules in both modes
+- One unified editor — no Text vs Rich mode to pick. Every paste is a single document that can
+  mix plain text with rich formatting, using the same form, options and permission rules
 - Create pastes as a **guest** (no account needed) or as a member
-- **Basic**: plain text / code with **syntax highlighting** for 19 languages and line numbers
-- **Rich**: per-line font, size and color, inline emoji and custom **sticker/GIF** rendering
+- Plain text and code are the unstyled case of the same editor (default monospace lines); the
+  per-line **font, size and color** controls layer formatting on top — big sizes cover headings,
+  `-`/`•` lines cover lists, links and sticker/emoji shortcodes auto-resolve in both cases
+- **Legacy plain pastes** (raw text + syntax highlighting for 19 languages, line numbers) are
+  still served and render exactly as before; their URLs never change
 - Sticker shortcodes (`:wave:` / `;fire;`) are converted automatically to the real sticker or
   emoji — no manual attachments, no shortcode text in the result, animated stickers render in the
   composer preview and the rendered paste

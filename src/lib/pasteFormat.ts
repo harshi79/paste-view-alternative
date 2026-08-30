@@ -1,7 +1,14 @@
 // ------------------------------------------------------------------
-// Paste content format (v2).
+// Paste content format (v3 — unified editor).
 //
-// Pastes are stored in one of two formats:
+// The creation flow is ONE editor producing ONE document: a JSON-encoded
+// `RichDoc` stored under format 'rich'. Plain text is simply a RichDoc
+// whose lines carry no styling/marks, so text, code (mono font), links,
+// headings/lists (per-line size) and rich formatting all coexist in a
+// single paste — no mode toggle is needed at creation time.
+//
+// Legacy storage formats (still rendered, never created by the unified
+// editor):
 //
 //   "plain"  — a plain string. Rendered with the existing viewer
 //              (highlight.js + line numbers). Links are auto-linked.
@@ -11,9 +18,9 @@
 //              (emoji, sticker, link). Always rendered through
 //              <RichPasteView> which links URLs but never previews.
 //
-// A rich paste is created from the rich-text editor (the new "Editor"
-// component) which emits a serialised RichDoc.  The plain-text editor
-// still works and posts `format: "plain"`.
+// Backward compatibility: every read path (viewer page, raw/download,
+// unlock) accepts both shapes; `parsePasteContent` falls back to the
+// raw string if a 'rich' row does not parse as a valid RichDoc.
 // ------------------------------------------------------------------
 
 import type { ReactNode } from 'react';
@@ -76,6 +83,34 @@ export function parsePasteContent(format: string, content: string): RichDoc | st
     return content;
   }
   return content;
+}
+
+/**
+ * Flattens a RichDoc back to plain text (one line per doc line; sticker /
+ * emoji shortcodes stay as their literal text, links keep their URL text).
+ * Used by raw/download, "Copy content" and the paste page — anything that
+ * needs the readable text of a unified paste regardless of formatting.
+ */
+export function richDocToPlainText(doc: RichDoc): string {
+  return doc.lines.map((l) => l.text ?? '').join('\n');
+}
+
+/**
+ * True when a doc carries actual rich formatting — a per-line font, size,
+ * color, or a sticker/emoji token mark. Auto-detected link marks do NOT
+ * count: the plain viewer auto-links URLs too, so a paste that merely
+ * contains a URL is not "richer" than a plain paste. Lets the UI badge
+ * genuinely formatted pastes without reintroducing a Text/Rich mode.
+ */
+export function hasRichFormatting(doc: RichDoc | string): boolean {
+  if (typeof doc === 'string') return false;
+  return doc.lines.some(
+    (l) =>
+      l.font !== undefined ||
+      l.size !== undefined ||
+      l.color !== undefined ||
+      (l.marks ?? []).some((m) => m.kind === 'sticker' || m.kind === 'emoji'),
+  );
 }
 
 const FONT_OPTIONS = [

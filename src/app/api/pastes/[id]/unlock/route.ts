@@ -25,6 +25,7 @@ export async function POST(req: Request, { params }: Props) {
     .select({
       content: pastes.content,
       language: pastes.language,
+      format: pastes.format,
       passwordHash: pastes.passwordHash,
       expiresAt: pastes.expiresAt,
     })
@@ -38,10 +39,13 @@ export async function POST(req: Request, { params }: Props) {
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ error: 'This paste has expired.' }, { status: 410 });
   }
+  // `format` lets the client pick the right renderer after unlock
+  // (unified/rich pastes store a RichDoc JSON that must never be shown
+  // as raw text). Content still only ever leaves after a password match.
   if (!paste.passwordHash) {
     // Unprotected pastes are counted on the page itself; this endpoint
     // should only be called for protected ones, so bail without counting.
-    return NextResponse.json({ content: paste.content, language: paste.language });
+    return NextResponse.json({ content: paste.content, language: paste.language, format: paste.format });
   }
 
   const ok = await verifyPassword(String(body.password ?? ''), paste.passwordHash);
@@ -52,5 +56,5 @@ export async function POST(req: Request, { params }: Props) {
   // The visitor successfully unlocked the paste — count this as a view.
   await incrementPasteViews(id);
 
-  return NextResponse.json({ content: paste.content, language: paste.language });
+  return NextResponse.json({ content: paste.content, language: paste.language, format: paste.format });
 }
