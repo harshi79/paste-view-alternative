@@ -1,155 +1,115 @@
-# Deploying VibeBin v2 to Vercel
+# Deploying VibeBin to Vercel
 
-This is the full step-by-step. Your previous deployment already had the
-base env vars (`DATABASE_URL` and `AUTH_SECRET`) — you only need to add
-**one new variable** for the admin panel.
+This is the full step-by-step for deploying VibeBin to Vercel with a
+**Turso** (libSQL/SQLite) database.
 
-## 0. Pull the latest code
-
-The PR is at: **https://github.com/harshi79/paste-view-alternative/pull/2**
-
-Either merge it on GitHub and let Vercel auto-deploy, **or** make Vercel
-deploy the branch directly:
-
-1. Go to https://vercel.com → your VibeBin project.
-2. Settings → Git → "Production Branch" → change to
-   `arena/01a048ff-paste-view-alternative` (or merge PR #2 into `main` first,
-   whichever you prefer).
-3. Save. Vercel will start a new deployment.
-
-> If you don't merge first, your production URL will keep running the old
-> code. So either merge the PR or re-point the production branch.
+> Migration note: VibeBin previously ran on Neon PostgreSQL. The current
+> runtime uses Turso exclusively — there is no `DATABASE_URL`/Neon setup
+> anymore. If you still have Neon variables configured on your Vercel
+> project, you can leave them in place (they are ignored), but the variables
+> that actually matter are the Turso ones below.
 
 ## 1. The environment variables you need
 
 Vercel → your project → **Settings** → **Environment Variables**.
 
-| Name                | Value                              | Which envs          | Notes                                                                                              |
-| ------------------- | ---------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`      | *(already set)*                    | Production, Preview | Your Neon **pooled** connection string. Leave as is.                                              |
-| `AUTH_SECRET`       | *(already set)*                    | Production, Preview | The JWT signing secret. Leave as is.                                                               |
-| **`ADMIN_PASSWORD`**| *(you pick this)*                  | Production, Preview | **NEW.** Any long string you want. This unlocks `/admin`. It is never committed to the repo.       |
+| Name                  | Value                                         | Which envs          | Notes                                                                  |
+| --------------------- | --------------------------------------------- | ------------------- | ---------------------------------------------------------------------- |
+| `TURSO_DATABASE_URL`  | your Turso database URL (`libsql://…`)        | Production, Preview | **Required on Vercel.** The app refuses to boot without it.            |
+| `TURSO_AUTH_TOKEN`    | your Turso auth token                         | Production, Preview | Required to connect to a remote Turso database.                        |
+| `AUTH_SECRET`         | a long random string                          | Production, Preview | The JWT signing secret (min 32 chars).                                 |
+| `ADMIN_PASSWORD`      | any long string you pick                      | Production, Preview | Unlocks `/admin`. Never commit the real value to git.                  |
+| `GIPHY_API_KEY`       | *(optional)* your Giphy API key               | Production, Preview | For GIF search in the editor. Falls back to a public beta key when unset. |
+| `RESEND_API_KEY`      | *(optional)* your Resend API key              | Production, Preview | Enables email-based recovery flows. Without it those flows are disabled. |
 
-### How to set the new variable
+Generate a secret with:
 
-1. Vercel → your project → **Settings** → **Environment Variables**.
-2. Click **Add New**.
-3. **Name**: `ADMIN_PASSWORD` (exact spelling, all caps, underscore).
-4. **Value**: anything you want, e.g. `super-secret-admin-2026-x9f2`. Treat
-   it like a password — long, random, don't share it.
-5. Tick **Production**, **Preview**, and (optionally) **Development**.
-6. Click **Save**.
-
-> You do **not** need to change `DATABASE_URL` or `AUTH_SECRET`. They're
-> already configured from v1 and the schema auto-migrates on first request.
-
-## 2. Verify the env var is set
-
-After saving, on the same page you should see a row like:
-
-```
-ADMIN_PASSWORD    Production, Preview, Development    xxxxxxxxxxxx
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-If you don't see it, the deployment won't have access to it — Vercel only
-exposes variables that exist on the project when the deployment starts.
+> `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` come from your Turso dashboard:
+> https://turso.tech/app → select your database → copy the database URL, and
+> click **Create Token** to get the auth token.
 
-## 3. Redeploy
+## 2. Set up a Turso database
 
-Vercel → your project → **Deployments** → on the latest deployment click
-the three-dot menu → **Redeploy**.
+1. Create a free database at [turso.tech](https://turso.tech).
+2. On the database page, copy the **database URL** (a `libsql://…` string).
+3. Create an **auth token** and copy it.
+4. Add both as `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in Vercel's
+   environment variables (step 1). Tick **Production** and **Preview**.
 
-(Or just merge the PR — Vercel will auto-build.)
+No migrations to run — the schema is created automatically on first request,
+and seed data is bootstrapped on a fresh database.
 
-Wait for the build to finish (1–2 minutes). Open the deployment URL.
+## 3. Deploy
+
+1. Push this repo to GitHub and import it on [Vercel](https://vercel.com).
+2. Confirm the env vars above are set (Vercel only exposes variables that
+   exist on the project when a deployment starts).
+3. Deploy. On the first request the app creates its tables and seed data.
+   Done.
 
 ## 4. Confirm everything works
 
 Open the home page of your deployment. You should see:
 
-- The new plain/rich editor tabs.
-- "Create a free account" link below the editor.
+- The unified editor canvas (type or paste to start).
+- "Create a free account" below the editor.
 
 Test the admin panel:
 
 1. Visit `https://YOUR-DOMAIN/admin/login` — you should get a password
    prompt (NOT a 404 or a "not configured" error).
-2. Type the `ADMIN_PASSWORD` you set in step 1. Click **Sign in**.
-3. You land on `/admin` with stats and four cards (Users / Tags /
-   Stickers — the 4th is "Overview", which is the page you're on).
-4. Go to **Tags** → create a "Founder" tag with a yellow color and the
-   `gold` effect.
-5. Go to **Users** → click your own account → click the "Founder" tag to
-   assign it. A toast says "Assigned".
-6. Open your public profile (`/u/your-username`) — the gold "Founder"
-   tag should appear under your name.
+2. Type the `ADMIN_PASSWORD` you set. Click **Sign in**.
+3. You land on `/admin` with stats and quick-link cards.
+4. Go to **Tags** → create a tag with a color and optional effect.
+5. Go to **Users** → click a user → assign a tag.
+6. Open that user's public profile — the tag should appear.
 
-## 5. What changed in your database (nothing to do)
+## 5. Keeping the database warm (optional)
 
-On the first request after redeploy, the app runs these idempotent
-statements (so they are safe to run against your existing Neon DB):
+Turso databases are always-on, so there is no "sleep" cold start to work
+around. `vercel.json` does **not** configure a cron in this repo. If you want
+a keep-alive health check anyway, point an external uptime monitor at:
 
-- `ALTER TABLE users ADD COLUMN IF NOT EXISTS username_changed_at`
-- `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_speed`
-- `ALTER TABLE profiles ADD COLUMN IF NOT EXISTS effect_intensity`
-- `ALTER TABLE pastes ADD COLUMN IF NOT EXISTS format`
-- New `signup_ips`, `tags`, `user_tags`, `stickers` tables
-- New case-insensitive unique index on `users.username`
-
-Your existing data is untouched.
-
-## 6. Quick troubleshooting
-
-| Symptom                                                                  | Fix                                                                                  |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `/admin/login` says "ADMIN_PASSWORD is not set on the server."          | The env var wasn't saved or you forgot to redeploy. Save it and redeploy.             |
-| Build fails with a Type error.                                          | Pull the latest branch. The code on `main` does not have v2 — v2 is on the new branch/PR. |
-| 3rd account from your IP gets "You can only create 3 accounts…"          | That's working as designed. Use a different network or VPN to test.                  |
-| `notFound()` after registering a new account on a deployed Vercel URL    | Make sure your Neon **pooled** connection string is the one in `DATABASE_URL`.       |
-| Tag you assigned to a user doesn't show on their profile                 | Hard refresh (Ctrl+Shift+R). The page is `dynamic = 'force-dynamic'`.                |
-
-## 7. Keeping Neon awake (first-load slowness)
-
-**Yes — a slow first load is almost always Neon's free tier putting the
-database compute to sleep** after ~5 minutes of no connections. When a
-visitor hits the site, their request has to wake the database first, which
-adds a few seconds. This is normal for free Neon and not a code bug.
-
-We've shipped three things to make this better:
-
-1. **`/api/ping`** — a tiny health-check endpoint that runs a trivial
-   `SELECT 1` against the DB. Hitting it on an interval keeps the compute
-   warm, so real visitors get an instant response.
-2. **`vercel.json` cron** — Vercel runs `/api/ping` every **5 minutes** on
-   the Hobby plan for free. Just redeploy with the new `vercel.json` and
-   the cron is created automatically (check Project → Settings → Cron Jobs).
-3. **Faster cold starts** — the DB layer now does a single cheap
-   "does `users` exist?" check and only runs the full schema on a truly
-   fresh database, skipping ~15 DDL round-trips on every serverless cold
-   start. Existing deployments only run the small idempotent `ALTER`s.
-
-### Optional: keep it warm with an external uptime monitor
-
-If you'd rather not rely on Vercel's cron, point a free uptime monitor
-(UptimeRobot, Cronitor, etc.) at `https://YOUR-DOMAIN/api/ping` every
-5–10 minutes. Same effect, works on any host.
-
-> Note: Vercel Hobby builds are still serverless — each idle function
-> instance can go cold, but the **database** (the slow part) stays warm as
-> long as `/api/ping` keeps firing. First-load after a long idle may still
-> re-init a function; that's a few hundred ms, not seconds.
-
-## 8. Local dev (optional)
-
-```bash
-git fetch
-git checkout arena/01a048ff-paste-view-alternative
-npm install
-ADMIN_PASSWORD=anything npm run dev
-# open http://localhost:3000
-# open http://localhost:3000/admin/login
+```
+https://YOUR-DOMAIN/api/ping
 ```
 
-Without `DATABASE_URL`, the app uses a local PGlite database stored in
-`.pglite-data/`. Without `ADMIN_PASSWORD`, the admin login page shows a
-"not configured" warning.
+It runs a trivial `SELECT 1` against the database and returns JSON. This is
+purely optional — it is not required for correctness.
+
+## 6. Local development
+
+```bash
+npm install
+npm run dev
+# open http://localhost:3000
+```
+
+With no `TURSO_DATABASE_URL` set, the app uses a local SQLite file
+(`local.db`) — zero configuration. A demo account is seeded on first run:
+
+| Username | Password   |
+| -------- | ---------- |
+| `demo`   | `demo1234` |
+
+To develop against a real Turso database instead:
+
+```bash
+TURSO_DATABASE_URL="libsql://your-db.turso.io" \
+TURSO_AUTH_TOKEN="your-token" \
+npm run dev
+```
+
+## 7. Troubleshooting
+
+| Symptom                                                        | Fix                                                                             |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `TURSO_DATABASE_URL is required on Vercel`                     | The env var wasn't saved or you forgot to redeploy. Add it and redeploy.        |
+| `/admin/login` says "ADMIN_PASSWORD is not set on the server." | Save the `ADMIN_PASSWORD` env var and redeploy.                                 |
+| 3rd account from your IP gets "You can only create 3 accounts…"| Working as designed. Use a different network/VPN to test.                      |
+| Tag you assigned doesn't show on a profile                     | Hard refresh (Ctrl+Shift+R). The page is `dynamic = 'force-dynamic'`.           |
+| `no such table: users`                                         | Schema is created automatically on first connection; check build/runtime logs.  |

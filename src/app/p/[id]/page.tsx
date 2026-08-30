@@ -7,7 +7,7 @@ import { pastes, users, profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
 import { getLikeState, likeActor } from '@/lib/likes';
-import { purgeExpired, incrementPasteViews } from '@/lib/pastes';
+import { purgeExpiredIfDue, incrementPasteViews } from '@/lib/pastes';
 import { formatViews, timeAgo } from '@/lib/format';
 import {
   parsePasteContent,
@@ -54,7 +54,9 @@ export default async function PastePage({ params }: Props) {
 
   const [[paste], , session] = await Promise.all([
     db.select().from(pastes).where(eq(pastes.id, id)).limit(1),
-    purgeExpired(db),
+    // Throttled expiry purge — avoids a DELETE on every page view; expired
+    // pastes are also filtered lazily below.
+    purgeExpiredIfDue(db),
     getSessionUser(),
   ]);
   if (!paste) notFound();

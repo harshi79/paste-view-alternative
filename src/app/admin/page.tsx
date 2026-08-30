@@ -24,7 +24,7 @@ export default async function AdminHome() {
 
   return (
     <div className="pt-10">
-      <AdminNav active="home" />
+      <AdminNav active="/admin" />
       <h1 className="mt-8 text-3xl font-black tracking-tight text-white">Admin</h1>
       <p className="mt-1 text-sm text-zinc-400">
         Operate the site: assign tags to users, manage the tag library, and curate the sticker pack.
