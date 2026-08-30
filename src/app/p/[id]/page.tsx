@@ -29,6 +29,9 @@ export const dynamic = 'force-dynamic';
 
 type Props = { params: Promise<{ id: string }> };
 
+// Shared toolbar button styling — one cohesive action bar for the paste view.
+const TOOLBAR_BTN = 'btn-ghost !rounded-xl !px-3 !py-2 text-xs font-semibold';
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   try {
@@ -124,7 +127,7 @@ export default async function PastePage({ params }: Props) {
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <div className="min-w-0">
           <h1
-            className="break-words text-2xl font-black tracking-tight text-white sm:text-3xl lg:text-4xl"
+            className="max-w-full break-words text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl"
             style={paste.titleColor ? { color: paste.titleColor } : undefined}
           >
             {paste.title}
@@ -134,10 +137,10 @@ export default async function PastePage({ params }: Props) {
             {authorRow ? (
               <Link
                 href={`/u/${authorRow.username}`}
-                className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08]"
+                className="inline-flex min-w-0 max-w-[200px] items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08] sm:max-w-[240px]"
               >
                 <Avatar value={authorRow.avatarUrl} label={authorRow.username} className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="truncate">{authorRow.displayName || authorRow.username}</span>
+                <span className="min-w-0 truncate">{authorRow.displayName || authorRow.username}</span>
               </Link>
             ) : (
               <span className="pill !py-1 !text-xs">Guest author</span>
@@ -156,15 +159,15 @@ export default async function PastePage({ params }: Props) {
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           <LikeButton pasteId={paste.id} initialCount={likeState.count} initialLiked={likeState.liked} />
           <CopyLinkButton id={paste.id} />
-          {!locked && richDoc && <CopyButton text={richDocToPlainText(richDoc)} label="Copy content" />}
-          {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" />}
+          {!locked && richDoc && <CopyButton text={richDocToPlainText(richDoc)} label="Copy content" className={TOOLBAR_BTN} />}
+          {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" className={TOOLBAR_BTN} />}
           {!locked && (
-            <a href={rawUrl} className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold">
+            <a href={rawUrl} className={TOOLBAR_BTN}>
               Raw view
             </a>
           )}
           {!locked && (
-            <a href={`${rawUrl}?download=1`} className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold">
+            <a href={`${rawUrl}?download=1`} className={TOOLBAR_BTN}>
               Download
             </a>
           )}

@@ -30,7 +30,7 @@ export default function CopyLinkButton({ id }: { id: string }) {
     <button
       type="button"
       onClick={copy}
-      className="btn-primary !rounded-xl !px-3.5 !py-2 text-xs font-semibold"
+      className="btn-primary !rounded-xl !px-3 !py-2 text-xs font-semibold"
     >
       {copied ? '✓ Link copied' : 'Copy link'}
     </button>

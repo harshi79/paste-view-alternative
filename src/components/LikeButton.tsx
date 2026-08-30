@@ -71,7 +71,7 @@ export default function LikeButton({ pasteId, initialCount, initialLiked }: Prop
         aria-label={liked ? 'Unlike this paste' : 'Like this paste'}
         title={liked ? 'Unlike' : 'Like'}
         disabled={busy}
-        className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition-colors disabled:opacity-60 ${
+        className={`inline-flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-60 ${
           liked
             ? 'border-rose-400/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25'
             : 'border-white/10 bg-white/[0.045] text-zinc-300 hover:border-rose-400/40 hover:text-rose-300'
