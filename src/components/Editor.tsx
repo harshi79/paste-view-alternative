@@ -29,7 +29,6 @@ import {
   type SelNode,
 } from '@/lib/editorSelection';
 import {
-  PASTE_MAX_CHARS,
   PASTE_MAX_LINES,
   pasteTooLargeMessage,
   richDocTotals,
@@ -531,34 +530,17 @@ export default function Editor({ username }: Props) {
    * paste.
    *
    * Size policy (src/lib/pasteLimits.ts): the server rejects pastes beyond
-   * PASTE_MAX_CHARS characters / PASTE_MAX_LINES lines, so a paste that
-   * would cross either limit is rejected here BEFORE anything is inserted,
-   * with the same message the server would return — nothing is ever
-   * silently truncated. Every created line inherits the pasted-into line's
-   * formatting and sticker/GIF urls; marks are recomputed from each line's
-   * text and the caret lands at the end of the last pasted line.
+   * PASTE_MAX_LINES lines, so a paste that would cross the line limit is
+   * rejected here BEFORE anything is inserted, with the same message the
+   * server would return — nothing is ever silently truncated. Every
+   * created line inherits the pasted-into line's formatting and
+   * sticker/GIF urls; marks are recomputed from each line's text and the
+   * caret lands at the end of the last pasted line.
    */
   function handleLinePaste(i: number, e: React.ClipboardEvent<HTMLDivElement>) {
     const pasted = e.clipboardData?.getData('text/plain') ?? '';
     if (pasted === '') return; // default handles it (an empty paste is a no-op)
     const addedLines = pasted.includes('\n') ? pasted.split('\n').length - 1 : 0;
-    // Single-line pastes are inserted by the browser's default handler,
-    // which replaces the current selection when it lies inside this line —
-    // count that removed text so the guard matches the real outcome.
-    let removedChars = 0;
-    if (addedLines === 0) {
-      const sel = window.getSelection();
-      if (sel && !sel.isCollapsed) {
-        const a = resolveSelectionEndpoint(sel.anchorNode, sel.anchorOffset);
-        const f = resolveSelectionEndpoint(sel.focusNode, sel.focusOffset);
-        if (a && f && a.line === f.line) removedChars = Math.abs(f.offset - a.offset);
-      }
-    }
-    if (richChars - removedChars + pasted.length > PASTE_MAX_CHARS) {
-      e.preventDefault();
-      setError(pasteTooLargeMessage('chars'));
-      return;
-    }
     if (rich.lines.length + addedLines > PASTE_MAX_LINES) {
       e.preventDefault();
       setError(pasteTooLargeMessage('lines'));
@@ -758,14 +740,10 @@ export default function Editor({ username }: Props) {
       setError('Paste content is required.');
       return;
     }
-    // The editor enforces the same explicit limits the server validates
+    // The editor enforces the same explicit limit the server validates
     // (the server remains the final authority), so an oversized paste
     // fails clearly here instead of a confusing submit round trip.
     const totals = richDocTotals(rich);
-    if (totals.chars > PASTE_MAX_CHARS) {
-      setError(pasteTooLargeMessage('chars'));
-      return;
-    }
     if (totals.lines > PASTE_MAX_LINES) {
       setError(pasteTooLargeMessage('lines'));
       return;
@@ -830,7 +808,7 @@ export default function Editor({ username }: Props) {
   const fieldLabel = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
   const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
   const richLines = rich.lines.length;
-  const overLimit = richChars > PASTE_MAX_CHARS || richLines > PASTE_MAX_LINES;
+  const overLimit = richLines > PASTE_MAX_LINES;
   const currentLine = rich.lines[activeLine] ?? rich.lines[0];
   const currentFont = FONTS.find((f) => f.id === (currentLine?.font ?? DEFAULT_FONT))?.label ?? 'Mono';
   const currentSize = currentLine?.size ?? 14;
@@ -886,8 +864,8 @@ export default function Editor({ username }: Props) {
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
                 <span>Characters</span>
-                <span className={`font-medium ${richChars > PASTE_MAX_CHARS ? 'text-red-300' : 'text-zinc-200'}`}>
-                  {richChars.toLocaleString()} / {PASTE_MAX_CHARS.toLocaleString()}
+                <span className="font-medium text-zinc-200">
+                  {richChars.toLocaleString()}
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-500">
@@ -1240,7 +1218,7 @@ export default function Editor({ username }: Props) {
       >
         <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <span className={`pill ${overLimit ? 'border-red-400/40 text-red-300' : ''}`}>
-            {`${richChars.toLocaleString()} / ${PASTE_MAX_CHARS.toLocaleString()} chars · `}
+            {`${richChars.toLocaleString()} chars · `}
             {`${richLines.toLocaleString()} / ${PASTE_MAX_LINES.toLocaleString()} lines`}
           </span>
           <span className="pill">

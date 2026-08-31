@@ -6,7 +6,6 @@ import { generatePasteId, expiryFromId, EXPIRY_OPTIONS } from '@/lib/pastes';
 import { isLanguage } from '@/lib/languages';
 import { isRichDoc, richDocLinksAreSafe, type RichDoc } from '@/lib/pasteFormat';
 import {
-  PASTE_MAX_CHARS,
   pasteTooLargeMessage,
   richDocLimitExceeded,
   richDocTotals,
@@ -71,9 +70,6 @@ export async function POST(req: Request) {
   } else {
     if (!content.trim()) {
       return NextResponse.json({ error: 'Paste content is required.' }, { status: 400 });
-    }
-    if (content.length > PASTE_MAX_CHARS) {
-      return NextResponse.json({ error: pasteTooLargeMessage('chars') }, { status: 413 });
     }
   }
 

@@ -3,28 +3,26 @@
 // and the paste creation endpoint.
 //
 // POST /api/pastes is the FINAL authority: it rejects content beyond
-// these limits with 413 and never stores it. The editor mirrors the
-// same numbers so the canvas never presents itself as unlimited: live
-// characters/lines counters measure against these limits, oversize
-// pastes are rejected up front (never silently truncated), and
-// submission is blocked while over a limit — with the server's own
-// check remaining the backstop for every other client.
+// this limit with 413 and never stores it. The editor mirrors the same
+// number so the canvas never presents itself as unlimited: the live
+// line counter measures against this limit, oversize pastes are
+// rejected up front (never silently truncated), and submission is
+// blocked while over the limit — with the server's own check remaining
+// the backstop for every other client.
 //
-// Why these numbers:
-// - 100,000 characters: the long-standing server-side protection for
-//   paste bodies. Kept as-is — it bounds storage, transport and render
-//   cost while staying generous for a paste product.
-// - 20,000 lines: the character limit alone does not bound document
-//   shape. The editor renders one contentEditable per line and the
-//   viewer renders line-by-line, so a paste of hundreds of thousands of
-//   one-character lines would sail under the character limit while
-//   creating a pathological document. 20,000 lines keeps both surfaces
-//   responsive and is far above typical paste sizes.
+// Why this number:
+// - 20,000 lines: the editor renders one contentEditable per line and
+//   the viewer renders line-by-line, so a paste of hundreds of
+//   thousands of one-character lines would create a pathological
+//   document. 20,000 lines keeps both surfaces responsive and is far
+//   above typical paste sizes.
+// - No application-level character limit: any character count is
+//   accepted as long as the line count is within the limit, subject
+//   only to normal runtime/request/database constraints.
 // ------------------------------------------------------------------
 
 import type { RichDoc } from '@/lib/pasteFormat';
 
-export const PASTE_MAX_CHARS = 100_000;
 export const PASTE_MAX_LINES = 20_000;
 
 export type PasteTotals = { chars: number; lines: number };
@@ -36,17 +34,14 @@ export function richDocTotals(doc: RichDoc): PasteTotals {
   return { chars, lines: doc.lines.length };
 }
 
-/** The first limit a doc exceeds, or null when it fits both. */
-export function richDocLimitExceeded(doc: RichDoc): 'chars' | 'lines' | null {
+/** The first limit a doc exceeds, or null when it fits. Only line limit remains. */
+export function richDocLimitExceeded(doc: RichDoc): 'lines' | null {
   const totals = richDocTotals(doc);
-  if (totals.chars > PASTE_MAX_CHARS) return 'chars';
   if (totals.lines > PASTE_MAX_LINES) return 'lines';
   return null;
 }
 
 /** The single, shared "too large" message the editor and server both use. */
-export function pasteTooLargeMessage(limit: 'chars' | 'lines'): string {
-  return limit === 'chars'
-    ? `Paste is too large (${PASTE_MAX_CHARS.toLocaleString('en-US')} characters max).`
-    : `Paste is too large (${PASTE_MAX_LINES.toLocaleString('en-US')} lines max).`;
+export function pasteTooLargeMessage(limit: 'lines'): string {
+  return `Paste is too large (${PASTE_MAX_LINES.toLocaleString('en-US')} lines max).`;
 }
