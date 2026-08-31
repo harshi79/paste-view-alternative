@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db';
 import { users, profiles, signupIps } from '@/lib/db/schema';
 import { hashPassword, createSession } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
+import { isReservedUsername } from '@/lib/usernameReservations';
 
 const RESERVED = new Set([
   'api', 'login', 'register', 'dashboard', 'settings', 'p', 'u', 'new',
@@ -41,6 +42,11 @@ export async function POST(req: Request) {
   }
 
   const db = await getDb();
+
+  // Owner-reserved usernames can never be claimed (case-insensitive).
+  if (await isReservedUsername(db, username)) {
+    return NextResponse.json({ error: 'That username is reserved.' }, { status: 400 });
+  }
 
   // Per-IP signup limit. We check the case-sensitive IP string exactly
   // as it appears in the x-forwarded-for header (first hop). This is the

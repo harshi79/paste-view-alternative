@@ -3,6 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { getSessionUser, createSession } from '@/lib/auth';
+import { isReservedUsername } from '@/lib/usernameReservations';
 
 const RESERVED = new Set([
   'api', 'login', 'register', 'dashboard', 'settings', 'p', 'u', 'new',
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
   }
 
   const db = await getDb();
+  if (await isReservedUsername(db, newName)) {
+    return NextResponse.json({ error: 'That username is reserved.' }, { status: 400 });
+  }
   const [existing] = await db
     .select({ id: users.id })
     .from(users)

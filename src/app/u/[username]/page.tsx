@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes, profiles, users } from '@/lib/db/schema';
 import { getSessionUser, getUserTags, isAdmin } from '@/lib/auth';
+import { getReservationTarget } from '@/lib/usernameReservations';
 import { computeBadges } from '@/lib/badges';
 import { formatDate, formatViews } from '@/lib/format';
 import NameDisplay from '@/components/NameDisplay';
@@ -34,6 +35,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ProfilePage({ params }: Props) {
   const { username } = await params;
   const db = await getDb();
+
+  // Owner-reserved aliases resolve to the owner's real profile (no user
+  // account is created for the alias). Matching is case-insensitive.
+  const reservationTarget = await getReservationTarget(db, username);
+  if (reservationTarget) {
+    redirect(`/u/${reservationTarget}`);
+  }
 
   const [row] = await db
     .select({ user: users, profile: profiles })

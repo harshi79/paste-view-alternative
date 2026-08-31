@@ -236,6 +236,19 @@ export const stickers = sqliteTable('stickers', {
 });
 
 // ------------------------------------------------------------------
+// Username reservations — owner/admin-reserved usernames that normal
+// users can never claim. Each row maps a reserved (lower-cased) name to
+// the canonical username of a real owner profile it redirects to. No user
+// account is created for a reservation.
+// ------------------------------------------------------------------
+export const usernameReservations = sqliteTable('username_reservations', {
+  id: text('id').primaryKey(), // UUID stored as text
+  username: text('username').notNull().unique(),
+  targetUsername: text('target_username').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+// ------------------------------------------------------------------
 // Bootstrap initialization marker.
 //
 // Records that the app's first-install seed data (demo users, default
@@ -292,6 +305,7 @@ export const rateLimits = sqliteTable(
 
 export type User = typeof users.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
+export type UsernameReservation = typeof usernameReservations.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
 export type Like = typeof likes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
