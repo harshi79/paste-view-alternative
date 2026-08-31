@@ -3,20 +3,17 @@
  * Admin broadcast UI tests — the composer that POSTs to the existing
  * /api/admin/notifications endpoint. Backend is not modified here.
  *
- * Covers: fields, live preview, confirmation-before-send, loading /
- * double-submit protection, success (recipient count), error, invalid
- * link, and the request body the existing API expects.
+ * Covers: fields (title + message only — no separate Link input), live
+ * preview (stickers/emoji + clickable links from the message text),
+ * confirmation-before-send, loading / double-submit protection, success
+ * (recipient count), error, and the request body the existing API
+ * expects (which no longer contains a `link`).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
-import BroadcastAdminClient, {
-  MAX_LINK,
-  MAX_MESSAGE,
-  MAX_TITLE,
-  normalizeBroadcastLink,
-} from '@/components/BroadcastAdminClient';
+import BroadcastAdminClient, { MAX_MESSAGE, MAX_TITLE } from '@/components/BroadcastAdminClient';
 
 function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {}) {
   return { ok: init.ok ?? true, status: init.status ?? 200, json: async () => body } as Response;
@@ -65,16 +62,13 @@ function setInputValue(el: HTMLInputElement | HTMLTextAreaElement, value: string
   el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-async function fill(fields: { title?: string; message?: string; link?: string }) {
+async function fill(fields: { title?: string; message?: string }) {
   await act(async () => {
     if (fields.title !== undefined) {
       setInputValue(container.querySelector('#broadcast-title') as HTMLInputElement, fields.title);
     }
     if (fields.message !== undefined) {
       setInputValue(container.querySelector('#broadcast-message') as HTMLTextAreaElement, fields.message);
-    }
-    if (fields.link !== undefined) {
-      setInputValue(container.querySelector('#broadcast-link') as HTMLInputElement, fields.link);
     }
   });
   await flush();
@@ -100,30 +94,14 @@ function confirmButton() {
   );
 }
 
-describe('normalizeBroadcastLink', () => {
-  it('accepts same-origin paths and http(s) URLs, rejects the rest', () => {
-    expect(normalizeBroadcastLink(undefined)).toBeNull();
-    expect(normalizeBroadcastLink('')).toBeNull();
-    expect(normalizeBroadcastLink('  ')).toBeNull();
-    expect(normalizeBroadcastLink('/p/announce')).toBe('/p/announce');
-    expect(normalizeBroadcastLink('https://example.com/x')).toBe('https://example.com/x');
-    expect(normalizeBroadcastLink('http://example.com')).toBe('http://example.com');
-    expect(normalizeBroadcastLink('javascript:alert(1)')).toBeUndefined();
-    expect(normalizeBroadcastLink('//evil.example')).toBeUndefined();
-    expect(normalizeBroadcastLink('data:text/html,hi')).toBeUndefined();
-    expect(normalizeBroadcastLink(1)).toBeUndefined();
-    expect(MAX_TITLE).toBe(120);
-    expect(MAX_MESSAGE).toBe(500);
-    expect(MAX_LINK).toBe(500);
-  });
-});
-
 describe('BroadcastAdminClient', () => {
-  it('renders title, message, optional link, preview, and send control', async () => {
+  it('renders title + message only (no separate Link input) with preview and send control', async () => {
     await render();
     expect(container.querySelector('#broadcast-title')).not.toBeNull();
     expect(container.querySelector('#broadcast-message')).not.toBeNull();
-    expect(container.querySelector('#broadcast-link')).not.toBeNull();
+    // The separate Link field is gone — URLs live inside the message.
+    expect(container.querySelector('#broadcast-link')).toBeNull();
+    expect(container.querySelector('input[name="link"]')).toBeNull();
     expect(container.textContent).toContain('Preview');
     expect(container.textContent).toContain('Send to everyone');
     expect(container.textContent).toContain('12');
@@ -135,11 +113,30 @@ describe('BroadcastAdminClient', () => {
 
   it('updates the preview as the admin types', async () => {
     await render();
-    await fill({ title: 'Maintenance', message: 'Brief downtime.', link: '/p/status' });
+    await fill({ title: 'Maintenance', message: 'Brief downtime.' });
     expect(container.textContent).toContain('Maintenance');
     expect(container.textContent).toContain('Brief downtime.');
-    expect(container.textContent).toContain('/p/status');
     expect(sendButton()?.disabled).toBe(false);
+  });
+
+  it('previews stickers/emoji and clickable links typed in the message', async () => {
+    await render();
+    await fill({ title: 'Hi', message: 'Hello :wave: — check https://example.com' });
+    // :wave: resolves through the existing emoji shortcut when the pack is
+    // empty (the stubbed /api/stickers returns no rows in these tests).
+    expect(container.textContent).toContain('👋');
+    const link = container.querySelector('a[href="https://example.com"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('never turns an unsafe URL scheme into a link in the preview', async () => {
+    await render();
+    await fill({ title: 'Careful', message: 'Click javascript:alert(1) or data:text/html,hi' });
+    // The schemes stay inert plain text — no href is ever produced.
+    expect(container.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(container.querySelector('a[href^="data:"]')).toBeNull();
+    expect(container.textContent).toContain('javascript:alert(1)');
   });
 
   it('asks for confirmation and does not POST until confirmed', async () => {
@@ -163,37 +160,24 @@ describe('BroadcastAdminClient', () => {
     expect(url).toBe('/api/admin/notifications');
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');
+    // No separate `link` field is sent anymore — URLs live in `message`.
     expect(JSON.parse(init.body)).toEqual({
       title: 'Maintenance',
       message: 'VibeBin will be briefly offline.',
     });
+    expect(JSON.parse(init.body).link).toBeUndefined();
     expect(container.textContent).toContain('Sent to 7 recipients.');
     expect((container.querySelector('#broadcast-title') as HTMLInputElement).value).toBe('');
   });
 
-  it('includes a valid optional link in the request body', async () => {
+  it('sends a URL typed inside the message as message text (never as a link field)', async () => {
     await render();
-    await fill({ title: 'Read this', message: 'Details inside.', link: '/p/welcometovb' });
+    await fill({ title: 'Read this', message: 'Details at https://example.com' });
     await click(sendButton()!);
     await click(confirmButton()!);
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-      title: 'Read this',
-      message: 'Details inside.',
-      link: '/p/welcometovb',
-    });
-  });
-
-  it('rejects an unsafe link without calling the API', async () => {
-    await render();
-    await fill({ title: 'Bad', message: 'Nope', link: 'javascript:alert(1)' });
-    expect(container.textContent).toContain('This link will be rejected.');
-    expect(sendButton()?.disabled).toBe(true);
-    await act(async () => {
-      container.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    });
-    await flush();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(container.textContent).toContain('Invalid link.');
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toEqual({ title: 'Read this', message: 'Details at https://example.com' });
+    expect(body.link).toBeUndefined();
   });
 
   it('shows the API error and does not claim success', async () => {

@@ -1,32 +1,19 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
+import BroadcastMessage from './BroadcastMessage';
 
 /** Match POST /api/admin/notifications limits. */
 export const MAX_TITLE = 120;
 export const MAX_MESSAGE = 500;
-export const MAX_LINK = 500;
 
 const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-400';
-
-/**
- * Same-origin app paths and http(s) URLs only — mirrors the admin
- * broadcast route. Returns null for empty, undefined for rejected.
- */
-export function normalizeBroadcastLink(raw: unknown): string | null | undefined {
-  if (raw === undefined || raw === null || raw === '') return null;
-  if (typeof raw !== 'string') return undefined;
-  const link = raw.trim().slice(0, MAX_LINK);
-  if (!link) return null;
-  if (link.startsWith('/') && !link.startsWith('//')) return link;
-  if (/^https?:\/\//i.test(link)) return link;
-  return undefined;
-}
 
 export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: number }) {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [link, setLink] = useState('');
+  const [pack, setPack] = useState<StickerEntry[] | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -37,14 +24,20 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
   const messageValue = message.trim();
   const canCompose = Boolean(titleValue && messageValue) && !busy;
 
+  // Pre-load the sticker pack so the live preview resolves `:wave:` the
+  // same way the final message popup will (shared module-level cache).
+  useEffect(() => {
+    let cancelled = false;
+    loadStickerPack().then((p) => {
+      if (!cancelled) setPack(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function requestConfirm() {
     if (!canCompose || inFlight.current) return;
-    const normalized = normalizeBroadcastLink(link);
-    if (normalized === undefined) {
-      setError('Invalid link.');
-      setConfirming(false);
-      return;
-    }
     setError('');
     setRecipients(null);
     setConfirming(true);
@@ -55,13 +48,8 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
     inFlight.current = true;
     const nextTitle = title.trim().slice(0, MAX_TITLE);
     const nextMessage = message.trim().slice(0, MAX_MESSAGE);
-    const normalized = normalizeBroadcastLink(link);
-    if (!nextTitle || !nextMessage || normalized === undefined) {
+    if (!nextTitle || !nextMessage) {
       inFlight.current = false;
-      if (normalized === undefined) {
-        setError('Invalid link.');
-        setConfirming(false);
-      }
       return;
     }
 
@@ -69,16 +57,13 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
     setError('');
     setRecipients(null);
     try {
-      const body: { title: string; message: string; link?: string } = {
-        title: nextTitle,
-        message: nextMessage,
-      };
-      if (normalized) body.link = normalized;
-
+      // URLs live inside `message` (the composer has no separate link
+      // field anymore); the backend keeps accepting `link` for backward
+      // compatibility but the new UI never sends it.
       const res = await fetch('/api/admin/notifications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ title: nextTitle, message: nextMessage }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: unknown;
@@ -92,7 +77,6 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
       setRecipients(Number.isFinite(n) ? n : 0);
       setTitle('');
       setMessage('');
-      setLink('');
       setConfirming(false);
     } catch {
       setError('Could not send broadcast.');
@@ -112,11 +96,6 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
     if (confirming) void send();
     else requestConfirm();
   }
-
-  const previewTitle = titleValue || 'Title';
-  const previewMessage = messageValue || 'Message';
-  const previewLink = normalizeBroadcastLink(link);
-  const linkOk = previewLink !== undefined;
 
   return (
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)]">
@@ -161,7 +140,7 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
               className="input min-h-28 resize-y"
               value={message}
               maxLength={MAX_MESSAGE}
-              placeholder="What should everyone see?"
+              placeholder={'Hello :wave:\n\nThis is important.\n\nVisit https://example.com'}
               disabled={busy || confirming}
               rows={5}
               onChange={(e) => {
@@ -169,31 +148,12 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
                 setRecipients(null);
               }}
             />
+            <p className="mt-1 text-xs text-zinc-600">
+              Sticker tokens like :wave: and URLs are supported — write links directly in the
+              message.
+            </p>
             <p className="mt-1 text-right font-mono text-[11px] text-zinc-600">
               {message.length}/{MAX_MESSAGE}
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="broadcast-link" className={labelCls}>
-              Link <span className="font-normal normal-case tracking-normal text-zinc-500">(optional)</span>
-            </label>
-            <input
-              id="broadcast-link"
-              name="link"
-              className="input"
-              value={link}
-              maxLength={MAX_LINK}
-              placeholder="/p/announcement or https://…"
-              disabled={busy || confirming}
-              onChange={(e) => {
-                setLink(e.target.value);
-                setRecipients(null);
-                if (error === 'Invalid link.') setError('');
-              }}
-            />
-            <p className="mt-1 text-xs text-zinc-600">
-              Same-origin paths (`/p/…`) or http(s) URLs only.
             </p>
           </div>
 
@@ -244,7 +204,7 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
           ) : (
             <button
               type="submit"
-              disabled={!canCompose || !linkOk}
+              disabled={!canCompose}
               className="btn-primary min-h-11 w-full font-bold sm:min-h-0"
             >
               Send to everyone
@@ -262,20 +222,15 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
           <p
             className={`mt-2 break-words text-sm font-semibold ${titleValue ? 'text-white' : 'text-zinc-600'}`}
           >
-            {previewTitle}
+            {titleValue || 'Title'}
           </p>
-          <p
-            className={`mt-1 break-words text-xs leading-5 ${messageValue ? 'text-zinc-400' : 'text-zinc-600'}`}
-          >
-            {previewMessage}
-          </p>
-          {previewLink ? (
-            <p className="mt-1.5 break-all text-xs font-bold uppercase tracking-wide text-brand-300">
-              Open → {previewLink}
-            </p>
-          ) : link.trim() && !linkOk ? (
-            <p className="mt-1.5 text-xs text-red-400">This link will be rejected.</p>
-          ) : null}
+          <div className="mt-1.5">
+            {messageValue ? (
+              <BroadcastMessage text={messageValue} pack={pack} />
+            ) : (
+              <p className="text-xs leading-5 text-zinc-600">Message</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

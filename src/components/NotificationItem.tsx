@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { NotificationRow, NotificationType } from '@/lib/notifications';
 import { timeAgo } from '@/lib/format';
+import BroadcastMessage from './BroadcastMessage';
 
 export type NotificationItemProps = {
   notification: NotificationRow;
@@ -72,12 +75,14 @@ function NotificationTypeIcon({ type }: { type: NotificationType }) {
  * One notification row inside the bell dropdown / mobile sheet, or the
  * expanded presentation used by the full notification center.
  *
- * Purely presentational — it renders the exact strings the Chat 1 API
+ * Presentational — it renders the exact strings the Chat 1 API
  * returned (title/message/link) and links them to their real targets:
  *   FOLLOW   → actor username links to /u/<username>
  *   LIKE     → actor links to /u/<username>, paste title to /p/<id>
  *   NEW_POST → actor + a compact embedded preview of the exact paste
- *   ADMIN    → stored title/message/link, no actor
+ *   ADMIN    → compact title-only row ("@Admin · time"); clicking the
+ *              title marks the row read and opens the full message popup
+ *              (stickers/links rendered through the existing pipeline)
  *
  * All mutation (mark-read API calls, list state) lives in the parent.
  */
@@ -93,6 +98,57 @@ export default function NotificationItem({
   const time = timeAgo(new Date(n.createdAt));
   const actorHref = n.actor ? `/u/${n.actor.username}` : null;
   const pasteHref = n.pasteId ? `/p/${n.pasteId}` : null;
+
+  // ADMIN popup state — the compact row shows only the title; clicking it
+  // marks the row read (same as every other activation) and opens the full
+  // broadcast message in a modal rendered through a portal (the dropdown
+  // panel keeps a transform after its pop animation, so a plain `fixed`
+  // child would be positioned relative to the panel instead of the
+  // viewport).
+  const [adminOpen, setAdminOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  function openAdminPopup() {
+    onActivate(n);
+    setAdminOpen(true);
+  }
+
+  function closeAdminPopup() {
+    setAdminOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  // Close the popup on Escape or on any pointer-down outside the dialog.
+  useEffect(() => {
+    if (!adminOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setAdminOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    function onPointerDown(e: MouseEvent | TouchEvent) {
+      const target = e.target as Node | null;
+      if (dialogRef.current && target && dialogRef.current.contains(target)) return;
+      setAdminOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+    };
+  }, [adminOpen]);
+
+  // Move focus into the dialog when it opens so Escape works immediately.
+  useEffect(() => {
+    if (adminOpen) dialogRef.current?.focus();
+  }, [adminOpen]);
 
   // FOLLOW/LIKE/NEW_POST titles are written by the backend as
   // "@username <verb>". Split exactly there so the username becomes the
@@ -160,7 +216,20 @@ export default function NotificationItem({
               : 'text-sm leading-snug text-zinc-300'
           }
         >
-          {linkedTitle ? (
+          {n.type === 'ADMIN' ? (
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={openAdminPopup}
+              className={`break-words text-left font-semibold text-white transition-colors hover:text-brand-300 hover:underline hover:underline-offset-2 ${
+                center ? 'text-sm sm:text-[15px]' : 'text-sm'
+              }`}
+              aria-haspopup="dialog"
+              aria-expanded={adminOpen}
+            >
+              {n.title}
+            </button>
+          ) : linkedTitle ? (
             <>
               <Link
                 href={actorHref!}
@@ -177,15 +246,17 @@ export default function NotificationItem({
               {n.title}
             </span>
           )}
-          <span
-            className={
-              center
-                ? 'ml-2 whitespace-nowrap text-xs text-zinc-500'
-                : 'ml-1.5 whitespace-nowrap text-xs text-zinc-500'
-            }
-          >
-            · {time}
-          </span>
+          {n.type !== 'ADMIN' && (
+            <span
+              className={
+                center
+                  ? 'ml-2 whitespace-nowrap text-xs text-zinc-500'
+                  : 'ml-1.5 whitespace-nowrap text-xs text-zinc-500'
+              }
+            >
+              · {time}
+            </span>
+          )}
         </p>
 
         {/* LIKE — the exact post the actor liked, linked to /p/<id>. */}
@@ -238,42 +309,60 @@ export default function NotificationItem({
           </Link>
         )}
 
-        {/* ADMIN — the stored broadcast title/message/link, rendered cleanly. */}
+        {/* ADMIN — compact title-only row. The full broadcast message is
+            deliberately NOT shown here: the title opens the popup below. */}
         {n.type === 'ADMIN' && (
-          <>
-            {n.message && (
-              <p className="mt-1 break-words text-xs leading-5 text-zinc-400">{n.message}</p>
-            )}
-            {n.link && (
-              <Link
-                href={n.link}
-                onClick={() => onActivate(n)}
-                className={
-                  center
-                    ? 'mt-1.5 inline-block min-h-11 py-3 text-xs font-bold uppercase tracking-wide text-brand-300 transition-colors hover:text-brand-200 sm:min-h-0 sm:py-0'
-                    : 'mt-1.5 inline-block text-xs font-bold uppercase tracking-wide text-brand-300 transition-colors hover:text-brand-200'
-                }
-              >
-                Open →
-              </Link>
-            )}
-            {!n.link && !n.isRead && (
-              <button
-                type="button"
-                onClick={() => onMarkRead(n)}
-                disabled={center ? busy : undefined}
-                className={
-                  center
-                    ? 'mt-1.5 min-h-11 rounded-md border border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-400 transition-colors hover:border-[#40404f] hover:text-white disabled:opacity-50 sm:min-h-0'
-                    : 'mt-1.5 rounded-md border border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-400 transition-colors hover:border-[#40404f] hover:text-white'
-                }
-              >
-                {center && busy ? 'Saving…' : 'Mark as read'}
-              </button>
-            )}
-          </>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            @Admin · {time}
+          </p>
         )}
       </div>
+
+      {/* ADMIN message popup — full broadcast message with the existing
+          sticker/link rendering. Portaled to <body> so the bell's
+          transformed dropdown panel can never clip or misposition it. */}
+      {n.type === 'ADMIN' &&
+        adminOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 sm:p-6">
+            <div
+              aria-hidden
+              onClick={closeAdminPopup}
+              className="absolute inset-0 bg-black/75 backdrop-blur-[2px]"
+            />
+            <div
+              ref={dialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={n.title}
+              tabIndex={-1}
+              className="relative flex max-h-[82dvh] w-full max-w-lg flex-col overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] shadow-[8px_8px_0_0_var(--vb-ink)] outline-none"
+            >
+              <div className="flex items-start justify-between gap-3 border-b-2 border-dashed border-[color:var(--vb-line-soft)] px-4 py-3 sm:px-5 sm:py-4">
+                <div className="min-w-0">
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
+                    Admin broadcast
+                  </p>
+                  <h2 className="mt-1 break-words text-base font-black leading-snug text-white sm:text-lg">
+                    {n.title}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeAdminPopup}
+                  aria-label="Close broadcast"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] text-lg leading-none text-zinc-400 transition-colors hover:border-[#40404f] hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+                <BroadcastMessage text={n.message} />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </li>
   );
 }

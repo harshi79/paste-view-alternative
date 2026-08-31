@@ -1,22 +1,23 @@
+// @vitest-environment jsdom
 /**
  * Notification UI tests (Chat 2) — presentational row contract.
  *
- * NotificationItem is a pure presentational component (no hooks), so the
- * element trees are exercised directly: renderToStaticMarkup for markup
- * assertions and direct invocation for the click handlers. next/link is
- * mocked as a plain anchor, following the followUi/adminNav patterns.
- *
- * Covers the Chat 2 rendering contract for every Chat 1 type:
+ * NotificationItem renders the exact strings the API returned
+ * (title/message/link) and links them to their real targets:
  *   FOLLOW   → "@username follows you", username links to /u/<username>
  *   LIKE     → actor profile link + the exact post linked to /p/<id>
  *   NEW_POST → actor profile link + embedded preview of the exact post
- *   ADMIN    → stored title/message/link, no actor
- * plus unread/read distinction, relative time, explicit mark-as-read for
- * linkless ADMIN rows, and no nested interactive elements.
+ *   ADMIN    → compact title-only row ("@Admin · time"), title opens the
+ *              full message popup
+ *
+ * Markup shape is asserted with renderToStaticMarkup; click behavior is
+ * driven with real DOM (createRoot + act) since the ADMIN popup uses
+ * hooks.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createElement, type ReactElement, type ReactNode } from 'react';
+import { act, createElement, type ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 
 vi.mock('next/link', async () => {
   const React = await import('react');
@@ -49,6 +50,10 @@ import type { NotificationRow } from '@/lib/notifications';
 
 const noop = () => {};
 
+function jsonResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => body } as Response;
+}
+
 function makeNotification(overrides: Partial<NotificationRow> = {}): NotificationRow {
   return {
     id: 'n1',
@@ -74,47 +79,49 @@ function render(
   );
 }
 
-// Element-tree helpers for direct invocation (component has no hooks).
-type HostEl = ReactElement<Record<string, unknown> & { children?: unknown }>;
+// --- real-DOM helpers for interaction tests ---------------------------------
 
-/** Expand function components (e.g. the mocked next/link) into host elements. */
-function expand(node: unknown): unknown {
-  if (node == null || typeof node !== 'object' || Array.isArray(node)) return node;
-  const el = node as ReactElement<Record<string, unknown>>;
-  if (typeof el.type === 'function') {
-    return expand((el.type as (props: Record<string, unknown>) => unknown)(el.props));
+let container: HTMLDivElement | null = null;
+let root: Root | null = null;
+
+beforeEach(() => {
+  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ stickers: [] })));
+});
+
+afterEach(async () => {
+  if (root) {
+    const r = root;
+    await act(async () => {
+      r.unmount();
+    });
+    root = null;
   }
-  return node;
-}
-
-function walk(node: unknown, visit: (el: HostEl) => void): void {
-  node = expand(node);
-  if (node == null || typeof node !== 'object') return;
-  if (Array.isArray(node)) {
-    node.forEach((n) => walk(n, visit));
-    return;
+  if (container) {
+    container.remove();
+    container = null;
   }
-  const el = node as HostEl;
-  if (typeof el.type === 'string') visit(el);
-  walk(el.props.children, visit);
+  vi.unstubAllGlobals();
+});
+
+async function mount(n: NotificationRow, onActivate: (n: NotificationRow) => void = noop) {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  const r = createRoot(container);
+  root = r;
+  await act(async () => {
+    r.render(createElement(NotificationItem, { notification: n, onActivate, onMarkRead: noop }));
+  });
+  await act(async () => {
+    await new Promise((r2) => setTimeout(r2, 0));
+  });
 }
 
-function firstAnchor(el: unknown): HostEl {
-  let found: HostEl | null = null;
-  walk(el, (n) => {
-    if (found === null && n.type === 'a') found = n;
+async function click(el: Element) {
+  await act(async () => {
+    (el as HTMLElement).click();
+    await new Promise((r) => setTimeout(r, 0));
   });
-  if (!found) throw new Error('no anchor found');
-  return found;
-}
-
-function firstButton(el: unknown): HostEl {
-  let found: HostEl | null = null;
-  walk(el, (n) => {
-    if (found === null && n.type === 'button') found = n;
-  });
-  if (!found) throw new Error('no button found');
-  return found;
 }
 
 // --- FOLLOW ----------------------------------------------------------------
@@ -142,12 +149,13 @@ describe('NotificationItem — FOLLOW', () => {
     expect(html).toContain('5m ago');
   });
 
-  it('calls onActivate when the actor link is clicked', () => {
+  it('calls onActivate when the actor link is clicked', async () => {
     const onActivate = vi.fn();
     const n = makeNotification();
-    const el = NotificationItem({ notification: n, onActivate, onMarkRead: noop });
-    const anchor = firstAnchor(el);
-    (anchor.props.onClick as () => void)();
+    await mount(n, onActivate);
+    const anchor = container!.querySelector('a[href="/u/yori"]') as HTMLAnchorElement;
+    expect(anchor).not.toBeNull();
+    await click(anchor);
     expect(onActivate).toHaveBeenCalledWith(n);
   });
 });
@@ -173,15 +181,13 @@ describe('NotificationItem — LIKE', () => {
     expect(html).toContain('Python API Example');
   });
 
-  it('calls onActivate when the post link is clicked', () => {
+  it('calls onActivate when the post link is clicked', async () => {
     const onActivate = vi.fn();
     const n = like();
-    const el = NotificationItem({ notification: n, onActivate, onMarkRead: noop });
-    let anchor: HostEl | null = null;
-    walk(el, (x) => {
-      if (x.type === 'a' && x.props.href === '/p/p123') anchor = x;
-    });
-    (anchor!.props.onClick as () => void)();
+    await mount(n, onActivate);
+    const anchor = container!.querySelector('a[href="/p/p123"]') as HTMLAnchorElement;
+    expect(anchor).not.toBeNull();
+    await click(anchor);
     expect(onActivate).toHaveBeenCalledWith(n);
   });
 });
@@ -212,54 +218,53 @@ describe('NotificationItem — NEW_POST', () => {
 // --- ADMIN -----------------------------------------------------------------
 
 describe('NotificationItem — ADMIN', () => {
-  it('renders the stored title, message and link without an actor', () => {
-    const html = render(
-      makeNotification({
-        type: 'ADMIN',
-        title: 'VibeBin v2 is live',
-        message: 'New themes and stickers.',
-        link: '/p/announce',
-        pasteId: null,
-        actor: null,
-      }),
-    );
-    expect(html).toContain('VibeBin v2 is live');
-    expect(html).toContain('New themes and stickers.');
-    expect(html).toContain('href="/p/announce"');
-    expect(html).not.toContain('href="/u/');
-  });
-
-  it('offers an explicit Mark as read control when there is no link to open', () => {
-    const n = makeNotification({
+  const admin = (overrides: Partial<NotificationRow> = {}): NotificationRow =>
+    makeNotification({
       type: 'ADMIN',
-      title: 'Scheduled maintenance',
-      message: 'Downtime on Sunday.',
+      title: 'VibeBin v2 is live',
+      message: 'New themes and stickers. https://example.com :wave:',
       link: null,
       pasteId: null,
       actor: null,
+      ...overrides,
     });
-    const html = render(n);
-    expect(html).toContain('Mark as read');
 
-    const onMarkRead = vi.fn();
-    const el = NotificationItem({ notification: n, onActivate: noop, onMarkRead });
-    const btn = firstButton(el);
-    (btn.props.onClick as () => void)();
-    expect(onMarkRead).toHaveBeenCalledWith(n);
+  it('shows only the clickable title + @Admin metadata — never the full message', () => {
+    const html = render(admin());
+    expect(html).toContain('VibeBin v2 is live');
+    expect(html).toContain('@Admin');
+    expect(html).toContain('just now');
+    // The compact row must NOT expose the broadcast body.
+    expect(html).not.toContain('New themes and stickers');
+    expect(html).not.toContain('href="https://example.com"');
+    expect(html).not.toContain(':wave:');
+    expect(html).not.toContain('href="/u/');
   });
 
-  it('hides the Mark as read control once the ADMIN row is read', () => {
-    const html = render(
-      makeNotification({
-        type: 'ADMIN',
-        title: 'Scheduled maintenance',
-        link: null,
-        pasteId: null,
-        actor: null,
-        isRead: true,
-      }),
-    );
-    expect(html).not.toContain('Mark as read');
+  it('makes the title a button (never a link) and marks the row read on click', async () => {
+    const onActivate = vi.fn();
+    const n = admin();
+    await mount(n, onActivate);
+    const titleBtn = Array.from(container!.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('VibeBin v2 is live'),
+    ) as HTMLButtonElement;
+    expect(titleBtn).not.toBeUndefined();
+    // The compact row has no anchors at all (message/link are hidden).
+    expect(container!.querySelector('a')).toBeNull();
+    await click(titleBtn);
+    expect(onActivate).toHaveBeenCalledWith(n);
+  });
+
+  it('offers no explicit Mark as read control (the title click covers it)', () => {
+    expect(render(admin())).not.toContain('Mark as read');
+    expect(render(admin({ isRead: true }))).not.toContain('Mark as read');
+  });
+
+  it('keeps the same compact contract for the center variant', () => {
+    const html = render(admin(), noop, noop);
+    expect(html).toContain('VibeBin v2 is live');
+    expect(html).toContain('@Admin');
+    expect(html).not.toContain('New themes and stickers');
   });
 });
 
