@@ -56,11 +56,11 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
   }
 
   return (
-    <div className="card animate-pop mx-auto max-w-md rounded-[26px] p-5 text-center shadow-2xl shadow-black/40 sm:p-7">
-      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-brand-500/20 to-cyan-400/20 text-2xl sm:h-14 sm:w-14">
+    <div className="card animate-pop mx-auto max-w-md rounded-xl p-5 text-center sm:p-7">
+      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] text-2xl shadow-[3px_3px_0_0_var(--vb-ink)] sm:h-14 sm:w-14">
         🔒
       </div>
-      <h2 className="text-xl font-bold tracking-tight text-white sm:text-2xl">Password protected</h2>
+      <h2 className="text-xl font-black uppercase tracking-tight text-white sm:text-2xl">Password protected</h2>
       <p className="mb-6 mt-2 text-sm leading-6 text-zinc-400">
         Enter the password to view this paste.
       </p>
@@ -77,7 +77,7 @@ export default function UnlockForm({ pasteId }: { pasteId: string }) {
         <button
           type="submit"
           disabled={busy || !password}
-          className="btn-primary w-full justify-center py-2.5 text-sm font-semibold"
+          className="btn-primary w-full justify-center py-2.5 text-sm font-bold uppercase tracking-wide"
         >
           {busy ? 'Unlocking…' : 'Unlock paste'}
         </button>

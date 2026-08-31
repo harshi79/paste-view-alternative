@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ id: string }> };
 
 // Shared toolbar button styling — one cohesive action bar for the paste view.
-const TOOLBAR_BTN = 'btn-ghost !rounded-xl !px-3 !py-2 text-xs font-semibold';
+const TOOLBAR_BTN = 'btn-ghost !rounded-md !px-3 !py-2 text-xs font-bold uppercase tracking-wide';
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
@@ -76,9 +76,9 @@ export default async function PastePage({ params }: Props) {
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
     return (
       <div className="grid min-h-[50vh] place-items-center pt-8 text-center">
-        <div className="card animate-pop max-w-md rounded-[24px] p-6 text-center sm:p-8">
+        <div className="card animate-pop max-w-md rounded-xl p-6 text-center sm:p-8">
           <p className="text-4xl">⏳</p>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-white">This paste has expired</h1>
+          <h1 className="mt-4 text-2xl font-black uppercase tracking-tight text-white">This paste has expired</h1>
           <p className="mt-2 text-sm leading-6 text-zinc-400">
             This paste was set to expire and is no longer available.
           </p>
@@ -177,7 +177,7 @@ export default async function PastePage({ params }: Props) {
       <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
         <div className="min-w-0">
           <h1
-            className="max-w-full break-words text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl"
+            className="max-w-full break-words text-2xl font-black leading-[1.1] tracking-tight text-white sm:text-4xl"
             style={paste.titleColor ? { color: paste.titleColor } : undefined}
           >
             {paste.title}
@@ -188,7 +188,7 @@ export default async function PastePage({ params }: Props) {
               <ProfileHoverCard data={authorHover} following={followingAuthor} guest={!session}>
                 <Link
                   href={`/u/${authorRow.username}`}
-                  className="inline-flex min-w-0 max-w-[200px] items-center gap-2 rounded-full border border-white/10 bg-white/5 py-1 pl-1 pr-3 text-xs font-semibold text-zinc-200 transition-colors hover:border-brand-400/40 hover:bg-white/[0.08] sm:max-w-[240px]"
+                  className="inline-flex min-w-0 max-w-[200px] items-center gap-2 rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] py-1 pl-1 pr-3 text-xs font-bold text-zinc-200 transition-colors hover:border-brand-400/60 hover:bg-[#1a1a24] sm:max-w-[240px]"
                 >
                   <Avatar value={authorRow.avatarUrl} label={authorRow.username} className="h-5 w-5 sm:h-6 sm:w-6" />
                   <span className="min-w-0 truncate">{authorRow.displayName || authorRow.username}</span>

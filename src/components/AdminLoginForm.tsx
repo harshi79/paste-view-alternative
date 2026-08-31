@@ -35,17 +35,17 @@ export default function AdminLoginForm() {
         value={pw}
         onChange={(e) => setPw(e.target.value)}
         placeholder="Admin password"
-        className="w-full rounded-xl border border-white/10 bg-night-800 px-4 py-2.5 text-sm text-zinc-100 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/20"
+        className="w-full rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-inset)] px-4 py-2.5 text-sm text-zinc-100 outline-none transition-colors focus:border-amber-400/80"
       />
       {error && (
-        <p className="animate-pop rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
+        <p className="animate-pop rounded-md border-2 border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-300">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={busy || !pw}
-        className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/30 transition hover:brightness-110 disabled:opacity-50"
+        className="w-full rounded-md border-2 border-[#0c0c13] bg-amber-500 py-3 text-sm font-black uppercase tracking-wide text-black shadow-[4px_4px_0_0_var(--vb-ink)] transition-all hover:-translate-x-px hover:-translate-y-px hover:bg-amber-400 hover:shadow-[5px_5px_0_0_var(--vb-ink)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_var(--vb-ink)] disabled:opacity-50"
       >
         {busy ? 'Checking…' : 'Sign in'}
       </button>

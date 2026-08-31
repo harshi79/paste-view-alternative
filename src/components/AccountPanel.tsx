@@ -156,14 +156,14 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
   }
 
   const input = 'input';
-  const label = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
-  const card = 'card rounded-[26px] p-5 sm:p-6';
+  const label = 'mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500';
+  const card = 'card rounded-xl p-5 sm:p-6';
 
   return (
     <div className="mx-auto max-w-4xl pt-4 sm:pt-6">
-      <div className="card mb-6 rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+      <div className="card mb-6 rounded-xl px-5 py-5 sm:px-6 sm:py-6">
         <p className="eyebrow">Account</p>
-        <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-4xl">
+        <h1 className="mt-4 text-3xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-5xl">
           Identity & security
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
@@ -174,7 +174,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
 
       <div className="space-y-5">
         <div className={card}>
-          <h2 className="mb-4 font-bold text-white">Identity</h2>
+          <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Identity</h2>
           <p className="mb-3 text-sm text-zinc-400">
             Your current username is <span className="font-mono text-zinc-200">@{username}</span>.
           </p>
@@ -213,7 +213,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
         </div>
 
         <div className={card}>
-          <h2 className="mb-4 font-bold text-white">Recovery email</h2>
+          <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Recovery email</h2>
           <p className="mb-3 text-sm text-zinc-400">
             Used for password recovery when you can&apos;t sign in. A one-time code is sent to the
             email to verify it — it only becomes your recovery email after a successful code.
@@ -286,7 +286,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
         </div>
 
         <div className={card}>
-          <h2 className="mb-4 font-bold text-white">Password</h2>
+          <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Password</h2>
           <p className="mb-4 text-sm text-zinc-400">
             Confirm your current password to set a new one. Forgot it? Use the reset link on the
             login screen.
@@ -331,7 +331,7 @@ export default function AccountPanel({ initial }: { initial: Initial }) {
         </div>
 
         <div className={card}>
-          <h2 className="mb-4 font-bold text-white">Session</h2>
+          <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Session</h2>
           <p className="mb-4 text-sm text-zinc-400">
             Logging out clears the cookie on this device. You can sign back in any time.
           </p>

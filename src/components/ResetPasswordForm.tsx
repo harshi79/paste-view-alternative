@@ -51,12 +51,12 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
   if (done) {
     return (
       <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
-        <div className="card animate-fade-up w-full max-w-md rounded-[28px] p-6 text-center shadow-2xl shadow-black/40 sm:p-8">
-          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-400 text-xl shadow-lg shadow-emerald-600/30 sm:h-14 sm:w-14">
+        <div className="card animate-fade-up w-full max-w-md rounded-xl p-6 text-center sm:p-8">
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md border-2 border-[#0c0c13] bg-emerald-600 text-xl shadow-[4px_4px_0_0_var(--vb-ink)] sm:h-14 sm:w-14">
             ✅
           </div>
           <p className="eyebrow justify-center">Password updated</p>
-          <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">All set</h1>
+          <h1 className="mt-4 text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">All set</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             You can now sign in with your new password. The reset link has been used and can no
             longer be reused.
@@ -66,7 +66,7 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
               router.push('/login');
               router.refresh();
             }}
-            className="btn-primary mt-6 w-full justify-center py-3 text-sm"
+            className="btn-primary mt-6 w-full justify-center py-3 text-sm uppercase tracking-wide"
           >
             Go to login
           </button>
@@ -78,13 +78,13 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
   return (
     <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
       <div className="animate-fade-up w-full max-w-lg">
-        <div className="card rounded-[28px] p-6 shadow-2xl shadow-black/40 sm:p-8">
+        <div className="card rounded-xl p-6 sm:p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30 sm:h-14 sm:w-14">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md border-2 border-[#0c0c13] bg-brand-600 text-xl shadow-[4px_4px_0_0_var(--vb-ink)] sm:h-14 sm:w-14">
               🔒
             </div>
             <p className="eyebrow justify-center">Choose a new password</p>
-            <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            <h1 className="mt-4 text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
               Secure your account
             </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -94,7 +94,7 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <label className="mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                 One-time code
               </label>
               <input
@@ -106,7 +106,7 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
               />
             </div>
             <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <label className="mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                 New password
               </label>
               <input
@@ -119,7 +119,7 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
               />
             </div>
             <div>
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <label className="mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                 Confirm new password
               </label>
               <input
@@ -137,7 +137,7 @@ export default function ResetPasswordForm({ initialToken }: { initialToken: stri
             <button
               type="submit"
               disabled={busy || !token || !password || !confirm}
-              className="btn-primary w-full justify-center py-3 text-sm"
+              className="btn-primary w-full justify-center py-3 text-sm uppercase tracking-wide"
             >
               {busy ? 'Saving…' : 'Set new password'}
             </button>

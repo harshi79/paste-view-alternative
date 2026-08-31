@@ -57,8 +57,8 @@ const COLORS = [
 ] as const;
 
 const tb =
-  'inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-colors hover:bg-white/[0.08] hover:text-white';
-const tbActive = 'border-brand-400/40 bg-brand-500/15 text-white shadow-[0_10px_24px_-20px_rgba(139,92,246,0.9)]';
+  'inline-flex items-center gap-2 rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-all hover:border-[#40404f] hover:bg-[#1a1a24] hover:text-white active:translate-x-px active:translate-y-px';
+const tbActive = 'border-brand-400/70 bg-brand-600/25 text-white shadow-[2px_2px_0_0_var(--vb-ink)]';
 
 function emptyDoc(): RichDoc {
   return { v: 1, lines: [{ text: '', _key: 'l0' }] };
@@ -805,7 +805,7 @@ export default function Editor({ username }: Props) {
     );
   }, [stickerQuery, stickerPack]);
 
-  const fieldLabel = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
+  const fieldLabel = 'mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500';
   const richChars = rich.lines.reduce((s, l) => s + (l.text?.length ?? 0), 0);
   const richLines = rich.lines.length;
   const overLimit = richLines > PASTE_MAX_LINES;
@@ -826,16 +826,16 @@ export default function Editor({ username }: Props) {
           e.currentTarget.requestSubmit();
         }
       }}
-      className="glass animate-fade-up overflow-hidden rounded-[30px] border border-white/[0.08] shadow-[0_36px_90px_-42px_rgba(0,0,0,0.9)]"
+      className="glass animate-fade-up overflow-hidden rounded-xl"
     >
-      <div className="border-b border-white/[0.06] bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] px-4 py-4 sm:px-6 sm:py-5">
+      <div className="border-b-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
             <p className="eyebrow">Unified editor</p>
             <input
               type="text"
               aria-label="Paste title"
-              className="mt-3 w-full bg-transparent text-[1.9rem] font-black tracking-tight text-white placeholder-zinc-600 outline-none sm:text-[2.2rem]"
+              className="mt-3 w-full bg-transparent text-[1.9rem] font-black uppercase tracking-tight text-white placeholder-zinc-600 outline-none sm:text-[2.2rem]"
               placeholder="Untitled paste"
               value={title}
               maxLength={120}
@@ -853,7 +853,7 @@ export default function Editor({ username }: Props) {
               <span className="pill">{visibility === 'public' ? 'Public' : 'Unlisted'}</span>
               <span className="pill">{passwordProtectionEnabled ? 'Password protected' : 'Open access'}</span>
             </div>
-            <div className="surface-subtle rounded-2xl p-3.5">
+            <div className="surface-subtle rounded-lg p-3.5">
               <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
                 <span>Language</span>
                 <span className="font-medium text-zinc-200">{currentLanguage}</span>
@@ -879,13 +879,13 @@ export default function Editor({ username }: Props) {
         </div>
       </div>
 
-      <div className="border-b border-white/[0.06] bg-black/[0.15] px-4 py-3 sm:px-5">
+      <div className="border-b-2 border-[color:var(--vb-line-soft)] bg-black/[0.25] px-4 py-3 sm:px-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-1 flex-wrap items-center gap-3">
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
               Active line {activeLine + 1}
             </span>
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-md border-2 border-[color:var(--vb-line-soft)] bg-black/25 p-2">
               <select
                 className="input !w-auto !min-w-[118px] !rounded-xl !px-3 !py-2 !text-xs"
                 aria-label="Font"
@@ -912,7 +912,7 @@ export default function Editor({ username }: Props) {
                   </option>
                 ))}
               </select>
-              <div className="flex items-center gap-1 rounded-xl border border-white/[0.08] bg-black/10 p-1.5">
+              <div className="flex items-center gap-1 rounded-md border-2 border-[color:var(--vb-line-soft)] bg-black/25 p-1.5">
                 {COLORS.map((c) => (
                   <button
                     key={c}
@@ -977,7 +977,7 @@ export default function Editor({ username }: Props) {
       {showOptions && (
         <div id="paste-options" className="animate-pop border-b border-white/[0.06] bg-white/[0.02] px-4 py-4 sm:px-5">
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-            <div className="surface-subtle rounded-2xl p-4">
+            <div className="surface-subtle rounded-lg p-4">
               <label className={fieldLabel} htmlFor="language">
                 Language
               </label>
@@ -991,7 +991,7 @@ export default function Editor({ username }: Props) {
               <p className="mt-2 text-xs leading-5 text-zinc-500">Controls syntax highlighting when the paste is viewed. Plain text stays unhighlighted; rich colors, stickers, links and emoji always keep their own styling.</p>
             </div>
 
-            <div className="surface-subtle rounded-2xl p-4">
+            <div className="surface-subtle rounded-lg p-4">
               <label className={fieldLabel} htmlFor="expires">
                 Expires in
               </label>
@@ -1005,7 +1005,7 @@ export default function Editor({ username }: Props) {
               <p className="mt-2 text-xs leading-5 text-zinc-500">Set how long the paste should stay available before automatic removal.</p>
             </div>
 
-            <div className="surface-subtle rounded-2xl p-4">
+            <div className="surface-subtle rounded-lg p-4">
               <label className={fieldLabel} htmlFor="visibility">
                 Visibility
               </label>
@@ -1025,7 +1025,7 @@ export default function Editor({ username }: Props) {
               <span className={fieldLabel}>Access</span>
               <label
                 htmlFor="password-protection"
-                className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 transition-colors hover:bg-white/[0.05]"
+                className="flex cursor-pointer items-start gap-3 rounded-md border-2 border-[color:var(--vb-line-soft)] bg-black/25 px-3.5 py-3 transition-colors hover:border-[color:var(--vb-line)]"
               >
                 <input
                   id="password-protection"
@@ -1069,7 +1069,7 @@ export default function Editor({ username }: Props) {
               )}
             </div>
 
-            <div className="surface-subtle rounded-2xl p-4">
+            <div className="surface-subtle rounded-lg p-4">
               <label className={fieldLabel} htmlFor="title-color">
                 Title color
               </label>
@@ -1101,8 +1101,8 @@ export default function Editor({ username }: Props) {
       )}
 
       <div className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-        <div className="overflow-hidden rounded-[24px] border border-white/[0.08] bg-[#060912]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-black/20 px-4 py-3">
+        <div className="overflow-hidden rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-inset)] shadow-[inset_0_2px_8px_rgba(0,0,0,0.5)]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[color:var(--vb-line-soft)] bg-black/30 px-4 py-3">
             <div className="flex items-center gap-3">
               <span className="window-dots" aria-hidden="true">
                 <span className="window-dot bg-rose-400/80" />
@@ -1127,7 +1127,7 @@ export default function Editor({ username }: Props) {
           {showPreview ? (
             <div
               aria-label="Live preview"
-              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)]"
+              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-auto"
             >
               {/* Same renderer the final paste page uses — including the
                   language-driven syntax highlighting. Loaded on demand. */}
@@ -1143,7 +1143,7 @@ export default function Editor({ username }: Props) {
               onClick={(e) => {
                 if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
               }}
-              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-y-auto overscroll-contain bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_25%)] px-3 py-4 transition-colors focus-within:ring-4 focus-within:ring-brand-500/10 md:px-4"
+              className="paste-editor-scroll h-[clamp(280px,55dvh,560px)] overflow-y-auto overscroll-contain px-3 py-4 transition-colors focus-within:ring-2 focus-within:ring-brand-500/30 md:px-4"
             >
               {rich.lines.map((line, i) => (
                 <div
@@ -1213,7 +1213,7 @@ export default function Editor({ username }: Props) {
 
       <div
         className={`flex flex-col gap-4 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:justify-between ${
-          error ? '' : 'border-t border-white/[0.06]'
+          error ? '' : 'border-t-2 border-[color:var(--vb-line-soft)]'
         }`}
       >
         <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
@@ -1239,7 +1239,7 @@ export default function Editor({ username }: Props) {
             id="sticker-picker"
             role="dialog"
             aria-label="Sticker picker"
-            className="glass animate-pop fixed right-3 top-20 z-50 flex max-h-[min(36rem,calc(100dvh-5.5rem))] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] p-4 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.85)] md:absolute md:right-0 md:top-24 md:max-h-[min(36rem,calc(100%-6rem))]"
+            className="glass animate-pop fixed right-3 top-20 z-50 flex max-h-[min(36rem,calc(100dvh-5.5rem))] w-[min(22rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-xl p-4 md:absolute md:right-0 md:top-24 md:max-h-[min(36rem,calc(100%-6rem))]"
           >
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -1249,15 +1249,15 @@ export default function Editor({ username }: Props) {
               <div
                 role="tablist"
                 aria-label="Sticker source"
-                className="flex items-center rounded-xl border border-white/10 bg-white/[0.05] p-1"
+                className="flex items-center rounded-md border-2 border-[color:var(--vb-line-soft)] bg-black/25 p-1"
               >
                 <button
                   type="button"
                   role="tab"
                   aria-selected={stickerTab === 'pack'}
                   onClick={() => switchStickerTab('pack')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    stickerTab === 'pack' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  className={`rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+                    stickerTab === 'pack' ? 'bg-brand-600 text-white' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   Stickers
@@ -1267,8 +1267,8 @@ export default function Editor({ username }: Props) {
                   role="tab"
                   aria-selected={stickerTab === 'anime'}
                   onClick={() => switchStickerTab('anime')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    stickerTab === 'anime' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-200'
+                  className={`rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+                    stickerTab === 'anime' ? 'bg-brand-600 text-white' : 'text-zinc-500 hover:text-zinc-200'
                   }`}
                 >
                   Anime GIFs
@@ -1313,7 +1313,7 @@ export default function Editor({ username }: Props) {
                         title={g.label}
                         disabled={importingGif === g.url}
                         onClick={() => importAndInsertGif(g.url, { source: 'giphy', id: g.id })}
-                        className="flex aspect-square min-h-[58px] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                        className="flex aspect-square min-h-[58px] items-center justify-center overflow-hidden rounded-md border-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-inset)] transition-colors hover:border-brand-400/60 hover:bg-[#14141e]"
                       >
                         <img
                           src={g.preview || g.url}
@@ -1345,7 +1345,7 @@ export default function Editor({ username }: Props) {
                             })
                           : applyStickerToActiveLine(g.token)
                       }
-                      className="flex aspect-square min-h-[58px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                      className="flex aspect-square min-h-[58px] items-center justify-center rounded-md border-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-inset)] transition-colors hover:border-brand-400/60 hover:bg-[#14141e]"
                     >
                       {g.url ? (
                         <img
@@ -1375,7 +1375,7 @@ export default function Editor({ username }: Props) {
                     key={s.token}
                     title={`${s.token} — ${s.label || ''}`}
                     onClick={() => applyStickerToActiveLine(s.token, s.url)}
-                    className="flex aspect-square min-h-[58px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] transition-colors hover:border-brand-400/50 hover:bg-white/[0.06]"
+                    className="flex aspect-square min-h-[58px] items-center justify-center rounded-md border-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-inset)] transition-colors hover:border-brand-400/60 hover:bg-[#14141e]"
                   >
                     {s.url ? (
                       <img

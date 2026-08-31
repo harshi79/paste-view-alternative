@@ -118,7 +118,7 @@ export default function AdminTags({
                     type="button"
                     disabled={busyId !== null}
                     onClick={() => toggle(t.id, true)}
-                    className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/15 bg-white/[0.03] px-2.5 py-1 text-xs font-medium text-zinc-400 transition hover:border-white/35 hover:text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded border-2 border-dashed border-[color:var(--vb-line)] bg-[color:var(--vb-inset)] px-2.5 py-1 font-mono text-xs font-semibold text-zinc-400 transition hover:border-white/40 hover:text-white disabled:opacity-50"
                     style={{ borderColor: `${t.color}44` }}
                   >
                     <span className="text-[10px]">+</span> {t.label}

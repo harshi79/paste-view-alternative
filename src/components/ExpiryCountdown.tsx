@@ -31,8 +31,8 @@ export default function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${
-        soon ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+      className={`inline-flex items-center gap-1 rounded border px-2.5 py-1 font-mono text-xs font-semibold ${
+        soon ? 'border-red-500/50 bg-red-500/10 text-red-300' : 'border-amber-500/50 bg-amber-500/10 text-amber-200'
       }`}
       title="This paste auto-deletes when the timer runs out"
     >

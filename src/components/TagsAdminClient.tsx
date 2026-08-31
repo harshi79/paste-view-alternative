@@ -101,7 +101,7 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
     <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {tags.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-500">
+          <p className="rounded-lg border-2 border-dashed border-[color:var(--vb-line)] p-10 text-center text-zinc-500">
             No tags yet. Create your first one on the right.
           </p>
         ) : (
@@ -172,14 +172,14 @@ export default function TagsAdminClient({ initial }: { initial: Tag[] }) {
                   <button
                     onClick={() => startEdit(t)}
                     disabled={busy}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-brand-400/40 hover:bg-brand-500/10 hover:text-brand-200 disabled:opacity-50"
+                    className="rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-zinc-300 hover:border-brand-400/60 hover:bg-brand-500/10 hover:text-brand-200 disabled:opacity-50"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => remove(t.id)}
                     disabled={busy}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                    className="rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-zinc-300 hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
                   >
                     Delete
                   </button>

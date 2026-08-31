@@ -30,9 +30,9 @@ export default async function DashboardPage({ searchParams }: Props) {
   return (
     <div className="pt-4 sm:pt-6">
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-        <div className="card animate-fade-up rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+        <div className="card animate-fade-up rounded-xl px-5 py-5 sm:px-6 sm:py-6">
           <p className="eyebrow">Dashboard</p>
-          <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-4 text-3xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-5xl">
             Your paste workspace
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
@@ -51,20 +51,20 @@ export default async function DashboardPage({ searchParams }: Props) {
 
         <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
           <div className="stat-card p-5 text-center xl:text-left">
-            <p className="text-3xl font-black text-white">{rows.length}</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-4xl font-black tabular-nums tracking-tight text-white">{rows.length}</p>
+            <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">
               Total pastes
             </p>
           </div>
           <div className="stat-card p-5 text-center xl:text-left">
-            <p className="text-3xl font-black text-white">{formatViews(totalViews)}</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-4xl font-black tabular-nums tracking-tight text-white">{formatViews(totalViews)}</p>
+            <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">
               Combined views
             </p>
           </div>
           <div className="stat-card p-5 text-center xl:text-left">
-            <p className="text-3xl font-black text-white">♥ {formatViews(totalLikes)}</p>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            <p className="text-4xl font-black tabular-nums tracking-tight text-white">♥ {formatViews(totalLikes)}</p>
+            <p className="mt-2 font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">
               Combined likes
             </p>
           </div>
@@ -72,7 +72,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       </section>
 
       {created && rows.find((r) => r.id === created) && (
-        <div className="feedback-success animate-pop mt-5 rounded-[24px] px-5 py-4">
+        <div className="feedback-success animate-pop mt-5 rounded-lg px-5 py-4">
           <p className="font-semibold">Paste created successfully.</p>
           <p className="mt-1 text-emerald-300/80">
             Use the copy button on the newly highlighted row below to share it. The link still never

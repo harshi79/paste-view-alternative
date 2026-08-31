@@ -29,11 +29,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body className="relative font-sans antialiased">
         <CursorTrail />
+        {/* Accent progress bar — the one loud line on the page. */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-x-0 top-0 z-50 h-[3px] bg-gradient-to-r from-brand-500 via-brand-400 to-cyan-400"
+        />
+        {/* Hard-edged backdrop geometry — flat shapes, no blur. */}
         <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-          <div className="absolute left-1/2 top-0 h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-brand-600/[0.18] blur-[130px]" />
-          <div className="absolute right-0 top-24 h-[360px] w-[420px] rounded-full bg-cyan-500/[0.1] blur-[120px]" />
-          <div className="absolute -left-20 top-1/3 h-[320px] w-[320px] rounded-full bg-fuchsia-500/[0.08] blur-[110px]" />
-          <div className="absolute bottom-0 left-1/3 h-[360px] w-[460px] rounded-full bg-emerald-500/[0.05] blur-[130px]" />
+          <div className="absolute -left-24 top-24 h-72 w-72 rotate-3 border-2 border-white/[0.04]" />
+          <div className="absolute -right-28 bottom-24 h-80 w-80 -rotate-2 border-2 border-white/[0.035]" />
+          <div className="absolute right-[12%] top-0 h-40 w-[34rem] max-w-full -translate-y-1/2 rotate-[-4deg] bg-brand-600/[0.07]" />
+          <div className="absolute -left-16 bottom-1/4 h-32 w-[26rem] max-w-full rotate-[3deg] bg-cyan-500/[0.05]" />
         </div>
 
         <Nav
@@ -50,11 +56,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }
         />
 
-        <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-4 sm:px-6 sm:pt-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pt-8">{children}</main>
 
-        <footer className="pb-8 sm:pb-10">
+        <footer className="pb-10 sm:pb-12">
           <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-            <div className="glass rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+            <div className="glass rounded-xl px-5 py-5 sm:px-6 sm:py-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                   <p className="eyebrow">Built for developers</p>
@@ -62,7 +68,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     <Link href="/" className="transition-opacity hover:opacity-85" aria-label="VibeBin home">
                       <Logo compact />
                     </Link>
-                    <span className="hidden h-4 w-px bg-white/10 sm:block" />
+                    <span className="hidden h-4 w-px bg-white/15 sm:block" />
                     <span>Share code, notes, and styled snippets with a polished link.</span>
                   </div>
                 </div>

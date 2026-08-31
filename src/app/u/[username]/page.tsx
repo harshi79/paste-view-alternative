@@ -107,7 +107,7 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <div className="pt-4 sm:pt-6">
-      <div className="animate-fade-up relative h-40 overflow-hidden rounded-[28px] border border-white/10 sm:h-56 lg:h-60">
+      <div className="animate-fade-up relative h-40 overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] shadow-[6px_6px_0_0_var(--vb-ink)] sm:h-56 lg:h-64">
         {profile.bannerUrl && profile.bannerType === 'video' ? (
           <video
             src={profile.bannerUrl}
@@ -134,8 +134,12 @@ export default async function ProfilePage({ params }: Props) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
             <div
-              className="w-fit rounded-full border-4 shadow-2xl"
-              style={{ borderColor: 'var(--color-night-950)', boxShadow: `0 8px 40px ${profile.accent}44` }}
+              className="w-fit rounded-xl border-2 p-1"
+              style={{
+                borderColor: 'var(--vb-line)',
+                background: 'var(--vb-panel)',
+                boxShadow: `6px 6px 0 var(--vb-ink)`,
+              }}
             >
               <Avatar
                 value={profile.avatarUrl}
@@ -149,7 +153,7 @@ export default async function ProfilePage({ params }: Props) {
                   unicode status and the animated sticker/GIF status share
                   the exact same vertically-centered slot. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="inline-flex min-w-0 items-center break-words text-2xl font-black leading-tight tracking-tight sm:text-4xl">
+                <h1 className="inline-flex min-w-0 items-center break-words text-3xl font-black uppercase leading-[0.95] tracking-tight sm:text-5xl">
                   <NameDisplay
                     text={profile.displayName || user.username}
                     from={profile.nameFrom}
@@ -182,7 +186,7 @@ export default async function ProfilePage({ params }: Props) {
                 />
               </div>
               {/* Second line: username · joined date · text status */}
-              <p className="mt-1.5 break-words text-sm text-zinc-400">
+              <p className="mt-2 break-words font-mono text-xs text-zinc-400 sm:text-sm">
                 @{user.username} · joined {formatDate(user.createdAt)}
                 {profile.statusText ? <span className="ml-1.5 text-zinc-500">· {profile.statusText}</span> : null}
               </p>
@@ -203,7 +207,7 @@ export default async function ProfilePage({ params }: Props) {
           {badges.map((badge) => (
             <span
               key={badge.id}
-              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold text-white shadow-md"
+              className="inline-flex items-center gap-1 rounded border border-black/40 px-2.5 py-1 font-mono text-[11px] font-bold uppercase tracking-wide text-white shadow-[2px_2px_0_0_var(--vb-ink)]"
               style={{ background: `linear-gradient(100deg, ${badge.from}, ${badge.to})` }}
               title={badge.label}
             >
@@ -223,7 +227,7 @@ export default async function ProfilePage({ params }: Props) {
         </div>
 
         {profile.bioEnabled && profile.bio && (
-          <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-zinc-300 sm:text-[15px]">
+          <p className="mt-5 max-w-3xl whitespace-pre-wrap border-l-4 border-[color:var(--vb-line)] pl-4 text-sm leading-7 text-zinc-300 sm:text-[15px]">
             {profile.bio}
           </p>
         )}
@@ -240,7 +244,7 @@ export default async function ProfilePage({ params }: Props) {
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors hover:border-white/30"
+                  className="flex items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-bold transition-transform hover:-translate-x-px hover:-translate-y-px hover:brightness-110"
                   style={{
                     borderColor: `${accent}66`,
                     background: `${accent}14`,
@@ -263,7 +267,7 @@ export default async function ProfilePage({ params }: Props) {
       <section className="mt-10">
         {pinned.length > 0 && (
           <>
-            <h2 className="mb-4 text-lg font-extrabold text-white sm:text-xl">Pinned</h2>
+            <h2 className="mb-4 text-xl font-black uppercase tracking-tight text-white sm:text-2xl">Pinned</h2>
             <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {pinned.map((paste) => (
                 <PasteCard key={paste.id} paste={paste} />
@@ -272,9 +276,9 @@ export default async function ProfilePage({ params }: Props) {
           </>
         )}
 
-        <h2 className="mb-4 text-lg font-extrabold text-white sm:text-xl">Pastes</h2>
+        <h2 className="mb-4 text-xl font-black uppercase tracking-tight text-white sm:text-2xl">Pastes</h2>
         {rest.length === 0 && pinned.length === 0 ? (
-          <p className="card rounded-[24px] px-6 py-8 text-center text-zinc-400 sm:px-8 sm:py-10">
+          <p className="card rounded-lg px-6 py-8 text-center text-zinc-400 sm:px-8 sm:py-10">
             {isOwner ? (
               <>
                 You haven&apos;t created any pastes yet.{' '}

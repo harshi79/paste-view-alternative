@@ -184,7 +184,7 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
 
   return (
     <div className="mt-6">
-      <div className="mb-5 inline-flex items-center gap-1 rounded-xl border border-white/10 bg-night-800/60 p-1">
+      <div className="mb-5 inline-flex items-center gap-1 rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-1">
         <button type="button" className={tabBtn(tab === 'pack')} onClick={() => setTab('pack')}>
           Pack ({list.length})
         </button>
@@ -194,7 +194,7 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
       </div>
 
       {tab === 'anime' ? (
-        <div className="rounded-2xl border border-white/10 bg-night-800/60 p-5">
+        <div className="rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-bold text-white">Free anime GIF browser</h2>
             <p className="text-xs text-zinc-500">
@@ -232,7 +232,7 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
                 const c = ANIME_CATEGORIES[Math.floor(Math.random() * ANIME_CATEGORIES.length)];
                 loadCategory(c);
               }}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:border-brand-400/40 hover:text-white"
+              className="rounded border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-1 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-colors hover:border-brand-400/60 hover:text-white"
             >
               🎲 Random
             </button>
@@ -294,14 +294,14 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {list.length === 0 ? (
-              <p className="col-span-full rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-500">
+              <p className="col-span-full rounded-lg border-2 border-dashed border-[color:var(--vb-line)] p-10 text-center text-zinc-500">
                 No stickers yet.
               </p>
             ) : (
               list.map((s) => (
                 <div
                   key={s.id}
-                  className="flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-night-800/60 p-3"
+                  className="flex flex-col items-center gap-2 rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-3"
                 >
                   <div className="grid h-14 w-14 place-items-center rounded-lg bg-white/5">
                     {s.url ? (
@@ -325,7 +325,7 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
             )}
           </div>
 
-          <form onSubmit={add} className="h-fit rounded-2xl border border-white/10 bg-night-800/60 p-5">
+          <form onSubmit={add} className="h-fit rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-5">
             <h2 className="mb-4 font-bold text-white">New sticker</h2>
             <div className="space-y-3">
               <div>
@@ -368,7 +368,7 @@ export default function StickersAdminClient({ initial }: { initial: Sticker[] })
               <button
                 type="submit"
                 disabled={busy}
-                className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 py-2.5 text-sm font-bold text-white shadow-lg shadow-rose-500/30 hover:brightness-110 disabled:opacity-50"
+                className="w-full rounded-md border-2 border-[#0c0c13] bg-amber-500 py-2.5 text-sm font-black uppercase tracking-wide text-black shadow-[4px_4px_0_0_var(--vb-ink)] transition-all hover:-translate-x-px hover:-translate-y-px hover:bg-amber-400 active:translate-x-0.5 active:translate-y-0.5 active:shadow-[1px_1px_0_0_var(--vb-ink)] disabled:opacity-50"
               >
                 {busy ? 'Saving…' : 'Add sticker'}
               </button>

@@ -164,7 +164,7 @@ export function ProfileHoverCardContent({
     <span
       role="dialog"
       aria-label={`${name}'s profile preview`}
-      className="animate-pop absolute left-0 top-[calc(100%+0.625rem)] z-50 w-72 max-w-[calc(100vw-2rem)] rounded-[20px] border border-white/10 bg-night-900/95 p-3.5 text-left shadow-2xl shadow-black/60 backdrop-blur-xl"
+      className="animate-pop absolute left-0 top-[calc(100%+0.625rem)] z-50 w-72 max-w-[calc(100vw-2rem)] rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] p-3.5 text-left shadow-[8px_8px_0_0_var(--vb-ink)]"
     >
       <span className="flex items-start gap-3">
         <Link
