@@ -51,6 +51,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/paste' }));
 import NotificationBell, {
   formatUnreadBadge,
   LATEST_LIMIT,
+  POLL_INTERVAL_MS,
 } from '@/components/NotificationBell';
 import Nav, { type NavUser } from '@/components/Nav';
 import type { NotificationRow } from '@/lib/notifications';
@@ -472,5 +473,92 @@ describe('NotificationBell see-all and mobile sheet', () => {
     expect(container.querySelector('[class*="bg-black/60"]')).not.toBeNull();
     await click(closeBtn!);
     expect(panel()).toBeNull();
+  });
+});
+
+// --- live badge polling (Todo #2 active-page update) --------------------------
+//
+// The bell has no WebSocket/SSE, so it polls the unread-count endpoint (a
+// single indexed COUNT) to keep the badge live. We fake ONLY the interval
+// timers; setTimeout stays real so the shared render/flush helpers work.
+// Covers: polls while visible, does not poll while hidden, catches up on a
+// visibility change, and tears the timer down on unmount (no leak / no stray
+// requests after the bell goes away).
+describe('NotificationBell live badge polling', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    // Undo any visibilityState override so later tests see the default.
+    delete (document as unknown as { visibilityState?: string }).visibilityState;
+  });
+
+  function unreadCalls(fm: ReturnType<typeof vi.fn>) {
+    return fm.mock.calls.filter(([input]) => String(input) === '/api/notifications/unread-count');
+  }
+
+  it('seeds the badge on mount and updates it on the poll interval while visible', async () => {
+    const fm = stubFetch({ unread: () => ({ count: 5 }) });
+    await render(createElement(NotificationBell, {}));
+    // Mount seed is the first (and only) unread-count call so far.
+    expect(fm.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(unreadCalls(fm)).toHaveLength(1);
+
+    // Move past the poll interval — the interval callback fires once.
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_INTERVAL_MS);
+    });
+    await flush();
+
+    expect(unreadCalls(fm).length).toBeGreaterThanOrEqual(2);
+    // The badge reflects the polled (authoritative) count.
+    expect(bell()!.textContent).toContain('5');
+    // Polling only touches the badge endpoint — never the dropdown list.
+    const listCalls = fm.mock.calls.filter(([input]) => String(input).startsWith('/api/notifications/latest'));
+    expect(listCalls).toHaveLength(0);
+  });
+
+  it('does not poll while the page is hidden, and catches up on visibility change', async () => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    const fm = stubFetch({ unread: () => ({ count: 2 }) });
+    await render(createElement(NotificationBell, {}));
+    expect(unreadCalls(fm)).toHaveLength(1); // mount seed still runs
+
+    // Hidden: advancing the interval fires the callback, which bails out.
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_INTERVAL_MS * 3);
+    });
+    await flush();
+    expect(unreadCalls(fm)).toHaveLength(1);
+
+    // Returning to the visible tab dispatches visibilitychange → catch-up poll.
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await flush();
+    expect(unreadCalls(fm).length).toBeGreaterThanOrEqual(2);
+    expect(bell()!.textContent).toContain('2');
+  });
+
+  it('clears the poll timer on unmount so no further badge requests fire', async () => {
+    const fm = stubFetch({ unread: () => ({ count: 3 }) });
+    await render(createElement(NotificationBell, {}));
+    expect(unreadCalls(fm)).toHaveLength(1);
+
+    // Unmount the bell (simulates navigating away / logging out the account
+    // menu), then advance well beyond one interval.
+    await act(async () => {
+      root.unmount();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(POLL_INTERVAL_MS * 4);
+    });
+    await flush();
+
+    // No additional badge request should have been issued after unmount.
+    expect(unreadCalls(fm)).toHaveLength(1);
   });
 });

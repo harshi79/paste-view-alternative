@@ -9,6 +9,15 @@ import NotificationItem from './NotificationItem';
 /** The dropdown/sheet shows exactly the latest 10 notifications. */
 export const LATEST_LIMIT = 10;
 
+/**
+ * Lightweight badge poll interval. VibeBin has no WebSocket/SSE/EventSource
+ * infrastructure, so the smallest compatible "live" mechanism is a quiet poll
+ * of the unread-count endpoint — a single indexed COUNT — to keep the badge
+ * visible while the user is actively using the site. 30s matches the app's
+ * existing client poll (AccountPanel) and stays well under a request/minute.
+ */
+export const POLL_INTERVAL_MS = 30_000;
+
 /** Compact badge text — the real unread count, capped for display only. */
 export function formatUnreadBadge(count: number): string {
   if (count <= 0) return '';
@@ -85,6 +94,29 @@ export default function NotificationBell({ onOpen }: Props) {
   // users, so guests never issue this request).
   useEffect(() => {
     void fetchUnreadCount();
+  }, [fetchUnreadCount]);
+
+  // ------------------------------------------------------------------
+  // Live badge polling. The bell is only rendered for signed-in users,
+  // so every poll here is auth-scoped by construction. Only the unread
+  // count is fetched (one indexed COUNT) — never the list — so it can't
+  // duplicate the request the dropdown makes on open, can't create
+  // duplicate rows, and can't fight the optimistic mark-read state.
+  // It runs only while the page is visible, catches up on a
+  // visibility change (so an inactive user sees the correct badge when
+  // they return), and is torn down on unmount.
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    function poll() {
+      if (document.visibilityState !== 'visible') return;
+      void fetchUnreadCount();
+    }
+    const id = window.setInterval(poll, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, [fetchUnreadCount]);
 
   function toggle() {
