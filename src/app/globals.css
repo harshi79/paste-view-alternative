@@ -331,6 +331,43 @@ body::before {
 }
 
 /* ------------------------------------------------------------------ */
+/* Admin broadcast title — premium gold gradient + a soft shimmer      */
+/* highlight that travels across the glyphs. The base is a constant    */
+/* metallic gold (readable on the dark UI even with no animation);     */
+/* the sweep only moves a brighter glint, never the whole title.       */
+/* ------------------------------------------------------------------ */
+
+.admin-broadcast-title {
+  background-image: linear-gradient(
+    100deg,
+    #bf9334 0%,
+    #e7cb77 26%,
+    #bf9334 46%,
+    #f9ecb4 58%,
+    #bf9334 70%,
+    #e7cb77 92%,
+    #bf9334 100%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: admin-broadcast-shimmer 5.5s linear infinite;
+}
+
+@keyframes admin-broadcast-shimmer {
+  from { background-position: 250% 0; }
+  to { background-position: -50% 0; }
+}
+
+/* Keep the static gold gradient, drop the moving shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  .admin-broadcast-title {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Extended name effects (registry in src/lib/nameEffects.ts).        */
 /* Gradient-based effects rely on background-clip:text; transform-     */
 /* based effects set display:inline-block so transforms can apply.    */

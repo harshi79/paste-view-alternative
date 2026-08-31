@@ -221,7 +221,7 @@ export default function NotificationItem({
               ref={triggerRef}
               type="button"
               onClick={openAdminPopup}
-              className={`break-words text-left font-semibold text-white transition-colors hover:text-brand-300 hover:underline hover:underline-offset-2 ${
+              className={`admin-broadcast-title break-words text-left font-semibold transition-colors hover:underline hover:underline-offset-2 decoration-amber-300/70 ${
                 center ? 'text-sm sm:text-[15px]' : 'text-sm'
               }`}
               aria-haspopup="dialog"
@@ -343,7 +343,7 @@ export default function NotificationItem({
                   <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">
                     Admin broadcast
                   </p>
-                  <h2 className="mt-1 break-words text-base font-black leading-snug text-white sm:text-lg">
+                  <h2 className="admin-broadcast-title mt-1 break-words text-base font-black leading-snug sm:text-lg">
                     {n.title}
                   </h2>
                 </div>
