@@ -134,7 +134,7 @@ export default async function ProfilePage({ params }: Props) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
             <div
-              className="w-fit rounded-xl border-2 p-1"
+              className="w-fit rounded-full border-2 p-1"
               style={{
                 borderColor: 'var(--vb-line)',
                 background: 'var(--vb-panel)',
