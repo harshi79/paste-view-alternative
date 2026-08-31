@@ -77,6 +77,27 @@ describe('AdminNav — Overview active state', () => {
     expect(overview![1]).not.toContain(ACTIVE_CLASS);
   });
 
+  it('includes a Broadcast tab pointing at /admin/notifications', async () => {
+    mockNext();
+    const { default: AdminNav } = await import('@/components/AdminNav');
+    const html = renderToStaticMarkup(createElement(AdminNav, { active: '/admin' }));
+    expect(html).toMatch(/href="\/admin\/notifications"/);
+    expect(html).toContain('Broadcast');
+    const broadcast = html.match(/href="\/admin\/notifications"([^>]*)>/);
+    expect(broadcast).not.toBeNull();
+    expect(broadcast![1]).not.toContain(ACTIVE_CLASS);
+  });
+
+  it('active="/admin/notifications" highlights Broadcast, not Overview', async () => {
+    mockNext();
+    const { default: AdminNav } = await import('@/components/AdminNav');
+    const html = renderToStaticMarkup(createElement(AdminNav, { active: '/admin/notifications' }));
+    const broadcast = html.match(/href="\/admin\/notifications"([^>]*)>/);
+    expect(broadcast![1]).toContain(ACTIVE_CLASS);
+    const overview = html.match(/href="\/admin"([^>]*)>/);
+    expect(overview![1]).not.toContain(ACTIVE_CLASS);
+  });
+
   it('falls back to pathname when no active prop is given', async () => {
     vi.doMock('next/navigation', () => ({
       usePathname: () => '/admin/users',
