@@ -52,6 +52,7 @@ export default function Nav({ session }: { session: NavUser }) {
   const desktopLinks = session
     ? [
         { href: '/dashboard', label: 'Dashboard' },
+        { href: '/bookmarks', label: 'Saved' },
         { href: '/settings', label: 'Studio' },
       ]
     : [];
@@ -59,6 +60,7 @@ export default function Nav({ session }: { session: NavUser }) {
   const mobileLinks = session
     ? [
         { href: '/dashboard', label: 'Dashboard', description: 'Manage your pastes and links.' },
+        { href: '/bookmarks', label: 'Saved posts', description: 'Reopen every paste you bookmarked.' },
         { href: `/u/${session.username}`, label: 'Profile', description: 'Open your public profile page.' },
         { href: '/settings', label: 'Studio', description: 'Customize your profile and name effects.' },
         { href: '/account', label: 'Account', description: 'Password, recovery email, and session controls.' },
@@ -152,6 +154,7 @@ export default function Nav({ session }: { session: NavUser }) {
                       <MenuLink href={`/u/${session.username}`} label="View profile" />
                       <MenuLink href="/settings" label="Profile studio" />
                       <MenuLink href="/dashboard" label="My pastes" />
+                      <MenuLink href="/bookmarks" label="Saved posts" />
                       <MenuLink href="/account" label="Account & security" />
                     </div>
                     <div className="my-2 border-t-2 border-dashed border-[color:var(--vb-line-soft)]" />
