@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import NameDisplay from './NameDisplay';
-import Avatar from './Avatar';
 import { NAME_EFFECTS, EFFECT_CATEGORIES, type NameEffect, type NameStyle } from '@/lib/nameEffects';
 import EmojiStatus from './EmojiStatus';
 import SocialPlatformIcon from './SocialPlatformIcon';
@@ -574,46 +573,19 @@ export default function ProfileCustomizer({
           </div>
         )}
 
-        <div className="card flex flex-col items-start gap-3 rounded-xl p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-white">Apply your changes</p>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              Everything on the left updates the live preview instantly.
-            </p>
-          </div>
-          <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <button onClick={save} disabled={busy} className="btn-primary w-full px-8 py-3 text-sm disabled:opacity-60 sm:w-auto">
-              {busy ? 'Saving…' : 'Save changes'}
-            </button>
-            {saved && (
-              <span className="feedback-success animate-pop px-4 py-2 text-sm font-semibold">Saved</span>
-            )}
-            {error && <span className="feedback-error px-4 py-2 text-sm">{error}</span>}
-          </div>
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+          <button onClick={save} disabled={busy} className="btn-primary px-8 py-3 text-sm disabled:opacity-60">
+            {busy ? 'Saving…' : 'Save changes'}
+          </button>
+          {saved && <span className="feedback-success animate-pop px-4 py-2 text-sm font-semibold">Saved</span>}
+          {error && <span className="feedback-error px-4 py-2 text-sm">{error}</span>}
         </div>
       </div>
 
       <div className="lg:sticky lg:top-24 lg:self-start">
-        <div className="flex items-center justify-between gap-3">
-          <p className="eyebrow">Live preview</p>
-          <span className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-600">
-            Updates as you type
-          </span>
-        </div>
-        {/* Mirrors the public /u/[username] hero: banner → framed avatar
-            overlapping the banner edge → aligned name/status row → bio →
-            links, so what you see here is what visitors will see. */}
-        <div className="animate-fade-up card mt-3 overflow-hidden rounded-xl">
-          <div
-            className="profile-banner-fallback relative h-24 sm:h-28"
-            style={
-              {
-                '--pf-from': state.nameFrom,
-                '--pf-accent': state.accent,
-                '--pf-to': state.nameTo,
-              } as CSSProperties
-            }
-          >
+        <p className="eyebrow">Live preview</p>
+        <div className="animate-fade-up mt-3 overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] shadow-[6px_6px_0_0_var(--vb-ink)]">
+          <div className="relative h-36">
             {state.bannerUrl && state.bannerType === 'video' ? (
               <video
                 src={state.bannerUrl}
@@ -621,98 +593,98 @@ export default function ProfileCustomizer({
                 muted
                 loop
                 playsInline
-                className="absolute inset-0 h-full w-full object-cover"
+                className="h-full w-full object-cover"
               />
             ) : state.bannerUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={state.bannerUrl}
                 alt=""
-                className="absolute inset-0 h-full w-full object-cover"
+                className="h-full w-full object-cover"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-night-950/95 via-night-950/30 to-transparent" />
+            ) : (
+              <div
+                className="h-full w-full"
+                style={{
+                  background: `linear-gradient(120deg, ${state.nameFrom}33, ${state.accent}55 45%, ${state.nameTo}33)`,
+                }}
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-night-950/90 to-transparent" />
           </div>
-          <div className="px-4 pb-5 pt-4">
-            <div className="flex min-w-0 items-start gap-3.5">
-              <div className="-mt-10 w-fit shrink-0 rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] p-1 shadow-[4px_4px_0_0_var(--vb-ink)] sm:-mt-11">
-                <Avatar
-                  value={state.avatarUrl || null}
-                  label={state.displayName || username}
-                  className="h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem]"
+          <div className="relative -mt-8 px-5 pb-5">
+            {state.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={state.avatarUrl}
+                alt=""
+                className="h-16 w-16 rounded-full border-2 object-cover"
+                style={{ borderColor: 'var(--vb-line)', boxShadow: `4px 4px 0 var(--vb-ink)` }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <span className="grid h-16 w-16 place-items-center rounded-full border-2 bg-brand-600 text-xl font-black text-white" style={{ borderColor: 'var(--vb-line)', boxShadow: `4px 4px 0 var(--vb-ink)` }}>
+                {(state.displayName || username).slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            {/* Mirrors the public profile header: display name → status
+                emoji/GIF in one aligned row (inline-flex + items-center). */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-2">
+              <h3 className="inline-flex min-w-0 items-center break-words text-2xl font-black tracking-tight">
+                <NameDisplay
+                  text={state.displayName || username}
+                  from={state.nameFrom}
+                  to={state.nameTo}
+                  style={state.nameStyle}
+                  effect={state.nameEffect}
+                  speed={state.effectSpeed}
+                  intensity={state.effectIntensity}
                 />
-              </div>
-              <div className="min-w-0 pt-0.5">
-                {/* Mirrors the public profile header: display name → status
-                    emoji/GIF in one aligned row (inline-flex + items-center). */}
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-                  <h3 className="inline-flex min-w-0 max-w-full items-center break-words text-xl font-black uppercase leading-[1.1] tracking-tight sm:text-2xl">
-                    <NameDisplay
-                      text={state.displayName || username}
-                      from={state.nameFrom}
-                      to={state.nameTo}
-                      style={state.nameStyle}
-                      effect={state.nameEffect}
-                      speed={state.effectSpeed}
-                      intensity={state.effectIntensity}
-                    />
-                  </h3>
-                  {/* Status emoji/GIF sits after the display name, matching the profile page. */}
-                  <EmojiStatus
-                    value={state.statusEmoji}
-                    pack={statusStickers.length > 0 ? statusStickers : undefined}
-                    className="inline-flex shrink-0 items-center text-lg leading-none sm:text-xl"
-                    title={state.statusText || 'Status'}
-                  />
-                </div>
-                <p className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] leading-5 text-zinc-400">
-                  <span className="font-bold text-zinc-300">@{username}</span>
-                  {state.statusText && (
-                    <>
-                      <span aria-hidden className="text-zinc-600">·</span>
-                      <span className="min-w-0 break-words text-zinc-400">{state.statusText}</span>
-                    </>
-                  )}
-                </p>
-                {state.bioEnabled && state.bio && (
-                  <p
-                    className="mt-3 whitespace-pre-wrap border-l-4 pl-3 text-sm leading-6 text-zinc-300"
-                    style={{ borderColor: `${state.accent}cc` }}
-                  >
-                    {state.bio}
-                  </p>
-                )}
-                {state.links.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {state.links
-                      .filter((link) => link.url.trim())
-                      .map((link, i) => {
-                        const detected = detectSocialPlatform(link.url);
-                        const label = (link.label ?? '').trim() || detected.label;
-                        const accent = detected.color;
-                        return (
-                          <span
-                            key={i}
-                            className="profile-link"
-                            style={{ '--link-accent': accent } as CSSProperties}
-                          >
-                            <span className="profile-link__icon">
-                              <SocialPlatformIcon platform={detected.icon} className="h-3.5 w-3.5" />
-                            </span>
-                            <span className="profile-link__label">{label}</span>
-                            <span className="profile-link__arrow" aria-hidden>
-                              ↗
-                            </span>
-                          </span>
-                        );
-                      })}
-                  </div>
-                )}
-              </div>
+              </h3>
+              {/* Status emoji/GIF sits after the display name, matching the profile page. */}
+              <EmojiStatus
+                value={state.statusEmoji}
+                pack={statusStickers.length > 0 ? statusStickers : undefined}
+                className="inline-flex shrink-0 items-center text-xl leading-none"
+              />
             </div>
+            <p className="mt-0.5 break-words text-xs text-zinc-500">
+              @{username}
+              {state.statusText && <span className="text-zinc-600"> · {state.statusText}</span>}
+            </p>
+            {state.bioEnabled && state.bio && (
+              <p className="mt-3 whitespace-pre-wrap text-sm text-zinc-300">{state.bio}</p>
+            )}
+            {state.links.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {state.links
+                  .filter((link) => link.url.trim())
+                  .map((link, i) => {
+                    const detected = detectSocialPlatform(link.url);
+                    const label = (link.label ?? '').trim() || detected.label;
+                    const accent = detected.color;
+                    return (
+                      <span
+                        key={i}
+                        className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold"
+                        style={{
+                          borderColor: `${accent}66`,
+                          background: `${accent}14`,
+                          color: accent,
+                        }}
+                      >
+                        <SocialPlatformIcon platform={detected.icon} className="h-3.5 w-3.5 shrink-0" />
+                        {label}
+                      </span>
+                    );
+                  })}
+              </div>
+            )}
           </div>
         </div>
       </div>
