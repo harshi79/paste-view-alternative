@@ -8,6 +8,7 @@ const ITEMS = [
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/tags', label: 'Tags' },
   { href: '/admin/stickers', label: 'Stickers' },
+  { href: '/admin/notifications', label: 'Broadcast' },
 ];
 
 export default function AdminNav({ active }: { active?: string }) {

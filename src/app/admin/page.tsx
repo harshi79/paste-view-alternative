@@ -27,7 +27,8 @@ export default async function AdminHome() {
       <AdminNav active="/admin" />
       <h1 className="mt-8 text-4xl font-black uppercase tracking-tight text-white">Admin</h1>
       <p className="mt-1 text-sm text-zinc-400">
-        Operate the site: assign tags to users, manage the tag library, and curate the sticker pack.
+        Operate the site: assign tags to users, manage the tag library, curate the sticker pack, and
+        broadcast notifications.
       </p>
 
       <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -60,6 +61,13 @@ export default async function AdminHome() {
           <p className="mt-1 text-sm text-zinc-400">
             Curate the {Number(s?.n ?? 0)} sticker(s) the rich editor offers.
           </p>
+        </Link>
+        <Link
+          href="/admin/notifications"
+          className="card rounded-lg p-5 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-[7px_7px_0_0_var(--vb-ink)]"
+        >
+          <h3 className="font-black uppercase tracking-tight text-white">Broadcast</h3>
+          <p className="mt-1 text-sm text-zinc-400">Send a notification to every registered user.</p>
         </Link>
       </div>
     </div>
