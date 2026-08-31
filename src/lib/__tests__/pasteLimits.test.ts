@@ -1,20 +1,19 @@
 /**
- * Regression tests — paste size limits (characters + lines).
+ * Regression tests — paste size limits (lines only).
  *
  * The editor and POST /api/pastes share one explicit limit policy
- * (src/lib/pasteLimits.ts): 100,000 characters and 2,000 lines. The
+ * (src/lib/pasteLimits.ts): 20,000 lines, NO character limit. The
  * server is the FINAL authority. These tests drive the real route
  * handler against an in-memory SQLite database (the same harness as
  * pasteLinkSecurity.test.ts) and pin:
  *
  *   - within limits → 200, stored byte-for-byte (no truncation)
- *   - exactly at the character limit → accepted
+ *   - large character count (well above old 100k) but under line limit → accepted
  *   - exactly at the line limit → accepted
- *   - above the character limit → 413 with a clear message, nothing stored
  *   - above the line limit → 413 with a clear message, nothing stored
  *   - a large but valid paste → stored byte-for-byte
  *   - empty rich docs still rejected with 400 (unchanged behavior)
- *   - the legacy plain path still enforces the character limit
+ *   - the legacy plain path no longer enforces a character limit
  */
 import { createClient } from '@libsql/client';
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql';
@@ -22,7 +21,6 @@ import { sql } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as schema from '@/lib/db/schema';
 import {
-  PASTE_MAX_CHARS,
   PASTE_MAX_LINES,
   pasteTooLargeMessage,
   richDocLimitExceeded,
@@ -104,17 +102,17 @@ async function storedRows() {
 
 describe('paste size limits — shared policy', () => {
   it('limits are explicit and consistent', () => {
-    expect(PASTE_MAX_CHARS).toBe(100_000);
     expect(PASTE_MAX_LINES).toBe(20_000);
+    // No character limit: even 150k chars in a single line fits
     expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(100_000) }] })).toBeNull();
-    expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(100_001) }] })).toBe('chars');
+    expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(150_000) }] })).toBeNull();
+    expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(500_000) }] })).toBeNull();
     expect(
       richDocLimitExceeded({ v: 1, lines: Array.from({ length: 20_001 }, () => ({ text: 'x' })) }),
     ).toBe('lines');
   });
 
   it('messages name the limit explicitly', () => {
-    expect(pasteTooLargeMessage('chars')).toMatch(/100,000/);
     expect(pasteTooLargeMessage('lines')).toMatch(/20,000/);
   });
 });
@@ -131,9 +129,12 @@ describe('POST /api/pastes — size validation at the API boundary', () => {
     expect(row.content).toBe(JSON.stringify({ v: 1, lines: lines.map((text) => ({ text })) }));
   });
 
-  it('accepts exactly the character limit', async () => {
-    const res = await POST(richRequest(['a'.repeat(PASTE_MAX_CHARS)]));
+  it('accepts a paste well above 100,000 characters but under 20,000 lines', async () => {
+    const big = 'a'.repeat(150_000);
+    const res = await POST(richRequest([big]));
     expect(res.status).toBe(200);
+    const [row] = await storedRows();
+    expect(row.content).toBe(JSON.stringify({ v: 1, lines: [{ text: big }] }));
   });
 
   it('accepts exactly the line limit', async () => {
@@ -145,14 +146,6 @@ describe('POST /api/pastes — size validation at the API boundary', () => {
     const res = await POST(richRequest(Array.from({ length: PASTE_MAX_LINES - 1 }, () => 'x')));
     expect(res.status).toBe(200);
     expect(await storedRows()).toHaveLength(1);
-  });
-
-  it('rejects pastes above the character limit with a clear 413 and stores nothing', async () => {
-    const res = await POST(richRequest(['a'.repeat(PASTE_MAX_CHARS + 1)]));
-    expect(res.status).toBe(413);
-    const body = await res.json();
-    expect(body.error).toMatch(/100,000/);
-    expect(await storedRows()).toHaveLength(0);
   });
 
   it('rejects one above the line limit (20,001 lines) with a clear 413 and stores nothing', async () => {
@@ -171,26 +164,35 @@ describe('POST /api/pastes — size validation at the API boundary', () => {
     expect(row.content).toBe(JSON.stringify({ v: 1, lines: lines.map((text) => ({ text })) }));
   });
 
+  it('stores a very large character paste without truncation', async () => {
+    const bigLine = 'z'.repeat(200_000);
+    const res = await POST(richRequest([bigLine]));
+    expect(res.status).toBe(200);
+    const [row] = await storedRows();
+    expect(row.content).toBe(JSON.stringify({ v: 1, lines: [{ text: bigLine }] }));
+  });
+
   it('still rejects empty rich docs with 400 (unchanged behavior)', async () => {
     const res = await POST(richRequest(['']));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/required/);
   });
 
-  it('still enforces the character limit on legacy plain content', async () => {
+  it('legacy plain path now accepts large character content (no char limit)', async () => {
     const res = await POST(
       new Request('http://localhost/api/pastes', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           format: 'plain',
-          content: 'a'.repeat(PASTE_MAX_CHARS + 1),
+          content: 'a'.repeat(150_000),
           language: 'plaintext',
           visibility: 'public',
           expiresIn: 'never',
         }),
       }),
     );
-    expect(res.status).toBe(413);
+    expect(res.status).toBe(200);
+    expect(await storedRows()).toHaveLength(1);
   });
 });
