@@ -32,7 +32,7 @@ export default function CopyButton({
     <button
       type="button"
       onClick={copy}
-      className={className ?? 'btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold'}
+      className={className ?? 'btn-ghost !rounded-md !px-3.5 !py-2 text-xs font-bold uppercase tracking-wide'}
     >
       {copied ? '✓ Copied!' : label}
     </button>

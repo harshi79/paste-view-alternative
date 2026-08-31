@@ -54,9 +54,9 @@ export default function DashboardList({
 
   if (pastes.length === 0) {
     return (
-      <div className="card animate-pop rounded-[28px] px-6 py-12 text-center sm:py-14">
+      <div className="card animate-pop rounded-xl px-6 py-12 text-center sm:py-14">
         <p className="text-4xl">📭</p>
-        <h2 className="mt-4 text-2xl font-bold text-white">No pastes yet, {displayName}</h2>
+        <h2 className="mt-4 text-2xl font-black uppercase tracking-tight text-white">No pastes yet, {displayName}</h2>
         <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-400">
           Your dashboard is ready. Create your first paste to start building history, views, and
           shareable links.
@@ -76,12 +76,12 @@ export default function DashboardList({
         return (
           <article
             key={paste.id}
-            className={`card rounded-[26px] px-4 py-4 transition-all sm:px-5 sm:py-5 ${
+            className={`card rounded-lg px-4 py-4 transition-all hover:border-[#40404f] sm:px-5 sm:py-5 ${
               isNew
-                ? 'border-emerald-400/35 shadow-[0_24px_60px_-42px_rgba(16,185,129,0.7)]'
+                ? 'border-emerald-400/60 shadow-[5px_5px_0_0_rgba(16,185,129,0.25)]'
                 : expired
-                  ? 'border-red-500/20 opacity-70'
-                  : 'hover:border-white/20'
+                  ? 'border-red-500/30 opacity-70'
+                  : ''
             } ${busyId === paste.id ? 'animate-pulse' : ''}`}
           >
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
@@ -89,7 +89,7 @@ export default function DashboardList({
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/p/${paste.id}`}
-                    className="min-w-0 break-words text-base font-semibold text-zinc-100 hover:text-white sm:text-lg"
+                    className="min-w-0 break-words text-base font-bold text-zinc-100 hover:text-white sm:text-lg"
                   >
                     {paste.pinned && '📌 '}
                     {paste.title}
@@ -119,7 +119,7 @@ export default function DashboardList({
                 <CopyButton text={shareUrl(paste.id)} label="Copy link" />
                 <button
                   onClick={() => togglePin(paste.id)}
-                  className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs font-semibold"
+                  className="btn-ghost !rounded-md !px-3.5 !py-2 text-xs font-bold uppercase tracking-wide"
                 >
                   {paste.pinned ? 'Unpin' : 'Pin'}
                 </button>
@@ -127,13 +127,13 @@ export default function DashboardList({
                   <>
                     <button
                       onClick={() => remove(paste.id)}
-                      className="btn-danger !rounded-xl !px-3.5 !py-2 text-xs"
+                      className="btn-danger !rounded-md !px-3.5 !py-2 text-xs uppercase tracking-wide"
                     >
                       Confirm delete
                     </button>
                     <button
                       onClick={() => setConfirmId(null)}
-                      className="btn-ghost !rounded-xl !px-3 !py-2 text-xs"
+                      className="btn-ghost !rounded-md !px-3 !py-2 text-xs uppercase tracking-wide"
                     >
                       Cancel
                     </button>
@@ -141,7 +141,7 @@ export default function DashboardList({
                 ) : (
                   <button
                     onClick={() => setConfirmId(paste.id)}
-                    className="btn-ghost !rounded-xl !px-3.5 !py-2 text-xs hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+                    className="btn-ghost !rounded-md !px-3.5 !py-2 text-xs hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
                   >
                     Delete
                   </button>

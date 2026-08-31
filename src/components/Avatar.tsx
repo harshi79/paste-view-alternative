@@ -23,7 +23,7 @@ export default function Avatar({ value, label, className = 'h-10 w-10' }: Props)
   }
   return (
     <span
-      className={`${className} grid place-items-center rounded-full bg-gradient-to-br from-brand-500 to-cyan-400 font-bold text-night-950`}
+      className={`${className} grid place-items-center rounded-full border-2 border-black/50 bg-brand-600 font-black text-white`}
     >
       {label.slice(0, 1).toUpperCase()}
     </span>

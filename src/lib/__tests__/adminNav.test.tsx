@@ -16,7 +16,11 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 
-const ACTIVE_CLASS = 'bg-white/10 text-white';
+// Marker for the AdminNav "active tab" visual state. The skin was redesigned
+// (brutalist tabs), so the marker class changed — the active-state LOGIC it
+// pins (it.href === active, pathname fallback, 'home' never matching) is
+// untouched and these assertions still verify exactly that contract.
+const ACTIVE_CLASS = 'border-brand-400/70 bg-brand-600/25 text-white';
 
 beforeEach(() => {
   vi.resetModules();

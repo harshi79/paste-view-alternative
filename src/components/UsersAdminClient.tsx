@@ -114,7 +114,7 @@ export default function UsersAdminClient({
         </form>
 
         {users.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-white/10 p-10 text-center text-zinc-500">
+          <p className="rounded-lg border-2 border-dashed border-[color:var(--vb-line)] p-10 text-center text-zinc-500">
             No users found.
           </p>
         ) : (
@@ -122,7 +122,7 @@ export default function UsersAdminClient({
             {users.map((u) => (
               <div
                 key={u.id}
-                className={`flex w-full items-center gap-3 rounded-2xl border bg-night-800/60 p-4 text-left transition-colors ${
+                className={`flex w-full items-center gap-3 rounded-lg border-2 bg-[color:var(--vb-panel-2)] p-4 text-left transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-[3px_3px_0_0_var(--vb-ink)] ${
                   activeId === u.id
                     ? 'border-amber-400/60'
                     : 'border-white/10 hover:border-white/20'

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Logo from '@/components/Logo';
 
 const FEATURES = [
   {
@@ -34,40 +33,65 @@ const FEATURES = [
 
 export default function HomePage() {
   return (
-    <div className="animate-fade-up pb-6 pt-8 sm:pt-14 lg:pt-20">
-      <section className="mx-auto flex max-w-4xl flex-col items-center text-center">
-        <p className="eyebrow">Fast, private sharing</p>
-        <div className="mt-6">
-          <Logo />
-        </div>
+    <div className="animate-fade-up relative pb-6 pt-10 sm:pt-16 lg:pt-24">
+      {/* Decorative watermark — pure CSS, aria-hidden, no content meaning. */}
+      <p
+        aria-hidden
+        className="pointer-events-none absolute -top-2 right-0 hidden select-none font-black uppercase leading-none tracking-tighter text-transparent lg:block"
+        style={{ WebkitTextStroke: '2px rgba(255,255,255,0.05)', fontSize: 'clamp(6rem,14vw,11rem)' }}
+      >
+        VibeBin
+      </p>
 
-        <h1 className="mt-7 max-w-3xl text-balance text-3xl font-black tracking-tight text-white sm:text-5xl sm:leading-[1.05] lg:text-6xl">
-          Share code and text with a link worth opening.
+      <section className="relative mx-auto flex max-w-4xl flex-col items-start text-left">
+        <p className="eyebrow">Fast, private sharing</p>
+
+        <h1 className="mt-7 max-w-3xl text-balance text-4xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-6xl sm:leading-[0.95] lg:text-7xl">
+          Share code and text with a{' '}
+          <span
+            className="text-transparent"
+            style={{ WebkitTextStroke: '2px var(--vb-accent-2)' }}
+          >
+            link
+          </span>{' '}
+          worth opening.
         </h1>
 
-        <p className="mt-5 max-w-2xl text-balance text-sm leading-7 text-zinc-400 sm:text-lg sm:leading-8">
+        <p className="mt-6 max-w-2xl text-pretty text-sm leading-7 text-zinc-400 sm:text-lg sm:leading-8">
           VibeBin is a fast, private pastebin with syntax highlighting, expiring links, password
           protection, and rich-text formatting. No account required.
         </p>
 
-        <div className="mt-8 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row sm:gap-4">
-          <Link href="/paste" className="btn-primary w-full !px-6 !py-3 text-base sm:w-auto">
+        <div className="mt-9 flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+          <Link href="/paste" className="btn-primary w-full !px-7 !py-3.5 text-base uppercase tracking-wide sm:w-auto">
             Create paste
           </Link>
-          <span className="text-sm text-zinc-500">Free · No account required</span>
+          <span className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">
+            Free · No account required
+          </span>
         </div>
       </section>
 
-      <section className="mx-auto mt-14 max-w-5xl sm:mt-20">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {FEATURES.map((feature) => (
-            <div key={feature.title} className="card flex items-start gap-3.5 rounded-[24px] p-4 sm:p-5">
-              <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-brand-300">
-                {feature.icon}
-              </span>
+      <section className="mx-auto mt-16 max-w-6xl sm:mt-24">
+        <div className="grid gap-5 sm:grid-cols-3">
+          {FEATURES.map((feature, i) => (
+            <div
+              key={feature.title}
+              className="card group flex flex-col gap-4 p-5 transition-transform duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 sm:p-6"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="grid h-10 w-10 flex-none place-items-center rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] text-brand-300 shadow-[2px_2px_0_0_var(--vb-ink)]">
+                  {feature.icon}
+                </span>
+                <span className="font-mono text-xs font-bold text-zinc-600">
+                  0{i + 1}
+                </span>
+              </div>
               <div>
-                <h2 className="text-sm font-semibold text-white">{feature.title}</h2>
-                <p className="mt-1.5 text-sm leading-6 text-zinc-400">{feature.text}</p>
+                <h2 className="text-base font-black uppercase tracking-tight text-white">
+                  {feature.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">{feature.text}</p>
               </div>
             </div>
           ))}

@@ -112,7 +112,7 @@ export default function FollowStats({ username, followersCount, followingCount, 
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-[8vh] backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-4 pt-[8vh]"
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setOpen(null);
           }}
@@ -121,9 +121,9 @@ export default function FollowStats({ username, followersCount, followingCount, 
             role="dialog"
             aria-modal="true"
             aria-label={open === 'followers' ? 'Followers' : 'Following'}
-            className="animate-pop w-full max-w-md overflow-hidden rounded-[24px] border border-white/10 bg-night-900/95 shadow-2xl shadow-black/60 backdrop-blur-xl"
+            className="animate-pop w-full max-w-md overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] shadow-[8px_8px_0_0_var(--vb-ink)]"
           >
-            <div className="flex items-center justify-between border-b border-white/5 px-5 py-3.5">
+            <div className="flex items-center justify-between border-b-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-panel-2)] px-5 py-3.5">
               <h3 className="text-sm font-bold text-white">
                 {open === 'followers' ? 'Followers' : 'Following'}
               </h3>
@@ -131,7 +131,7 @@ export default function FollowStats({ username, followersCount, followingCount, 
                 type="button"
                 onClick={() => setOpen(null)}
                 aria-label="Close list"
-                className="grid h-8 w-8 place-items-center rounded-full text-lg leading-none text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                className="grid h-8 w-8 place-items-center rounded-md border-2 border-[color:var(--vb-line)] text-lg leading-none text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
               >
                 ×
               </button>
@@ -155,7 +155,7 @@ export default function FollowStats({ username, followersCount, followingCount, 
                   {users?.map((u) => (
                     <li
                       key={u.username}
-                      className="flex items-center gap-3 rounded-2xl px-2.5 py-2.5 transition-colors hover:bg-white/[0.04]"
+                      className="flex items-center gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-white/[0.05]"
                     >
                       <Link
                         href={`/u/${u.username}`}

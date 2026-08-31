@@ -47,7 +47,7 @@ export default function RichPasteView({ doc, stickers, language, bare = false }:
   const lineHighlights = language ? richDocLineHighlights(doc, language) : null;
 
   const body = (
-    <div className="overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_30%)] px-3 py-4 md:px-4">
+    <div className="overflow-x-auto px-3 py-4 md:px-4">
       {doc.lines.length === 0 ? (
         <p className="px-2 py-1 text-sm italic text-zinc-500">(empty paste)</p>
       ) : (
@@ -72,8 +72,8 @@ export default function RichPasteView({ doc, stickers, language, bare = false }:
   }
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#060912]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_28px_70px_-42px_rgba(0,0,0,0.95)]">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] bg-black/25 px-4 py-2.5 sm:px-5">
+    <div className="overflow-hidden rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-inset)] shadow-[6px_6px_0_0_var(--vb-ink)]">
+      <div className="flex items-center justify-between gap-3 border-b-2 border-[color:var(--vb-line-soft)] bg-black/30 px-4 py-2.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="window-dots" aria-hidden="true">
             <span className="window-dot bg-rose-400/80" />

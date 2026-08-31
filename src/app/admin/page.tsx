@@ -25,7 +25,7 @@ export default async function AdminHome() {
   return (
     <div className="pt-10">
       <AdminNav active="/admin" />
-      <h1 className="mt-8 text-3xl font-black tracking-tight text-white">Admin</h1>
+      <h1 className="mt-8 text-4xl font-black uppercase tracking-tight text-white">Admin</h1>
       <p className="mt-1 text-sm text-zinc-400">
         Operate the site: assign tags to users, manage the tag library, and curate the sticker pack.
       </p>
@@ -40,23 +40,23 @@ export default async function AdminHome() {
       <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Link
           href="/admin/users"
-          className="card p-5 transition hover:border-brand-400/40"
+          className="card rounded-lg p-5 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-[7px_7px_0_0_var(--vb-ink)]"
         >
-          <h3 className="font-bold text-white">Users</h3>
+          <h3 className="font-black uppercase tracking-tight text-white">Users</h3>
           <p className="mt-1 text-sm text-zinc-400">Search accounts and assign tags.</p>
         </Link>
         <Link
           href="/admin/tags"
-          className="card p-5 transition hover:border-brand-400/40"
+          className="card rounded-lg p-5 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-[7px_7px_0_0_var(--vb-ink)]"
         >
-          <h3 className="font-bold text-white">Tags</h3>
+          <h3 className="font-black uppercase tracking-tight text-white">Tags</h3>
           <p className="mt-1 text-sm text-zinc-400">Create the tags you can award.</p>
         </Link>
         <Link
           href="/admin/stickers"
-          className="card p-5 transition hover:border-brand-400/40"
+          className="card rounded-lg p-5 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:border-brand-400/50 hover:shadow-[7px_7px_0_0_var(--vb-ink)]"
         >
-          <h3 className="font-bold text-white">Stickers</h3>
+          <h3 className="font-black uppercase tracking-tight text-white">Stickers</h3>
           <p className="mt-1 text-sm text-zinc-400">
             Curate the {Number(s?.n ?? 0)} sticker(s) the rich editor offers.
           </p>
@@ -69,8 +69,8 @@ export default async function AdminHome() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="card p-4">
-      <p className="text-xs uppercase tracking-wider text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-black text-white">{value.toLocaleString()}</p>
+      <p className="font-mono text-[11px] font-bold uppercase tracking-[0.22em] text-zinc-500">{label}</p>
+      <p className="mt-1 text-3xl font-black tabular-nums tracking-tight text-white">{value.toLocaleString()}</p>
     </div>
   );
 }

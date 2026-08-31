@@ -95,13 +95,13 @@ export default function ProfileCustomizer({
   }
 
   const input = 'input';
-  const label = 'mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500';
-  const card = 'card rounded-[26px] p-5 sm:p-6';
+  const label = 'mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500';
+  const card = 'card rounded-xl p-5 sm:p-6';
   const tabBtn = (active: boolean) =>
-    `inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors sm:flex-none ${
+    `inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-md px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-all sm:flex-none ${
       active
-        ? 'bg-white/10 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-        : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
+        ? 'bg-brand-600 text-white shadow-[2px_2px_0_0_var(--vb-ink)]'
+        : 'text-zinc-400 hover:bg-white/[0.06] hover:text-white'
     }`;
 
   // Effect templates — one-click sets the name effect + colors at once.
@@ -129,16 +129,16 @@ export default function ProfileCustomizer({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
       <div className="animate-fade-up space-y-5">
-        <div className="card rounded-[28px] px-5 py-5 sm:px-6 sm:py-6">
+        <div className="card rounded-xl px-5 py-5 sm:px-6 sm:py-6">
           <p className="eyebrow">Profile studio</p>
-          <h2 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+          <h2 className="mt-4 text-3xl font-black uppercase leading-[0.95] tracking-tight text-white sm:text-4xl">
             Customize your public presence
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
             Fine-tune your avatar, banner, display name, animated effects, links, and profile copy.
             The preview updates live so you can polish the final result before saving.
           </p>
-          <div className="mt-5 flex w-full flex-wrap items-center gap-2 rounded-2xl border border-white/[0.08] bg-black/10 p-1">
+          <div className="mt-5 flex w-full flex-wrap items-center gap-2 rounded-lg border-2 border-[color:var(--vb-line-soft)] bg-black/30 p-1">
             <button type="button" className={tabBtn(tab === 'profile')} onClick={() => setTab('profile')}>
               Profile & media
             </button>
@@ -153,7 +153,7 @@ export default function ProfileCustomizer({
 
         {tab === 'profile' && (
           <div className={card}>
-            <h2 className="mb-4 font-bold text-white">Profile</h2>
+            <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Profile</h2>
             <div className="space-y-4">
               <div>
                 <label className={label}>Display name</label>
@@ -189,7 +189,7 @@ export default function ProfileCustomizer({
             <hr className="my-5 border-white/5" />
 
             <div>
-              <h2 className="mb-1 font-bold text-white">Emoji status</h2>
+              <h2 className="mb-1 text-lg font-black uppercase tracking-tight text-white">Emoji status</h2>
               <p className="mb-3 text-xs leading-5 text-zinc-500">
                 A custom emoji shown beside your name and username. Pick from the selector or type
                 your own — remove it any time.
@@ -222,8 +222,8 @@ export default function ProfileCustomizer({
               </div>
 
               {showEmojiPicker && (
-                <div className="animate-pop mt-3 max-w-md rounded-xl border border-white/10 bg-night-900/70 p-2">
-                  <div className="mb-2 flex gap-1 rounded-lg bg-black/20 p-1">
+                <div className="animate-pop mt-3 max-w-md rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-2 shadow-[4px_4px_0_0_var(--vb-ink)]">
+                  <div className="mb-2 flex gap-1 rounded-md border border-[color:var(--vb-line-soft)] bg-black/30 p-1">
                     <button
                       type="button"
                       onClick={() => setStatusPickerTab('unicode')}
@@ -250,8 +250,8 @@ export default function ProfileCustomizer({
                             set('statusEmoji', emoji);
                             setShowEmojiPicker(false);
                           }}
-                          className={`grid h-9 w-9 place-items-center rounded-lg text-lg transition hover:bg-white/10 ${
-                            state.statusEmoji === emoji ? 'bg-brand-500/25 ring-1 ring-brand-400/60' : ''
+                          className={`grid h-9 w-9 place-items-center rounded-md text-lg transition hover:bg-white/10 ${
+                            state.statusEmoji === emoji ? 'bg-brand-600/40 ring-2 ring-brand-400/80' : ''
                           }`}
                         >
                           {emoji}
@@ -271,9 +271,9 @@ export default function ProfileCustomizer({
                             set('statusEmoji', sticker.token.toLowerCase());
                             setShowEmojiPicker(false);
                           }}
-                          className={`grid h-11 w-11 place-items-center rounded-lg text-xl transition hover:bg-white/10 ${
+                          className={`grid h-11 w-11 place-items-center rounded-md text-xl transition hover:bg-white/10 ${
                             state.statusEmoji.toLowerCase() === sticker.token.toLowerCase()
-                              ? 'bg-brand-500/25 ring-1 ring-brand-400/60'
+                              ? 'bg-brand-600/40 ring-2 ring-brand-400/80'
                               : ''
                           }`}
                         >
@@ -310,7 +310,7 @@ export default function ProfileCustomizer({
 
             <hr className="my-5 border-white/5" />
 
-            <h2 className="mb-4 font-bold text-white">Media (URLs only)</h2>
+            <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Media (URLs only)</h2>
             <p className="mb-4 text-xs leading-5 text-zinc-500">
               Direct uploads are disabled to keep the database small. Host your avatar and banner
               anywhere (your own CDN, Discord, Imgur, catbox, etc.) and paste the URL below.
@@ -360,7 +360,7 @@ export default function ProfileCustomizer({
                     <button
                       type="button"
                       onClick={() => set('bannerUrl', '')}
-                      className="btn-ghost !px-3.5 !py-2 text-xs sm:w-auto"
+                      className="btn-ghost !rounded-md !px-3.5 !py-2 text-xs uppercase tracking-wide sm:w-auto"
                     >
                       Remove
                     </button>
@@ -379,7 +379,7 @@ export default function ProfileCustomizer({
                 <div className="flex flex-wrap items-center gap-3">
                   <input
                     type="color"
-                    className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent"
+                    className="h-10 w-16 cursor-pointer rounded-md border-2 border-[color:var(--vb-line)] bg-transparent"
                     value={state.accent}
                     onChange={(e) => set('accent', e.target.value)}
                   />
@@ -393,14 +393,14 @@ export default function ProfileCustomizer({
         {tab === 'name' && (
           <>
             <div className={card}>
-              <h2 className="mb-4 font-bold text-white">One-click effect templates</h2>
+              <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">One-click effect templates</h2>
               <div className="flex flex-wrap gap-2">
                 {templates.map((template) => (
                   <button
                     key={template.id}
                     type="button"
                     onClick={() => applyTemplate(template)}
-                    className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.08]"
+                    className="rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-zinc-200 transition-all hover:-translate-x-px hover:-translate-y-px hover:border-brand-400/60 hover:bg-[#1a1a24] hover:shadow-[2px_2px_0_0_var(--vb-ink)]"
                   >
                     {template.label}
                   </button>
@@ -409,7 +409,7 @@ export default function ProfileCustomizer({
             </div>
 
             <div className={card}>
-              <h2 className="mb-4 font-bold text-white">Name styling</h2>
+              <h2 className="mb-4 text-lg font-black uppercase tracking-tight text-white">Name styling</h2>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className={label}>Color style</label>
@@ -449,7 +449,7 @@ export default function ProfileCustomizer({
                     <label className={label}>Color A</label>
                     <input
                       type="color"
-                      className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent"
+                      className="h-10 w-16 cursor-pointer rounded-md border-2 border-[color:var(--vb-line)] bg-transparent"
                       value={state.nameFrom}
                       onChange={(e) => set('nameFrom', e.target.value)}
                     />
@@ -458,7 +458,7 @@ export default function ProfileCustomizer({
                     <label className={label}>Color B</label>
                     <input
                       type="color"
-                      className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent"
+                      className="h-10 w-16 cursor-pointer rounded-md border-2 border-[color:var(--vb-line)] bg-transparent"
                       value={state.nameTo}
                       onChange={(e) => set('nameTo', e.target.value)}
                     />
@@ -584,7 +584,7 @@ export default function ProfileCustomizer({
 
       <div className="lg:sticky lg:top-24 lg:self-start">
         <p className="eyebrow">Live preview</p>
-        <div className="animate-fade-up mt-3 overflow-hidden rounded-[28px] border border-white/10 bg-night-900/95 shadow-2xl shadow-black/50">
+        <div className="animate-fade-up mt-3 overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] shadow-[6px_6px_0_0_var(--vb-ink)]">
           <div className="relative h-36">
             {state.bannerUrl && state.bannerType === 'video' ? (
               <video
@@ -621,14 +621,14 @@ export default function ProfileCustomizer({
               <img
                 src={state.avatarUrl}
                 alt=""
-                className="h-16 w-16 rounded-full border-4 border-night-950 object-cover shadow-xl"
-                style={{ boxShadow: `0 6px 30px ${state.accent}55` }}
+                className="h-16 w-16 rounded-full border-2 object-cover"
+                style={{ borderColor: 'var(--vb-line)', boxShadow: `4px 4px 0 var(--vb-ink)` }}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
               />
             ) : (
-              <span className="grid h-16 w-16 place-items-center rounded-full border-4 border-night-950 bg-gradient-to-br from-brand-500 to-cyan-400 text-xl font-black text-night-950">
+              <span className="grid h-16 w-16 place-items-center rounded-full border-2 bg-brand-600 text-xl font-black text-white" style={{ borderColor: 'var(--vb-line)', boxShadow: `4px 4px 0 var(--vb-ink)` }}>
                 {(state.displayName || username).slice(0, 1).toUpperCase()}
               </span>
             )}
@@ -671,7 +671,7 @@ export default function ProfileCustomizer({
                     return (
                       <span
                         key={i}
-                        className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold"
+                        className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-bold"
                         style={{
                           borderColor: `${accent}66`,
                           background: `${accent}14`,

@@ -91,13 +91,13 @@ export default function ForgotPasswordForm() {
   return (
     <div className="grid min-h-[72vh] place-items-center py-6 sm:py-8">
       <div className="animate-fade-up w-full max-w-lg">
-        <div className="card rounded-[28px] p-6 shadow-2xl shadow-black/40 sm:p-8">
+        <div className="card rounded-xl p-6 sm:p-8">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-400 text-xl shadow-lg shadow-brand-600/30 sm:h-14 sm:w-14">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-md border-2 border-[#0c0c13] bg-brand-600 text-xl shadow-[4px_4px_0_0_var(--vb-ink)] sm:h-14 sm:w-14">
               🔑
             </div>
             <p className="eyebrow justify-center">Password recovery</p>
-            <h1 className="mt-4 text-2xl font-black tracking-tight text-white sm:text-3xl">
+            <h1 className="mt-4 text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
               Reset your password
             </h1>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -115,11 +115,11 @@ export default function ForgotPasswordForm() {
               </p>
               <Link
                 href={`/reset-password?token=${encodeURIComponent(resetToken)}`}
-                className="btn-primary flex w-full justify-center py-3 text-sm"
+                className="btn-primary flex w-full justify-center py-3 text-sm uppercase tracking-wide"
               >
                 Open reset link
               </Link>
-              <div className="surface-subtle rounded-2xl px-4 py-3">
+              <div className="surface-subtle rounded-lg px-4 py-3">
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
                   One-time code
                 </p>
@@ -140,7 +140,7 @@ export default function ForgotPasswordForm() {
                 10 minutes and work only once.
               </p>
               <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                <label className="mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                   6-digit code
                 </label>
                 <input
@@ -156,7 +156,7 @@ export default function ForgotPasswordForm() {
               <button
                 type="submit"
                 disabled={busy || code.length !== 6}
-                className="btn-primary w-full justify-center py-3 text-sm"
+                className="btn-primary w-full justify-center py-3 text-sm uppercase tracking-wide"
               >
                 {busy ? 'Please wait…' : 'Verify code'}
               </button>
@@ -172,7 +172,7 @@ export default function ForgotPasswordForm() {
                   setError('');
                   setCode('');
                 }}
-                className="btn-ghost w-full justify-center py-3 text-sm"
+                className="btn-ghost w-full justify-center py-3 text-sm uppercase tracking-wide"
               >
                 Use a different username or email
               </button>
@@ -180,7 +180,7 @@ export default function ForgotPasswordForm() {
           ) : (
             <form onSubmit={request} className="space-y-4">
               <div>
-                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                <label className="mb-2 block font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
                   Username or recovery email
                 </label>
                 <input
@@ -198,7 +198,7 @@ export default function ForgotPasswordForm() {
               <button
                 type="submit"
                 disabled={busy || !identifier.trim()}
-                className="btn-primary w-full justify-center py-3 text-sm"
+                className="btn-primary w-full justify-center py-3 text-sm uppercase tracking-wide"
               >
                 {busy ? 'Please wait…' : 'Send recovery code'}
               </button>

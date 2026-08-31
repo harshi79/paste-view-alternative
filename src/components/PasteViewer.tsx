@@ -13,8 +13,8 @@ export default function PasteViewer({ content, language }: Props) {
   const lines = content.split('\n');
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[#060912]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_28px_70px_-42px_rgba(0,0,0,0.95)]">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] bg-black/25 px-4 py-2.5 sm:px-5">
+    <div className="overflow-hidden rounded-lg border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-inset)] shadow-[6px_6px_0_0_var(--vb-ink)]">
+      <div className="flex items-center justify-between gap-3 border-b-2 border-[color:var(--vb-line-soft)] bg-black/30 px-4 py-2.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="window-dots" aria-hidden="true">
             <span className="window-dot bg-rose-400/80" />
@@ -28,10 +28,10 @@ export default function PasteViewer({ content, language }: Props) {
         </span>
       </div>
 
-      <div className="flex overflow-x-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.015),transparent_30%)]">
+      <div className="flex overflow-x-auto">
         <div
           aria-hidden
-          className="shrink-0 select-none border-r border-white/[0.06] bg-black/20 px-4 py-4 text-right font-mono text-[12px] leading-6 text-zinc-600"
+          className="shrink-0 select-none border-r-2 border-[color:var(--vb-line-soft)] bg-black/25 px-4 py-4 text-right font-mono text-[12px] leading-6 text-zinc-600"
         >
           {lines.map((_, i) => (
             <div key={i}>{i + 1}</div>
