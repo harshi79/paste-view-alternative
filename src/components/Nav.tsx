@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import Logo from './Logo';
 import EmojiStatus from './EmojiStatus';
+import NotificationBell from './NotificationBell';
 import type { StickerEntry } from '@/lib/stickerPack';
 
 export type NavUser = {
@@ -99,6 +100,15 @@ export default function Nav({ session }: { session: NavUser }) {
               <span className="sm:hidden">Create</span>
               <span className="hidden sm:inline">Create paste</span>
             </Link>
+
+            {session && (
+              <NotificationBell
+                onOpen={() => {
+                  setAccountOpen(false);
+                  setMobileOpen(false);
+                }}
+              />
+            )}
 
             {session ? (
               <div className="relative">
