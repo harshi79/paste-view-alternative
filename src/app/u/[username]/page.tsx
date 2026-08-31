@@ -107,7 +107,7 @@ export default async function ProfilePage({ params }: Props) {
 
   return (
     <div className="pt-4 sm:pt-6">
-      <div className="animate-fade-up relative h-40 overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] shadow-[6px_6px_0_0_var(--vb-ink)] sm:h-56 lg:h-64">
+      <div className="animate-fade-up relative h-40 overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] shadow-[6px_6px_0_0_var(--vb-ink)] sm:h-44 lg:h-48">
         {profile.bannerUrl && profile.bannerType === 'video' ? (
           <video
             src={profile.bannerUrl}
@@ -130,7 +130,7 @@ export default async function ProfilePage({ params }: Props) {
         <div className="absolute inset-0 bg-gradient-to-t from-night-950/90 via-night-950/20 to-transparent" />
       </div>
 
-      <div className="animate-fade-up relative -mt-10 px-1 sm:-mt-14 sm:px-6" style={{ animationDelay: '60ms' }}>
+      <div className="animate-fade-up relative -mt-10 px-1 sm:-mt-12 sm:px-6" style={{ animationDelay: '60ms' }}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
             <div
@@ -144,7 +144,7 @@ export default async function ProfilePage({ params }: Props) {
               <Avatar
                 value={profile.avatarUrl}
                 label={profile.displayName || user.username}
-                className="h-20 w-20 sm:h-28 sm:w-28"
+                className="h-20 w-20 sm:h-24 sm:w-24"
               />
             </div>
             <div className="min-w-0 pb-1">
@@ -203,7 +203,7 @@ export default async function ProfilePage({ params }: Props) {
           )}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-3">
           {badges.map((badge) => (
             <span
               key={badge.id}
@@ -227,13 +227,13 @@ export default async function ProfilePage({ params }: Props) {
         </div>
 
         {profile.bioEnabled && profile.bio && (
-          <p className="mt-5 max-w-3xl whitespace-pre-wrap border-l-4 border-[color:var(--vb-line)] pl-4 text-sm leading-7 text-zinc-300 sm:text-[15px]">
+          <p className="mt-5 max-w-3xl whitespace-pre-wrap border-l-4 border-[color:var(--vb-line)] pl-4 text-sm leading-7 text-zinc-300 sm:mt-4 sm:text-[15px]">
             {profile.bio}
           </p>
         )}
 
         {profile.links.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2.5">
+          <div className="mt-4 flex flex-wrap gap-2.5 sm:mt-3">
             {profile.links.map((link, i) => {
               const detected = detectSocialPlatform(link.url);
               const label = (link.label ?? '').trim() || detected.label;
