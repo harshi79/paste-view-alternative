@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db';
 import { users } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { followUser, unfollowUser } from '@/lib/follows';
+import { notifyFollow, notifySafely } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -39,6 +40,15 @@ export async function POST(_req: Request, { params }: Props) {
     return NextResponse.json({ error: 'You cannot follow yourself.' }, { status: 400 });
   }
   const result = await followUser(session.user.id, target.id);
+  // Notify the followed user — only when a NEW follow row was created
+  // (`following` is false for a repeated follow), and only after the
+  // follow itself succeeded. A notification failure never changes the
+  // follow response.
+  if (result.following) {
+    await notifySafely(() =>
+      notifyFollow({ id: session.user.id, username: session.user.username }, target.id),
+    );
+  }
   return NextResponse.json({
     ok: true,
     following: result.following,
