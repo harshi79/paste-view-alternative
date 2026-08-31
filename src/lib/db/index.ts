@@ -71,6 +71,20 @@ const MIGRATION_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS follows_following_idx ON follows (following_id)`,
   `CREATE INDEX IF NOT EXISTS follows_follower_idx ON follows (follower_id)`,
 
+  // Bookmarks — a signed-in user's saved posts. One row per (user, paste)
+  // pair: the composite primary key makes duplicate bookmarks impossible
+  // at the DB level, and both foreign keys cascade (deleting a paste or a
+  // user removes the related bookmarks permanently). The (user_id,
+  // created_at) index backs the keyset-paginated "saved posts" listing.
+  `CREATE TABLE IF NOT EXISTS bookmarks (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    paste_id TEXT NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, paste_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS bookmarks_paste_idx ON bookmarks (paste_id)`,
+  `CREATE INDEX IF NOT EXISTS bookmarks_user_created_idx ON bookmarks (user_id, created_at)`,
+
   // Notifications — one row per recipient per event (FOLLOW / LIKE /
   // NEW_POST / ADMIN). `dedupe_key` is the idempotency handle: the unique
   // index collapses repeated events into one notification (SQLite treats

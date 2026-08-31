@@ -157,6 +157,32 @@ export const likes = sqliteTable(
 );
 
 // ------------------------------------------------------------------
+// Bookmarks — one saved post per paste per signed-in user (guests can
+// never bookmark; there is no anonymous bookmark). The composite primary
+// key makes duplicate bookmarks impossible at the DB level; both foreign
+// keys cascade, so deleting a paste or a user removes the related
+// bookmarks automatically. Removing a bookmark deletes the row
+// permanently (no soft-delete).
+// ------------------------------------------------------------------
+export const bookmarks = sqliteTable(
+  'bookmarks',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    pasteId: text('paste_id')
+      .notNull()
+      .references(() => pastes.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.pasteId] }),
+    index('bookmarks_paste_idx').on(t.pasteId),
+    index('bookmarks_user_created_idx').on(t.userId, t.createdAt),
+  ],
+);
+
+// ------------------------------------------------------------------
 // Notifications — one row per recipient per event.
 //
 // `type` is a stable internal identifier (FOLLOW | LIKE | NEW_POST |
@@ -308,6 +334,7 @@ export type Profile = typeof profiles.$inferSelect;
 export type UsernameReservation = typeof usernameReservations.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
 export type Like = typeof likes.$inferSelect;
+export type Bookmark = typeof bookmarks.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Follow = typeof follows.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
