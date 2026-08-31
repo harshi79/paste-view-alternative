@@ -82,12 +82,12 @@ export default function FollowButton({
         disabled={busy}
         aria-pressed={following}
         aria-label={following ? `Unfollow ${username}` : `Follow ${username}`}
-        className={`group inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border-2 font-bold uppercase tracking-wide transition-all active:translate-x-px active:translate-y-px disabled:cursor-wait disabled:opacity-60 ${
+        className={`group inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border-2 font-bold uppercase tracking-wide transition-all active:translate-x-px active:translate-y-px disabled:cursor-wait disabled:opacity-60 ${
           fullWidth ? 'w-full' : ''
-        } ${size === 'sm' ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm'} ${
+        } ${size === 'sm' ? 'min-h-[2.25rem] px-3 py-1.5 text-xs' : 'min-h-[2.6rem] px-4 py-2 text-sm'} ${
           following
             ? 'border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] text-zinc-200 hover:border-rose-400/50 hover:bg-rose-500/10 hover:text-rose-300'
-            : 'border-[#0c0c13] bg-brand-600 text-white shadow-[3px_3px_0_0_var(--vb-ink)] hover:-translate-x-px hover:-translate-y-px hover:bg-brand-500 hover:shadow-[4px_4px_0_0_var(--vb-ink)]'
+            : 'border-[#0c0c13] bg-brand-600 text-white shadow-[3px_3px_0_0_var(--vb-ink),inset_0_1px_0_rgba(255,255,255,0.22)] hover:-translate-x-px hover:-translate-y-px hover:bg-brand-500 hover:shadow-[4px_4px_0_0_var(--vb-ink),inset_0_1px_0_rgba(255,255,255,0.22)]'
         }`}
       >
         {following ? (
