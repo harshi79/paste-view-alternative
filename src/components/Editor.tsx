@@ -173,6 +173,12 @@ export default function Editor({ username }: Props) {
   const [stickerQuery, setStickerQuery] = useState('');
 
   const lineRefs = useRef<Array<HTMLDivElement | null>>([]);
+  /** True while a cross-line selection is held (lines disabled). */
+  const selectingRef = useRef(false);
+  /** True while the left button is held down inside the editor canvas. */
+  const downInCanvasRef = useRef(false);
+  /** Always points at the latest `deleteSelectedRange` for the document keydown handler. */
+  const deleteSelectedRangeRef = useRef<(a: LinePos, f: LinePos) => void>(() => {});
   const stickerBtnRef = useRef<HTMLButtonElement | null>(null);
   const stickerPanelRef = useRef<HTMLDivElement | null>(null);
   const packLoaded = useRef(false);
@@ -267,6 +273,86 @@ export default function Editor({ username }: Props) {
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [showStickers]);
+
+  // Cross-line selection support.
+  //
+  // Each editor line is its own sibling contentEditable <div>. Chromium and
+  // Safari refuse to extend a mouse-drag selection across sibling editing
+  // hosts, so a drag that starts in one line and ends in another normally
+  // only ever selects inside the starting line — a cross-line selection can
+  // never be created, and the Delete/Backspace handler below could never see
+  // one. (Firefox is more permissive; the trick below is harmless there.)
+  //
+  // The fix (the smallest change that fits this per-line architecture): the
+  // moment the pointer actually *drags* (left button held and moving), mark
+  // every line non-editable. The whole canvas then becomes ordinary
+  // selectable text, so the browser builds one Range spanning every line in
+  // either direction. The lines stay non-editable while the selection is
+  // held so it isn't collapsed; a document-level keydown handler reads the
+  // selection and performs the cross-line delete, and the delete re-render
+  // replaces the lines with fresh editable ones. A plain click (no drag)
+  // never disables anything, so click-to-edit, Enter-split, and Backspace-
+  // join are untouched.
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      // First movement with the left button held inside the canvas begins a
+      // selection drag; disable every line so it can span them.
+      if (selectingRef.current || !downInCanvasRef.current || e.buttons !== 1) return;
+      selectingRef.current = true;
+      for (const el of lineRefs.current) if (el) el.contentEditable = 'false';
+    }
+    function onMouseUp() {
+      downInCanvasRef.current = false;
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (!selectingRef.current) return;
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed) {
+          const anchor = resolveSelectionEndpoint(sel.anchorNode, sel.anchorOffset);
+          const focus = resolveSelectionEndpoint(sel.focusNode, sel.focusOffset);
+          if (anchor && focus) {
+            e.preventDefault();
+            // Exit selection mode and delete. Re-enable the current lines up
+            // front so the editor is never left disabled even if the delete
+            // is a no-op; when it succeeds the re-render replaces them with
+            // fresh editable lines and the caret is placed at the join point.
+            selectingRef.current = false;
+            for (const el of lineRefs.current) if (el) el.contentEditable = 'true';
+            deleteSelectedRangeRef.current(anchor, focus);
+            return;
+          }
+        }
+      }
+      // Any other key (or a collapsed/unresolved selection) ends selection
+      // mode and restores editing.
+      selectingRef.current = false;
+      for (const el of lineRefs.current) if (el) el.contentEditable = 'true';
+    }
+    function onBlur() {
+      if (!selectingRef.current) return;
+      selectingRef.current = false;
+      for (const el of lineRefs.current) if (el) el.contentEditable = 'true';
+    }
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+
+  /** Clears any held cross-line selection when a new press begins. */
+  function handleCanvasMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return; // left-button only (text selection)
+    selectingRef.current = false;
+    for (const el of lineRefs.current) if (el) el.contentEditable = 'true';
+    downInCanvasRef.current = true;
+  }
 
   // Debounced GIF search while the Anime GIFs tab is open.
   useEffect(() => {
@@ -436,6 +522,7 @@ export default function Editor({ username }: Props) {
       setActiveLine(res.caretLine);
     });
   }
+  deleteSelectedRangeRef.current = deleteSelectedRange;
 
   /**
    * Splits a multi-line clipboard paste into separate editor lines instead
@@ -1074,6 +1161,7 @@ export default function Editor({ username }: Props) {
             </div>
           ) : (
             <div
+              onMouseDown={handleCanvasMouseDown}
               onClick={(e) => {
                 if (e.target === e.currentTarget) lineRefs.current[0]?.focus();
               }}
@@ -1088,7 +1176,7 @@ export default function Editor({ username }: Props) {
                 >
                   <span
                     aria-hidden
-                    className={`pt-1 text-right font-mono text-[11px] transition-colors ${
+                    className={`select-none pt-1 text-right font-mono text-[11px] transition-colors ${
                       activeLine === i ? 'text-brand-300' : 'text-zinc-600'
                     }`}
                   >
