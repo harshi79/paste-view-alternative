@@ -46,6 +46,18 @@ const MIGRATION_STATEMENTS = [
     value TEXT
   )`,
 
+  // Username reservations — owner/admin-reserved usernames that normal
+  // users can never claim. `username` is stored lower-cased and unique
+  // (COLLATE NOCASE), so matching is case-insensitive at the DB level.
+  // `target_username` is the canonical username of the real owner profile
+  // the alias redirects to. No user row is created for a reservation.
+  `CREATE TABLE IF NOT EXISTS username_reservations (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    target_username TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+
   // Follow system — one row per directed follow relationship. The
   // composite primary key makes duplicate follows impossible; self-follows
   // are rejected by the API/library layer. Indexes keep the follower and

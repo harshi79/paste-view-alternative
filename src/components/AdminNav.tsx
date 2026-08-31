@@ -9,6 +9,7 @@ const ITEMS = [
   { href: '/admin/tags', label: 'Tags' },
   { href: '/admin/stickers', label: 'Stickers' },
   { href: '/admin/notifications', label: 'Broadcast' },
+  { href: '/admin/reservations', label: 'Reservations' },
 ];
 
 export default function AdminNav({ active }: { active?: string }) {
