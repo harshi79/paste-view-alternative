@@ -14,18 +14,18 @@
 // - 100,000 characters: the long-standing server-side protection for
 //   paste bodies. Kept as-is — it bounds storage, transport and render
 //   cost while staying generous for a paste product.
-// - 2,000 lines: the character limit alone does not bound document
+// - 20,000 lines: the character limit alone does not bound document
 //   shape. The editor renders one contentEditable per line and the
-//   viewer renders line-by-line, so a paste of tens of thousands of
+//   viewer renders line-by-line, so a paste of hundreds of thousands of
 //   one-character lines would sail under the character limit while
-//   creating a pathological document. 2,000 lines keeps both surfaces
+//   creating a pathological document. 20,000 lines keeps both surfaces
 //   responsive and is far above typical paste sizes.
 // ------------------------------------------------------------------
 
 import type { RichDoc } from '@/lib/pasteFormat';
 
 export const PASTE_MAX_CHARS = 100_000;
-export const PASTE_MAX_LINES = 2_000;
+export const PASTE_MAX_LINES = 20_000;
 
 export type PasteTotals = { chars: number; lines: number };
 

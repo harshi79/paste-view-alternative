@@ -105,17 +105,17 @@ async function storedRows() {
 describe('paste size limits — shared policy', () => {
   it('limits are explicit and consistent', () => {
     expect(PASTE_MAX_CHARS).toBe(100_000);
-    expect(PASTE_MAX_LINES).toBe(2_000);
+    expect(PASTE_MAX_LINES).toBe(20_000);
     expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(100_000) }] })).toBeNull();
     expect(richDocLimitExceeded({ v: 1, lines: [{ text: 'x'.repeat(100_001) }] })).toBe('chars');
     expect(
-      richDocLimitExceeded({ v: 1, lines: Array.from({ length: 2_001 }, () => ({ text: 'x' })) }),
+      richDocLimitExceeded({ v: 1, lines: Array.from({ length: 20_001 }, () => ({ text: 'x' })) }),
     ).toBe('lines');
   });
 
   it('messages name the limit explicitly', () => {
     expect(pasteTooLargeMessage('chars')).toMatch(/100,000/);
-    expect(pasteTooLargeMessage('lines')).toMatch(/2,000/);
+    expect(pasteTooLargeMessage('lines')).toMatch(/20,000/);
   });
 });
 
@@ -141,6 +141,12 @@ describe('POST /api/pastes — size validation at the API boundary', () => {
     expect(res.status).toBe(200);
   });
 
+  it('accepts one below the line limit (19,999 lines)', async () => {
+    const res = await POST(richRequest(Array.from({ length: PASTE_MAX_LINES - 1 }, () => 'x')));
+    expect(res.status).toBe(200);
+    expect(await storedRows()).toHaveLength(1);
+  });
+
   it('rejects pastes above the character limit with a clear 413 and stores nothing', async () => {
     const res = await POST(richRequest(['a'.repeat(PASTE_MAX_CHARS + 1)]));
     expect(res.status).toBe(413);
@@ -149,11 +155,11 @@ describe('POST /api/pastes — size validation at the API boundary', () => {
     expect(await storedRows()).toHaveLength(0);
   });
 
-  it('rejects pastes above the line limit with a clear 413 and stores nothing', async () => {
+  it('rejects one above the line limit (20,001 lines) with a clear 413 and stores nothing', async () => {
     const res = await POST(richRequest(Array.from({ length: PASTE_MAX_LINES + 1 }, () => 'x')));
     expect(res.status).toBe(413);
     const body = await res.json();
-    expect(body.error).toMatch(/2,000/);
+    expect(body.error).toMatch(/20,000/);
     expect(await storedRows()).toHaveLength(0);
   });
 

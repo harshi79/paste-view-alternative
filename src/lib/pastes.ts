@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { customAlphabet } from 'nanoid';
 import { getDb, type DB } from './db';
 import { pastes } from './db/schema';
@@ -24,11 +24,39 @@ export async function generatePasteId(db?: DB): Promise<string> {
   return nanoid() + Date.now().toString(36).slice(-4);
 }
 
-/** Permanently removes expired pastes (lazy cleanup, cheap thanks to the index). */
+/**
+ * Maximum paste age: pastes older than this are automatically removed even
+ * when the creator chose "never" expire. This is a separate maximum-retention
+ * rule on top of (and independent from) the user-selected expiry — a paste
+ * that expires earlier via its normal `expiresAt` is still removed exactly
+ * as before. The month length follows the app's existing convention
+ * (1 month = 30 days, see src/lib/expiry.ts), so 6 months = 180 days.
+ */
+export const PASTE_RETENTION_MS = 180 * 24 * 60 * 60 * 1000;
+
+/** The creation-timestamp cutoff beyond which a paste is past retention. */
+export function retentionCutoff(now = Date.now()): Date {
+  return new Date(now - PASTE_RETENTION_MS);
+}
+
+/** True when a paste is older than the retention window (strictly > 6 months). */
+export function isPastRetention(createdAt: Date, now = Date.now()): boolean {
+  return createdAt.getTime() < now - PASTE_RETENTION_MS;
+}
+
+/**
+ * Permanently removes expired pastes (lazy cleanup, cheap thanks to the index).
+ * Removes pastes that are past their user-selected `expiresAt` OR older than
+ * the 6-month retention window (`createdAt`), using the existing delete with
+ * its cascade conventions.
+ */
 export async function purgeExpired(db: DB) {
-  await db
-    .delete(pastes)
-    .where(and(isNotNull(pastes.expiresAt), lt(pastes.expiresAt, new Date())));
+  await db.delete(pastes).where(
+    or(
+      and(isNotNull(pastes.expiresAt), lt(pastes.expiresAt, new Date())),
+      lt(pastes.createdAt, retentionCutoff()),
+    ),
+  );
 }
 
 const PURGE_INTERVAL_MS = 5 * 60 * 1000;
