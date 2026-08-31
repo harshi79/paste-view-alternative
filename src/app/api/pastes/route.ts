@@ -10,6 +10,7 @@ import {
   richDocLimitExceeded,
   richDocTotals,
 } from '@/lib/pasteLimits';
+import { notifiableNewPaste, notifyNewPaste, notifySafely } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -90,6 +91,7 @@ export async function POST(req: Request) {
   const session = await getSessionUser();
 
   const id = await generatePasteId(db);
+  const passwordHash = password ? await hashPassword(password) : null;
   await db.insert(pastes).values({
     id,
     userId: session?.user.id ?? null,
@@ -99,10 +101,21 @@ export async function POST(req: Request) {
     content,
     language,
     visibility,
-    passwordHash: password ? await hashPassword(password) : null,
+    passwordHash,
     expiresAt: expiryFromId(expiresIn),
     createdAt: new Date(),
   });
+
+  // Fan the new paste out to the author's followers. Only PUBLIC and
+  // unprotected pastes notify (unlisted / password-protected notify
+  // nobody), only for signed-in authors, and only after the insert
+  // succeeded — a failed creation never notifies. A notification failure
+  // never changes the creation response.
+  if (session && notifiableNewPaste({ visibility, passwordHash })) {
+    await notifySafely(() =>
+      notifyNewPaste({ id: session.user.id, username: session.user.username }, { id, title }),
+    );
+  }
 
   return NextResponse.json({ ok: true, id });
 }

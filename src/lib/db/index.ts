@@ -58,6 +58,28 @@ const MIGRATION_STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS follows_following_idx ON follows (following_id)`,
   `CREATE INDEX IF NOT EXISTS follows_follower_idx ON follows (follower_id)`,
+
+  // Notifications — one row per recipient per event (FOLLOW / LIKE /
+  // NEW_POST / ADMIN). `dedupe_key` is the idempotency handle: the unique
+  // index collapses repeated events into one notification (SQLite treats
+  // NULLs as distinct, so rows without a key are never collapsed).
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    recipient_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    actor_user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    paste_id TEXT REFERENCES pastes(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL DEFAULT '',
+    link TEXT,
+    dedupe_key TEXT,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS notifications_recipient_created_idx ON notifications (recipient_user_id, created_at)`,
+  `CREATE INDEX IF NOT EXISTS notifications_recipient_unread_idx ON notifications (recipient_user_id, is_read, created_at)`,
+  `CREATE INDEX IF NOT EXISTS notifications_paste_idx ON notifications (paste_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS notifications_dedupe_idx ON notifications (dedupe_key)`,
 ];
 
 const SCHEMA_STATEMENTS = [

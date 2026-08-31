@@ -5,6 +5,7 @@ import { pastes } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import { getClientIp } from '@/lib/ip';
 import { getLikeState, likeActor, likePaste, unlikePaste } from '@/lib/likes';
+import { notifyLike, notifySafely } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
 
@@ -37,8 +38,15 @@ export async function POST(_req: Request, { params }: Props) {
   const { id } = await params;
   const [session, ip] = await Promise.all([getSessionUser(), getClientIp()]);
   const db = await getDb();
+  // owner + title are read here (same indexed row read as before) so the
+  // like notification can name the paste without a second query.
   const [paste] = await db
-    .select({ id: pastes.id, expiresAt: pastes.expiresAt })
+    .select({
+      id: pastes.id,
+      expiresAt: pastes.expiresAt,
+      userId: pastes.userId,
+      title: pastes.title,
+    })
     .from(pastes)
     .where(eq(pastes.id, id))
     .limit(1);
@@ -48,6 +56,18 @@ export async function POST(_req: Request, { params }: Props) {
   }
   const actor = likeActor(session?.user.id, ip);
   const result = await likePaste(id, actor);
+  // Notify the paste owner — only for a NEW like by a signed-in user
+  // (`liked` is false when the like already existed). Self-likes, guest
+  // likes and ownerless pastes notify nobody. Runs after the like
+  // transaction committed; a failure never changes the like response.
+  if (result.liked && session) {
+    await notifySafely(() =>
+      notifyLike(
+        { id: session.user.id, username: session.user.username },
+        { id: paste.id, userId: paste.userId, title: paste.title },
+      ),
+    );
+  }
   return NextResponse.json({ ok: true, ...result });
 }
 

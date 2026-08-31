@@ -157,6 +157,44 @@ export const likes = sqliteTable(
 );
 
 // ------------------------------------------------------------------
+// Notifications — one row per recipient per event.
+//
+// `type` is a stable internal identifier (FOLLOW | LIKE | NEW_POST |
+// ADMIN), never a UI string. `pasteId` is this project's name for the
+// referenced post (pastes ARE the posts) and is null for follow/admin
+// events. `dedupeKey` is the idempotency handle: a unique index collapses
+// repeated events (same follow, same like, same post/follower pair) into a
+// single notification — SQLite treats NULL keys as distinct, so unkeyed
+// rows are never collapsed. Admin broadcasts pass a per-broadcast key so
+// one broadcast operation yields exactly one row per user.
+// ------------------------------------------------------------------
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(), // UUID stored as text
+    recipientUserId: text('recipient_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(), // 'FOLLOW' | 'LIKE' | 'NEW_POST' | 'ADMIN'
+    actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    pasteId: text('paste_id').references(() => pastes.id, { onDelete: 'cascade' }),
+    title: text('title').notNull().default(''),
+    message: text('message').notNull().default(''),
+    // Optional in-app target (e.g. '/p/<id>' or '/u/<username>').
+    link: text('link'),
+    dedupeKey: text('dedupe_key'),
+    isRead: integer('is_read', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('notifications_recipient_created_idx').on(t.recipientUserId, t.createdAt),
+    index('notifications_recipient_unread_idx').on(t.recipientUserId, t.isRead, t.createdAt),
+    index('notifications_paste_idx').on(t.pasteId),
+    uniqueIndex('notifications_dedupe_idx').on(t.dedupeKey),
+  ],
+);
+
+// ------------------------------------------------------------------
 // Admin-managed tags (label, color, optional effect).
 // Plus a join table for user <-> tag assignments.
 // ------------------------------------------------------------------
@@ -259,5 +297,6 @@ export type Like = typeof likes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Follow = typeof follows.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 export type EmailVerification = typeof emailVerifications.$inferSelect;
 export type RateLimit = typeof rateLimits.$inferSelect;
