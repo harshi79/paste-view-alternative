@@ -3,6 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadStickerPack, type StickerEntry } from '@/lib/stickerPack';
 import BroadcastMessage from './BroadcastMessage';
+import StickerPicker from './StickerPicker';
+
+/** Small face/sticker glyph for the composer's Sticker button. */
+function StickerGlyph({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <rect x="3" y="3" width="14" height="14" rx="3.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="7.5" cy="8.5" r="1" fill="currentColor" />
+      <circle cx="12.5" cy="8.5" r="1" fill="currentColor" />
+      <path d="M7 12.4c1 1.1 5 1.1 6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 /** Match POST /api/admin/notifications limits. */
 export const MAX_TITLE = 120;
@@ -19,6 +32,14 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
   const [error, setError] = useState('');
   const [recipients, setRecipients] = useState<number | null>(null);
   const inFlight = useRef(false);
+
+  // Sticker picker (Admin Broadcast composer only).
+  const [stickerOpen, setStickerOpen] = useState(false);
+  const messageRef = useRef<HTMLTextAreaElement | null>(null);
+  const stickerBtnRef = useRef<HTMLButtonElement | null>(null);
+  const stickerPanelRef = useRef<HTMLDivElement | null>(null);
+  /** Caret position to restore after a programmatic message update. */
+  const pendingCaret = useRef<number | null>(null);
 
   const titleValue = title.trim();
   const messageValue = message.trim();
@@ -42,6 +63,63 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
     setRecipients(null);
     setConfirming(true);
   }
+
+  /**
+   * Inserts a sticker token into the Message textarea at the CURRENT cursor
+   * position (replacing any selection), then restores focus with the caret
+   * placed immediately after the inserted `:token:`. Uses the exact shortcode
+   * the broadcast preview already renders.
+   */
+  function insertSticker(token: string) {
+    const el = messageRef.current;
+    const value = el ? el.value : message;
+    let start = value.length;
+    let end = value.length;
+    if (el && typeof el.selectionStart === 'number' && typeof el.selectionEnd === 'number') {
+      start = el.selectionStart;
+      end = el.selectionEnd;
+    }
+    const next = value.slice(0, start) + token + value.slice(end);
+    pendingCaret.current = start + token.length;
+    setMessage(next);
+    setRecipients(null);
+    setStickerOpen(false);
+  }
+
+  // Close the sticker picker on outside click or Escape (keyboard a11y).
+  useEffect(() => {
+    if (!stickerOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      const t = e.target as Node;
+      if (stickerPanelRef.current?.contains(t)) return;
+      if (stickerBtnRef.current?.contains(t)) return;
+      setStickerOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setStickerOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [stickerOpen]);
+
+  // After a sticker insertion updates `message`, restore focus + caret.
+  useEffect(() => {
+    if (pendingCaret.current != null && messageRef.current) {
+      const pos = pendingCaret.current;
+      const el = messageRef.current;
+      el.focus();
+      try {
+        el.setSelectionRange(pos, pos);
+      } catch {
+        /* selection not applicable */
+      }
+      pendingCaret.current = null;
+    }
+  }, [message]);
 
   async function send() {
     if (inFlight.current) return;
@@ -143,15 +221,43 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
               placeholder={'Hello :wave:\n\nThis is important.\n\nVisit https://example.com'}
               disabled={busy || confirming}
               rows={5}
+              ref={messageRef}
               onChange={(e) => {
                 setMessage(e.target.value);
                 setRecipients(null);
               }}
             />
-            <p className="mt-1 text-xs text-zinc-600">
-              Sticker tokens like :wave: and URLs are supported — write links directly in the
-              message.
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="relative inline-block">
+                <button
+                  ref={stickerBtnRef}
+                  type="button"
+                  onClick={() => setStickerOpen((v) => !v)}
+                  aria-haspopup="dialog"
+                  aria-expanded={stickerOpen}
+                  aria-controls="broadcast-sticker-picker"
+                  disabled={busy || confirming}
+                  title="Insert a sticker"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] px-3 py-2 text-xs font-bold uppercase tracking-wide text-zinc-300 transition-all hover:border-[#40404f] hover:bg-[#1a1a24] hover:text-white active:translate-x-px active:translate-y-px sm:min-h-0"
+                >
+                  <StickerGlyph />
+                  Sticker
+                </button>
+                {stickerOpen && (
+                  <StickerPicker
+                    id="broadcast-sticker-picker"
+                    panelRef={stickerPanelRef}
+                    pack={pack}
+                    onSelect={insertSticker}
+                    onClose={() => setStickerOpen(false)}
+                  />
+                )}
+              </div>
+              <p className="text-xs text-zinc-600">
+                Sticker tokens like :wave: and URLs are supported — write links directly in the
+                message.
+              </p>
+            </div>
             <p className="mt-1 text-right font-mono text-[11px] text-zinc-600">
               {message.length}/{MAX_MESSAGE}
             </p>
