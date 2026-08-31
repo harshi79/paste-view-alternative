@@ -85,28 +85,30 @@ export default function FollowStats({ username, followersCount, followingCount, 
     };
   }, [open]);
 
-  const chip = (n: number, label: string) => `${n.toLocaleString()} ${label}`;
-
   return (
     <>
-      <span className="inline-flex flex-wrap items-center gap-2">
+      {/* Same gap scale as the profile stat rail this sits inside, so the
+          interactive and static tiles read as one continuous row. */}
+      <span className="inline-flex flex-wrap items-stretch gap-2 sm:gap-2.5">
         <button
           type="button"
           onClick={() => setOpen('followers')}
-          className="chip transition-colors hover:border-white/25 hover:bg-white/10 hover:text-white"
+          className="profile-stat profile-stat--btn"
           aria-haspopup="dialog"
           aria-expanded={open === 'followers'}
         >
-          {chip(followersCount, followersCount === 1 ? 'follower' : 'followers')}
+          <span className="profile-stat__num">{followersCount.toLocaleString()}</span>
+          <span className="profile-stat__label">{followersCount === 1 ? 'follower' : 'followers'}</span>
         </button>
         <button
           type="button"
           onClick={() => setOpen('following')}
-          className="chip transition-colors hover:border-white/25 hover:bg-white/10 hover:text-white"
+          className="profile-stat profile-stat--btn"
           aria-haspopup="dialog"
           aria-expanded={open === 'following'}
         >
-          {chip(followingCount, 'following')}
+          <span className="profile-stat__num">{followingCount.toLocaleString()}</span>
+          <span className="profile-stat__label">following</span>
         </button>
       </span>
 
@@ -123,15 +125,20 @@ export default function FollowStats({ username, followersCount, followingCount, 
             aria-label={open === 'followers' ? 'Followers' : 'Following'}
             className="animate-pop w-full max-w-md overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] shadow-[8px_8px_0_0_var(--vb-ink)]"
           >
-            <div className="flex items-center justify-between border-b-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-panel-2)] px-5 py-3.5">
-              <h3 className="text-sm font-bold text-white">
-                {open === 'followers' ? 'Followers' : 'Following'}
-              </h3>
+            <div className="flex items-center justify-between gap-3 border-b-2 border-[color:var(--vb-line-soft)] bg-[color:var(--vb-panel-2)] px-4 py-3 sm:px-5">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-white">
+                  {open === 'followers' ? 'Followers' : 'Following'}
+                </h3>
+                <span className="profile-count">
+                  {open === 'followers' ? followersCount.toLocaleString() : followingCount.toLocaleString()}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => setOpen(null)}
                 aria-label="Close list"
-                className="grid h-8 w-8 place-items-center rounded-md border-2 border-[color:var(--vb-line)] text-lg leading-none text-zinc-400 transition-colors hover:bg-white/10 hover:text-white"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[color:var(--vb-line)] text-lg leading-none text-zinc-400 transition-colors hover:border-white/25 hover:bg-white/10 hover:text-white"
               >
                 ×
               </button>
@@ -145,30 +152,43 @@ export default function FollowStats({ username, followersCount, followingCount, 
                   {error}
                 </p>
               ) : users && users.length === 0 ? (
-                <p className="px-4 py-10 text-center text-sm text-zinc-500">
-                  {open === 'followers'
-                    ? 'No followers yet — this profile is still warming up.'
-                    : 'Not following anyone yet.'}
-                </p>
+                <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+                  <span
+                    aria-hidden
+                    className="grid h-10 w-10 place-items-center rounded-md border border-[color:var(--vb-line-soft)] bg-[color:var(--vb-inset)] text-base"
+                  >
+                    {open === 'followers' ? '🌱' : '🧭'}
+                  </span>
+                  <p className="text-sm font-semibold text-zinc-300">
+                    {open === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
+                  </p>
+                  <p className="max-w-[16rem] text-xs leading-5 text-zinc-500">
+                    {open === 'followers'
+                      ? 'This profile is still warming up.'
+                      : 'The people this account follows will appear here.'}
+                  </p>
+                </div>
               ) : (
-                <ul className="space-y-0.5">
+                <ul className="space-y-1">
                   {users?.map((u) => (
                     <li
                       key={u.username}
-                      className="flex items-center gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-white/[0.05]"
+                      className="group flex items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-[color:var(--vb-line-soft)] hover:bg-white/[0.04]"
                     >
                       <Link
                         href={`/u/${u.username}`}
                         className="flex min-w-0 flex-1 items-center gap-3"
                         onClick={() => setOpen(null)}
                       >
-                        <Avatar
-                          value={u.avatarUrl}
-                          label={u.displayName || u.username}
-                          className="h-10 w-10 shrink-0"
-                        />
+                        <span className="inline-flex shrink-0 rounded-lg border border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-0.5">
+                          <Avatar
+                            value={u.avatarUrl}
+                            label={u.displayName || u.username}
+                            className="h-9 w-9"
+                          />
+                        </span>
                         <span className="min-w-0 flex-1">
-                          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
                             <span className="truncate text-sm font-semibold text-white">
                               {u.displayName || u.username}
                             </span>

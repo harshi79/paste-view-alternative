@@ -17,7 +17,7 @@ export default function Avatar({ value, label, className = 'h-10 w-10' }: Props)
         src={value}
         alt={label}
         onError={() => setBroken(true)}
-        className={`${className} rounded-full object-cover`}
+        className={`${className} block rounded-full object-cover`}
       />
     );
   }
