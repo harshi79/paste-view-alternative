@@ -220,7 +220,7 @@ export default function BroadcastAdminClient({ userCount = 0 }: { userCount?: nu
             Admin
           </p>
           <p
-            className={`mt-2 break-words text-sm font-semibold ${titleValue ? 'text-white' : 'text-zinc-600'}`}
+            className={`mt-2 break-words text-sm font-semibold ${titleValue ? 'admin-broadcast-title' : 'text-zinc-600'}`}
           >
             {titleValue || 'Title'}
           </p>

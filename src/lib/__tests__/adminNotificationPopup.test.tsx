@@ -120,6 +120,14 @@ describe('ADMIN notification popup', () => {
     expect(onActivate).toHaveBeenCalledWith(n);
   });
 
+  it('renders the ADMIN title in the dialog with the golden shimmer class', async () => {
+    await mount();
+    await openPopup();
+    const h2 = dialog()!.querySelector('h2');
+    expect(h2).not.toBeNull();
+    expect(h2!.className).toContain('admin-broadcast-title');
+  });
+
   it('renders stickers/emoji from the message via the existing pipeline', async () => {
     await mount();
     await openPopup();

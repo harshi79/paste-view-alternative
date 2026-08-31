@@ -268,6 +268,75 @@ describe('NotificationItem — ADMIN', () => {
   });
 });
 
+// --- Golden ADMIN title -----------------------------------------------------
+
+describe('NotificationItem — golden ADMIN title styling', () => {
+  it('applies the golden shimmer class to the ADMIN title (dropdown row)', () => {
+    const html = render(
+      makeNotification({
+        type: 'ADMIN',
+        title: 'Maintenance tonight',
+        link: null,
+        pasteId: null,
+        actor: null,
+      }),
+    );
+    expect(html).toContain('admin-broadcast-title');
+  });
+
+  it('applies the golden shimmer class to the ADMIN title (center variant)', () => {
+    const html = renderToStaticMarkup(
+      createElement(NotificationItem, {
+        notification: makeNotification({
+          type: 'ADMIN',
+          title: 'Maintenance tonight',
+          link: null,
+          pasteId: null,
+          actor: null,
+        }),
+        variant: 'center',
+        onActivate: noop,
+        onMarkRead: noop,
+      }),
+    );
+    expect(html).toContain('admin-broadcast-title');
+  });
+
+  it('never applies the golden class to FOLLOW titles', () => {
+    expect(render(makeNotification())).not.toContain('admin-broadcast-title');
+  });
+
+  it('never applies the golden class to LIKE titles', () => {
+    expect(
+      render(
+        makeNotification({
+          type: 'LIKE',
+          title: '@nova liked your post',
+          message: 'Post',
+          pasteId: 'p123',
+          link: '/p/p123',
+          actor: { id: 'u2', username: 'nova', displayName: null, avatarUrl: null },
+        }),
+      ),
+    ).not.toContain('admin-broadcast-title');
+  });
+
+  it('never applies the golden class to NEW_POST titles', () => {
+    expect(
+      render(
+        makeNotification({
+          type: 'NEW_POST',
+          title: '@alex made a new post',
+          message: 'Post',
+          pasteId: 'p456',
+          link: '/p/p456',
+          actor: { id: 'u3', username: 'alex', displayName: null, avatarUrl: null },
+        }),
+      ),
+    ).not.toContain('admin-broadcast-title');
+  });
+});
+
 // --- Structure -------------------------------------------------------------
 
 describe('NotificationItem — markup hygiene', () => {
