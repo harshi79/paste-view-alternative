@@ -164,80 +164,71 @@ export function ProfileHoverCardContent({
     <span
       role="dialog"
       aria-label={`${name}'s profile preview`}
-      className="animate-pop absolute left-0 top-[calc(100%+0.625rem)] z-50 block w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] text-left shadow-[8px_8px_0_0_var(--vb-ink)]"
+      className="animate-pop absolute left-0 top-[calc(100%+0.625rem)] z-50 w-72 max-w-[calc(100vw-2rem)] rounded-xl border-2 border-[color:var(--vb-line)] bg-[color:var(--vb-panel)] p-3.5 text-left shadow-[8px_8px_0_0_var(--vb-ink)]"
     >
-      {/* Accent rail — ties the card to the profile's own name colors. */}
-      <span
-        aria-hidden
-        className="block h-1 w-full"
-        style={{ background: `linear-gradient(90deg, ${data.nameFrom}, ${data.nameTo})` }}
-      />
-      <span className="block p-3.5">
-        <span className="flex items-start gap-3">
-          <Link
-            href={`/u/${data.username}`}
-            className="inline-flex shrink-0 rounded-lg border border-[color:var(--vb-line)] bg-[color:var(--vb-panel-2)] p-0.5"
-            aria-label={`View ${name}'s profile`}
-          >
-            <Avatar value={data.avatarUrl} label={name} className="h-12 w-12" />
-          </Link>
-          <span className="min-w-0 flex-1">
-            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-              <Link
-                href={`/u/${data.username}`}
-                className="min-w-0 break-words text-base font-black leading-tight tracking-tight text-white transition-opacity hover:opacity-80"
-              >
-                <NameDisplay
-                  text={name}
-                  from={data.nameFrom}
-                  to={data.nameTo}
-                  style={data.nameStyle}
-                  effect={sanitizeNameEffect(data.nameEffect)}
-                  speed={data.effectSpeed}
-                  intensity={data.effectIntensity}
-                />
-              </Link>
-              {data.tags.map((tag) => (
-                <TagBadge key={tag.id} label={tag.label} color={tag.color} effect={tag.effect} size="sm" />
-              ))}
-              <EmojiStatus
-                value={data.statusEmoji}
-                pack={data.statusSticker ? [data.statusSticker] : undefined}
-                className="inline-flex items-center text-base leading-none"
-                title={data.statusText || 'Status'}
+      <span className="flex items-start gap-3">
+        <Link
+          href={`/u/${data.username}`}
+          className="shrink-0"
+          aria-label={`View ${name}'s profile`}
+        >
+          <Avatar value={data.avatarUrl} label={name} className="h-12 w-12" />
+        </Link>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <Link
+              href={`/u/${data.username}`}
+              className="min-w-0 break-words text-base font-black leading-tight tracking-tight text-white transition-opacity hover:opacity-80"
+            >
+              <NameDisplay
+                text={name}
+                from={data.nameFrom}
+                to={data.nameTo}
+                style={data.nameStyle}
+                effect={sanitizeNameEffect(data.nameEffect)}
+                speed={data.effectSpeed}
+                intensity={data.effectIntensity}
               />
-            </span>
-            <span className="mt-1 block truncate text-xs text-zinc-500">@{data.username}</span>
-            {data.statusText && (
-              <span className="mt-0.5 block truncate text-xs text-zinc-400">{data.statusText}</span>
-            )}
+            </Link>
+            {data.tags.map((tag) => (
+              <TagBadge key={tag.id} label={tag.label} color={tag.color} effect={tag.effect} size="sm" />
+            ))}
+            <EmojiStatus
+              value={data.statusEmoji}
+              pack={data.statusSticker ? [data.statusSticker] : undefined}
+              className="inline-flex items-center text-base leading-none"
+              title={data.statusText || 'Status'}
+            />
           </span>
+          <span className="mt-1 block truncate text-xs text-zinc-500">@{data.username}</span>
+          {data.statusText && (
+            <span className="mt-0.5 block truncate text-xs text-zinc-400">{data.statusText}</span>
+          )}
         </span>
+      </span>
 
-        <span className="mt-3 flex items-stretch gap-1.5 border-t border-white/5 pt-2.5">
-          <span className="profile-stat profile-stat--sm">
-            <span className="profile-stat__num">{data.followersCount.toLocaleString()}</span>
-            <span className="profile-stat__label">Followers</span>
-          </span>
-          <span className="profile-stat profile-stat--sm">
-            <span className="profile-stat__num">{data.followingCount.toLocaleString()}</span>
-            <span className="profile-stat__label">Following</span>
-          </span>
-          <span className="profile-stat profile-stat--sm">
-            <span className="profile-stat__num">{data.pastesCount.toLocaleString()}</span>
-            <span className="profile-stat__label">Pastes</span>
-          </span>
+      <span className="mt-3 flex items-center gap-4 border-t border-white/5 pt-2.5 text-xs text-zinc-400">
+        <span>
+          <span className="font-bold text-white">{data.followersCount.toLocaleString()}</span>{' '}
+          Followers
         </span>
+        <span>
+          <span className="font-bold text-white">{data.followingCount.toLocaleString()}</span>{' '}
+          Following
+        </span>
+        <span>
+          <span className="font-bold text-white">{data.pastesCount.toLocaleString()}</span> Pastes
+        </span>
+      </span>
 
-        <span className="mt-2.5 flex w-full">
-          <FollowButton
-            username={data.username}
-            initialFollowing={following}
-            guest={guest}
-            size="sm"
-            fullWidth
-          />
-        </span>
+      <span className="mt-2.5 flex w-full">
+        <FollowButton
+          username={data.username}
+          initialFollowing={following}
+          guest={guest}
+          size="sm"
+          fullWidth
+        />
       </span>
     </span>
   );
