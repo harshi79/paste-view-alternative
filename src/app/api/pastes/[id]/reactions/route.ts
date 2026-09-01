@@ -4,10 +4,10 @@ import { getDb } from '@/lib/db';
 import { pastes } from '@/lib/db/schema';
 import { getSessionUser } from '@/lib/auth';
 import {
-  addReaction,
   getReactionState,
   removeReaction,
   resolveReaction,
+  setReaction,
   toggleReaction,
 } from '@/lib/reactions';
 
@@ -40,7 +40,7 @@ async function readReactionField(req: Request): Promise<unknown> {
   return undefined;
 }
 
-async function readToggleFlag(req: Request): Promise<{ reaction: unknown; toggle: boolean }> {
+async function readBody(req: Request): Promise<{ reaction: unknown; toggle: boolean }> {
   try {
     const body = await req.json();
     if (body && typeof body === 'object') {
@@ -54,19 +54,23 @@ async function readToggleFlag(req: Request): Promise<{ reaction: unknown; toggle
 }
 
 /**
- * Post reactions endpoint.
+ * UNIFIED post reactions endpoint — ONE reaction per user per post.
  *
- * GET    → public per-reaction counts for the post, plus the CURRENT
- *          authenticated user's own reactions (`mine`, always empty for
- *          guests — counts themselves are display data, like the paste's
- *          like count, so reading them never requires a session).
- * POST   → add a reaction (`{ reaction }`), or toggle it (`{ reaction,
- *          toggle: true }`). Idempotent: re-adding the same reaction
- *          inserts nothing (`created: false`).
- * DELETE → remove a reaction (`?reaction=` or `{ reaction }`).
- *          Idempotent (`removed: false` when it was not there).
+ * GET    → public per-reaction counts for the post (the ❤️ entry IS the
+ *          like count) plus the CURRENT authenticated user's own single
+ *          reaction (`mine`: value or null; always null for guests —
+ *          counts themselves are display data, so reading them never
+ *          requires a session).
+ * POST   → select `{ reaction }`, REPLACING any previous reaction
+ *          atomically. Re-selecting the value the user already has is
+ *          an idempotent no-op. `{ reaction, toggle: true }` flips the
+ *          reaction off when it is already the current one (the
+ *          existing toggle contract).
+ * DELETE → removes the user's CURRENT reaction (an optional `reaction`
+ *          param is tolerated for older clients but never selects a
+ *          different one — there is only ever one). Idempotent.
  *
- * Security model:
+ * Security model (unchanged conventions):
  *   - the acting user id comes ONLY from the session cookie; a
  *     client-supplied user_id is never read, so it can never be trusted;
  *   - guests get 401 on every mutation (there is no anonymous reaction);
@@ -74,7 +78,7 @@ async function readToggleFlag(req: Request): Promise<{ reaction: unknown; toggle
  *     (one Unicode emoji, or an existing sticker-pack token like
  *     ':wave:') — never rendered HTML;
  *   - every mutation is keyed on the session's own user id, so one user
- *     can never add or remove another user's reaction;
+ *     can never change or remove another user's reaction;
  *   - all DB access goes through parameterized Drizzle queries.
  */
 export async function GET(_req: Request, { params }: Props) {
@@ -101,7 +105,7 @@ export async function POST(req: Request, { params }: Props) {
     return NextResponse.json({ error: 'This paste has expired.' }, { status: 410 });
   }
 
-  const { reaction: raw, toggle } = await readToggleFlag(req);
+  const { reaction: raw, toggle } = await readBody(req);
   const reaction = await resolveReaction(raw);
   if (!reaction) {
     return NextResponse.json({ error: 'Unsupported reaction.' }, { status: 400 });
@@ -109,10 +113,7 @@ export async function POST(req: Request, { params }: Props) {
 
   const result = toggle
     ? await toggleReaction(session.user.id, paste.id, reaction)
-    : await addReaction(session.user.id, paste.id, reaction);
-  if (!result.ok) {
-    return NextResponse.json({ error: 'Too many reactions on this post.' }, { status: 409 });
-  }
+    : await setReaction(session.user.id, paste.id, reaction);
 
   const state = await getReactionState(paste.id, session.user.id);
   return NextResponse.json({
@@ -121,6 +122,7 @@ export async function POST(req: Request, { params }: Props) {
     active: result.active,
     created: result.created,
     removed: 'removed' in result ? result.removed : false,
+    previous: result.previous ?? null,
     ...state,
   });
 }
@@ -136,21 +138,26 @@ export async function DELETE(req: Request, { params }: Props) {
 
   // Removing an existing reaction stays possible on an expired post (same
   // convention as unlike/unbookmark, which also skip the expiry check).
+  // An optional reaction param is accepted for older clients; the DELETE
+  // always removes the user's current (single) reaction.
   const url = new URL(req.url);
   const raw = url.searchParams.get('reaction') ?? (await readReactionField(req));
-  const reaction = await resolveReaction(raw);
-  if (!reaction) {
-    return NextResponse.json({ error: 'Unsupported reaction.' }, { status: 400 });
+  if (raw !== undefined && raw !== null) {
+    const reaction = await resolveReaction(raw);
+    if (!reaction) {
+      return NextResponse.json({ error: 'Unsupported reaction.' }, { status: 400 });
+    }
   }
 
-  const result = await removeReaction(session.user.id, paste.id, reaction);
+  const result = await removeReaction(session.user.id, paste.id);
   const state = await getReactionState(paste.id, session.user.id);
   return NextResponse.json({
     ok: true,
-    reaction,
+    reaction: result.previous,
     active: result.active,
     created: false,
     removed: result.removed,
+    previous: result.previous,
     ...state,
   });
 }

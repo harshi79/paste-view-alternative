@@ -1,24 +1,26 @@
 // @vitest-environment jsdom
 /**
- * Focused frontend tests for post reactions (TODO 2 — UI only).
+ * Focused frontend tests for the UNIFIED post reaction control
+ * (corrected TODO 2 — UI only).
  *
- * These exercise the new ReactionBar / ReactionPicker client components
- * against a fake of the EXISTING TODO 1 reactions API
- * (/api/pastes/:id/reactions: GET state, POST { reaction, toggle:true }),
- * and the EXISTING sticker system (/api/stickers → StickerImage). No
- * backend, DB or Admin Broadcast behaviour is involved — the broadcast
- * suites in this folder keep guarding that picker untouched.
+ * ONE control, ONE reaction per user: the ❤️ Like is the first/default
+ * reaction option and there is NO separate Like button. These exercise
+ * the ReactionBar / ReactionPicker client components against a fake of
+ * the unified reactions API (/api/pastes/:id/reactions: GET state,
+ * POST { reaction }, DELETE) and the EXISTING sticker system
+ * (/api/stickers → StickerImage). No backend, DB or Admin Broadcast
+ * behaviour is involved — the broadcast suites in this folder keep
+ * guarding that picker untouched.
  *
- * Covers (job checklist 1–19; 20 = the untouched StickerPicker mounted
- * directly here + its full existing suite in the npm test run):
- *   renders React button · opens/closes picker (click, outside click,
- *   Escape) · standard reactions · custom sticker tiles from the existing
- *   pack · click selects via the existing API (emoji + canonical token) ·
- *   active/selected state · click removes · multiple different reactions ·
- *   counts render, one chip per reaction · sticker chips render through
- *   StickerImage (never raw tokens) · optimistic update · rollback on
- *   failure · duplicate/concurrent click guard · guest redirect to
- *   /register · mid-session 401 · Like + Bookmark regressions.
+ * Covers: one control / no Like button · current reaction shown on the
+ * toggle (emoji + actual sticker) · picker (❤️ first, standards,
+ * stickers) · select ❤️ · select 🔥 replaces ❤️ · sticker replaces emoji
+ * · select current removes it · exactly one selected reaction at any
+ * time · counts combine like + reactions · sticker chips render through
+ * StickerImage · optimistic replace · rollback · concurrency guard ·
+ * guest redirect · mid-session 401 · open/close (click, outside, Escape,
+ * Close button, touch-sized tiles) · Bookmark regression · the Admin
+ * Broadcast StickerPicker still works.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, createElement, type ComponentProps, type ReactElement } from 'react';
@@ -27,7 +29,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import ReactionBar from '@/components/ReactionBar';
 import ReactionPicker, { STANDARD_REACTIONS } from '@/components/ReactionPicker';
 import StickerPicker from '@/components/StickerPicker';
-import LikeButton from '@/components/LikeButton';
 import BookmarkButton from '@/components/BookmarkButton';
 
 type Sticker = { token: string; url: string | null; emoji: string | null; label: string };
@@ -40,7 +41,7 @@ const STICKERS: Sticker[] = [
   { token: ':dance:', url: null, emoji: '🕺', label: 'Dance' },
 ];
 
-type Srv = { counts: Map<string, number>; mine: Set<string> };
+type Srv = { counts: Map<string, number>; mine: string | null };
 
 function snapshot(srv: Srv) {
   const counts = [...srv.counts.entries()]
@@ -50,7 +51,7 @@ function snapshot(srv: Srv) {
   return {
     counts,
     total: counts.reduce((sum, c) => sum + c.count, 0),
-    mine: [...srv.mine],
+    mine: srv.mine,
     authenticated: true,
   };
 }
@@ -60,11 +61,10 @@ function jsonResponse(body: unknown, init: { ok?: boolean; status?: number } = {
 }
 
 let srv: Srv;
-/** When set, the next POST waits on it (lets tests observe pending state). */
-let postGate: Promise<void> | null = null;
-let postMode: 'ok' | 'fail' | '401' | 'reject' = 'ok';
-let likeLiked = false;
-let likeCount = 4;
+/** When set, the next mutation waits on it (lets tests observe pending state). */
+let mutationGate: Promise<void> | null = null;
+let mutationMode: 'ok' | 'fail' | '401' | 'reject' = 'ok';
+let likeCalls = 0;
 let bookmarked = false;
 
 async function fakeFetch(
@@ -78,47 +78,50 @@ async function fakeFetch(
   }
   if (url.includes(REACTIONS_URL)) {
     if (method === 'GET') return jsonResponse(snapshot(srv));
-    if (method === 'POST') {
-      if (postGate) await postGate;
-      if (postMode === 'reject') throw new Error('network down');
-      if (postMode === '401') {
+    if (method === 'POST' || method === 'DELETE') {
+      if (mutationGate) await mutationGate;
+      if (mutationMode === 'reject') throw new Error('network down');
+      if (mutationMode === '401') {
         return jsonResponse({ error: 'Not signed in.' }, { ok: false, status: 401 });
       }
-      if (postMode === 'fail') {
+      if (mutationMode === 'fail') {
         return jsonResponse({ error: 'Could not update reaction.' }, { ok: false, status: 500 });
       }
-      const body = JSON.parse(init?.body ?? '{}') as { reaction?: string; toggle?: boolean };
-      expect(body.toggle, 'the UI must use the existing toggle endpoint').toBe(true);
-      const reaction = String(body.reaction);
-      let active: boolean;
-      if (srv.mine.has(reaction)) {
-        srv.mine.delete(reaction);
-        srv.counts.set(reaction, (srv.counts.get(reaction) ?? 1) - 1);
-        active = false;
-      } else {
-        srv.mine.add(reaction);
+      if (method === 'POST') {
+        // Unified contract: { reaction } selects/replaces (idempotent).
+        const body = JSON.parse(init?.body ?? '{}') as { reaction?: string; toggle?: unknown };
+        expect(body.toggle, 'the UI uses POST { reaction } to select, not the legacy toggle').toBeUndefined();
+        const reaction = String(body.reaction);
+        const previous = srv.mine;
+        if (previous === reaction) {
+          return jsonResponse({
+            ok: true, reaction, active: true, created: false, removed: false, previous,
+            ...snapshot(srv),
+          });
+        }
+        if (previous) srv.counts.set(previous, (srv.counts.get(previous) ?? 1) - 1);
+        srv.mine = reaction;
         srv.counts.set(reaction, (srv.counts.get(reaction) ?? 0) + 1);
-        active = true;
+        return jsonResponse({
+          ok: true, reaction, active: true, created: previous === null, removed: false, previous,
+          ...snapshot(srv),
+        });
+      }
+      // DELETE removes the current reaction.
+      const previous = srv.mine;
+      if (previous) {
+        srv.counts.set(previous, (srv.counts.get(previous) ?? 1) - 1);
+        srv.mine = null;
       }
       return jsonResponse({
-        ok: true,
-        reaction,
-        active,
-        created: active,
-        removed: !active,
+        ok: true, reaction: previous, active: false, created: false, removed: !!previous, previous,
         ...snapshot(srv),
       });
     }
   }
   if (url.includes(`/api/pastes/${PASTE}/like`)) {
-    if (method === 'POST') {
-      likeLiked = true;
-      likeCount += 1;
-    } else if (method === 'DELETE') {
-      likeLiked = false;
-      likeCount = Math.max(0, likeCount - 1);
-    }
-    return jsonResponse({ ok: true, liked: likeLiked, count: likeCount });
+    likeCalls += 1; // the unified UI must never touch the like endpoint
+    return jsonResponse({ ok: true, count: 1, liked: true });
   }
   if (url.includes(`/api/pastes/${PASTE}/bookmark`)) {
     bookmarked = method === 'POST';
@@ -136,11 +139,10 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
-  srv = { counts: new Map(), mine: new Set() };
-  postGate = null;
-  postMode = 'ok';
-  likeLiked = false;
-  likeCount = 4;
+  srv = { counts: new Map(), mine: null };
+  mutationGate = null;
+  mutationMode = 'ok';
+  likeCalls = 0;
   bookmarked = false;
   fetchMock = vi.fn(fakeFetch);
   vi.stubGlobal('fetch', fetchMock);
@@ -177,12 +179,11 @@ async function click(el: Element) {
   await flush();
 }
 
-function reactButton(): HTMLButtonElement {
-  const btn = Array.from(container.querySelectorAll('button')).find(
-    (b) => b.textContent?.trim() === 'React',
-  );
-  if (!btn) throw new Error('no React button found');
-  return btn as HTMLButtonElement;
+/** The ONE reaction toggle — carries the current (or default ❤️) glyph. */
+function toggleButton(): HTMLButtonElement {
+  const btn = container.querySelector<HTMLButtonElement>('button[data-current-reaction]');
+  if (!btn) throw new Error('no reaction toggle found');
+  return btn;
 }
 
 function picker(): Element | null {
@@ -190,7 +191,7 @@ function picker(): Element | null {
 }
 
 async function openPicker() {
-  await click(reactButton());
+  await click(toggleButton());
 }
 
 /** Compare attribute values in JS — emoji never go through selector escaping. */
@@ -215,21 +216,28 @@ function chips(): Element[] {
   return Array.from(container.querySelectorAll('[data-reaction-chip]'));
 }
 
-function reactionPosts(): Array<{ reaction: string; toggle: boolean }> {
+function activeChips(): Element[] {
+  return chips().filter((c) => c.getAttribute('aria-pressed') === 'true');
+}
+
+function mutationCalls(): Array<{ method: string; body?: Record<string, unknown> }> {
   return fetchMock.mock.calls
-    .filter(
-      (c) =>
-        String(c[0]).includes(REACTIONS_URL) &&
-        (c[1] as { method?: string } | undefined)?.method === 'POST',
-    )
-    .map((c) => JSON.parse(String((c[1] as { body?: string }).body)));
+    .filter((c) => String(c[0]).includes(REACTIONS_URL))
+    .filter((c) => ['POST', 'DELETE'].includes((c[1] as { method?: string } | undefined)?.method ?? ''))
+    .map((c) => {
+      const init = c[1] as { method?: string; body?: string };
+      return {
+        method: init.method ?? '',
+        body: init.body ? (JSON.parse(init.body) as Record<string, unknown>) : undefined,
+      };
+    });
 }
 
 function bar(props: Partial<ComponentProps<typeof ReactionBar>> = {}) {
   return createElement(ReactionBar, {
     pasteId: PASTE,
     initialCounts: props.initialCounts ?? [],
-    initialMine: props.initialMine ?? [],
+    initialMine: props.initialMine ?? null,
     guest: props.guest ?? false,
   });
 }
@@ -280,26 +288,54 @@ async function pressEscape() {
   await flush();
 }
 
-describe('ReactionBar — button + picker', () => {
-  it('1. renders a compact React button next to the post actions', async () => {
+describe('ReactionBar — ONE unified control (no separate Like button)', () => {
+  it('1. renders exactly one reaction toggle, defaulting to ❤️, with no Like button anywhere', async () => {
     await mount(bar());
-    const btn = reactButton();
-    expect(btn).not.toBeNull();
+    const btn = toggleButton();
     expect(btn.getAttribute('aria-haspopup')).toBe('dialog');
     expect(btn.getAttribute('aria-expanded')).toBe('false');
     expect(btn.getAttribute('aria-controls')).toBe('post-reaction-picker');
     expect(btn.getAttribute('aria-label')).toBe('React to this paste');
+    expect(btn.getAttribute('data-current-reaction')).toBe(''); // no reaction yet
+    expect(btn.textContent).toContain('❤️'); // the Like is the default option
+
+    // ONE control only — and no separate Like/Unlike button beside it.
+    expect(container.querySelectorAll('button[data-current-reaction]')).toHaveLength(1);
+    const likeButtons = Array.from(container.querySelectorAll('button')).filter(
+      (b) => /like/i.test(b.textContent ?? '') || /like/i.test(b.getAttribute('aria-label') ?? ''),
+    );
+    expect(likeButtons).toEqual([]);
+    expect(likeCalls).toBe(0);
   });
 
-  it('2. clicking React opens the popover; clicking again / the Close button closes it', async () => {
+  it('2. the toggle shows the user’s current reaction (emoji)', async () => {
+    srv = { counts: new Map([['🔥', 5]]), mine: '🔥' };
+    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 5 }], initialMine: '🔥' }));
+    expect(toggleButton().textContent).toContain('🔥');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('🔥');
+    expect(toggleButton().getAttribute('aria-label')).toBe('Change reaction (current 🔥)');
+  });
+
+  it('2b. the toggle renders a sticker reaction as the actual sticker image', async () => {
+    srv = { counts: new Map([[':wave:', 2]]), mine: ':wave:' };
+    await mount(bar({ initialCounts: [{ reaction: ':wave:', count: 2 }], initialMine: ':wave:' }));
+    const stickerToggle = toggleButton();
+    expect(stickerToggle.getAttribute('data-current-reaction')).toBe(':wave:');
+    // An animated sticker reaction renders as the actual sticker image —
+    // never the raw ':wave:' token.
+    expect(stickerToggle.querySelector('img[src="https://example.com/wave.gif"]')).not.toBeNull();
+    expect(stickerToggle.textContent).not.toContain(':wave:');
+  });
+
+  it('3. clicking the toggle opens the popover; clicking again / Close closes it', async () => {
     await mount(bar());
     await openPicker();
     expect(picker()).not.toBeNull();
     expect(picker()?.getAttribute('role')).toBe('dialog');
     expect(picker()?.getAttribute('aria-label')).toBe('Reaction picker');
-    expect(reactButton().getAttribute('aria-expanded')).toBe('true');
+    expect(toggleButton().getAttribute('aria-expanded')).toBe('true');
 
-    await click(reactButton());
+    await click(toggleButton());
     expect(picker()).toBeNull();
 
     await openPicker();
@@ -307,7 +343,7 @@ describe('ReactionBar — button + picker', () => {
     expect(picker()).toBeNull();
   });
 
-  it('3. the standard reactions appear (fixed set, in order)', async () => {
+  it('4. the standard reactions appear with ❤️ (the Like) first, in order', async () => {
     await mount(bar());
     await openPicker();
     const tiles = Array.from(picker()!.querySelectorAll('[data-reaction-option]')).filter(
@@ -325,16 +361,16 @@ describe('ReactionBar — button + picker', () => {
     expect(STANDARD_REACTIONS).toEqual(['❤️', '🔥', '😂', '😮', '😢', '💀', '👀']);
   });
 
-  it('4. the Custom section shows the existing sticker pack as tiles', async () => {
+  it('5. the Custom section shows the existing sticker pack as touch-sized tiles', async () => {
     await mount(bar());
     await openPicker();
     expect(picker()?.textContent).toContain('Custom');
     expect(option(':wave:')).not.toBeNull();
     expect(option(':dance:')).not.toBeNull();
-    // Tiles render through the existing StickerImage renderer.
     const waveTile = option(':wave:')!;
     expect(waveTile.getAttribute('data-sticker-token')).toBe(':wave:');
     expect(waveTile.getAttribute('aria-label')).toContain(':wave:');
+    expect(waveTile.className).toContain('min-h-[44px]');
     expect(waveTile.querySelector('img[src="https://example.com/wave.gif"]')).not.toBeNull();
     const danceTile = option(':dance:')!;
     expect(danceTile.querySelector('img')).toBeNull();
@@ -349,122 +385,140 @@ describe('ReactionBar — button + picker', () => {
     expect(picker()).toBeNull();
   });
 
-  it('16. Escape closes the picker and returns focus to the React button', async () => {
+  it('16. Escape closes the picker and returns focus to the toggle', async () => {
     await mount(bar());
     await openPicker();
     expect(picker()).not.toBeNull();
     await pressEscape();
     expect(picker()).toBeNull();
-    expect(document.activeElement).toBe(reactButton());
+    expect(document.activeElement).toBe(toggleButton());
   });
 });
 
-describe('ReactionBar — reactions against the existing API', () => {
-  it('5. clicking a standard reaction toggles it through the existing reactions API and closes the picker', async () => {
+describe('ReactionBar — ONE reaction per user, end to end', () => {
+  it('6. selecting ❤️ from the picker works (the Like as a reaction)', async () => {
     await mount(bar());
     await openPicker();
-    await click(option('🔥')!);
+    await click(option('❤️')!);
     expect(picker()).toBeNull(); // select → close
-    expect(reactionPosts()).toEqual([{ reaction: '🔥', toggle: true }]);
-    // …and the chip shows up.
-    expect(chip('🔥')).not.toBeNull();
-    expect(chip('🔥')?.textContent).toContain('1');
+    expect(mutationCalls()).toEqual([{ method: 'POST', body: { reaction: '❤️' } }]);
+    expect(chip('❤️')).not.toBeNull();
+    expect(chip('❤️')?.getAttribute('aria-pressed')).toBe('true');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('❤️');
+    expect(likeCalls).toBe(0); // never the old like endpoint
   });
 
-  it('6. clicking a custom sticker sends its canonical :token: to the same API', async () => {
-    await mount(bar());
-    await openPicker();
-    await click(option(':wave:')!);
-    expect(reactionPosts()).toEqual([{ reaction: ':wave:', toggle: true }]);
-    expect(chip(':wave:')).not.toBeNull();
-  });
-
-  it('7. the current user’s reactions are visually selected (chips + picker tiles)', async () => {
-    srv = {
-      counts: new Map([
-        ['🔥', 5],
-        [':wave:', 1],
-      ]),
-      mine: new Set(['🔥', ':wave:']),
-    };
+  it('7. selecting 🔥 REPLACES ❤️ (never stacks)', async () => {
+    srv = { counts: new Map([['❤️', 24], ['🔥', 8]]), mine: '❤️' };
     await mount(
       bar({
         initialCounts: [
-          { reaction: '🔥', count: 5 },
-          { reaction: ':wave:', count: 1 },
+          { reaction: '❤️', count: 24 },
+          { reaction: '🔥', count: 8 },
         ],
-        initialMine: ['🔥', ':wave:'],
+        initialMine: '❤️',
       }),
     );
-    const fireChip = chip('🔥')!;
-    expect(fireChip.getAttribute('aria-pressed')).toBe('true');
-    expect(fireChip.className).toContain('border-brand-400');
-    expect(fireChip.getAttribute('title')).toBe('You reacted — click to remove');
-    expect(chip(':wave:')?.getAttribute('aria-pressed')).toBe('true');
-
-    await openPicker();
-    expect(option('🔥')?.getAttribute('aria-pressed')).toBe('true');
-    expect(option(':wave:')?.getAttribute('aria-pressed')).toBe('true');
-    expect(option('💀')?.getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('8. clicking an active reaction removes it', async () => {
-    srv = { counts: new Map([['🔥', 1]]), mine: new Set(['🔥']) };
-    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 1 }], initialMine: ['🔥'] }));
-    await click(chip('🔥')!);
-    expect(reactionPosts()).toEqual([{ reaction: '🔥', toggle: true }]);
-    expect(chip('🔥')).toBeNull(); // count dropped to zero → chip gone
-    expect(srv.mine.size).toBe(0);
-  });
-
-  it('9. multiple DIFFERENT reactions can be held at once (one chip each)', async () => {
-    await mount(bar());
     await openPicker();
     await click(option('🔥')!);
-    await openPicker();
-    await click(option('😂')!);
+    expect(mutationCalls()).toEqual([{ method: 'POST', body: { reaction: '🔥' } }]);
+
+    // ❤️ 23 · 🔥 9 — counts reconciled, still one chip each.
+    expect(chip('❤️')?.textContent).toContain('23');
+    expect(chip('🔥')?.textContent).toContain('9');
+    expect(chips()).toHaveLength(2);
+    // Exactly ONE selected reaction at any time.
+    expect(activeChips()).toHaveLength(1);
+    expect(activeChips()[0]?.getAttribute('data-reaction-chip')).toBe('🔥');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('🔥');
+  });
+
+  it('8. selecting a sticker REPLACES the emoji reaction (canonical token sent)', async () => {
+    srv = { counts: new Map([['🔥', 1]]), mine: '🔥' };
+    await mount(
+      bar({ initialCounts: [{ reaction: '🔥', count: 1 }], initialMine: '🔥' }),
+    );
     await openPicker();
     await click(option(':wave:')!);
-    expect(chip('🔥')).not.toBeNull();
-    expect(chip('😂')).not.toBeNull();
-    expect(chip(':wave:')).not.toBeNull();
-    expect(chips().length).toBe(3);
-    expect(chips().filter((c) => c.getAttribute('aria-pressed') === 'true').length).toBe(3);
+    expect(picker()).toBeNull(); // select → close
+    expect(mutationCalls()).toEqual([{ method: 'POST', body: { reaction: ':wave:' } }]);
+    expect(chip('🔥')).toBeNull(); // 🔥 disappeared
+    // The chip AND the toggle render the actual sticker, never the token.
+    expect(chip(':wave:')?.querySelector('img[src="https://example.com/wave.gif"]')).not.toBeNull();
+    expect(toggleButton().querySelector('img[src="https://example.com/wave.gif"]')).not.toBeNull();
+    expect(activeChips()).toHaveLength(1);
   });
 
-  it('10. reaction counts render from the API state, one chip per reaction, never duplicated', async () => {
+  it('9. selecting the CURRENT reaction removes it', async () => {
+    srv = { counts: new Map([['🔥', 1]]), mine: '🔥' };
+    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 1 }], initialMine: '🔥' }));
+    await openPicker();
+    await click(option('🔥')!);
+    expect(mutationCalls()).toEqual([{ method: 'DELETE' }]);
+    expect(chip('🔥')).toBeNull(); // count dropped to zero → chip gone
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('');
+    expect(toggleButton().textContent).toContain('❤️'); // back to the default
+    expect(srv.mine).toBeNull();
+  });
+
+  it('10. clicking a chip works the same way (toggle current / switch to it)', async () => {
+    srv = { counts: new Map([['❤️', 3], ['🔥', 1]]), mine: '❤️' };
+    await mount(
+      bar({
+        initialCounts: [
+          { reaction: '❤️', count: 3 },
+          { reaction: '🔥', count: 1 },
+        ],
+        initialMine: '❤️',
+      }),
+    );
+    // Chip click switches ❤️ → 🔥 without opening the picker.
+    await click(chip('🔥')!);
+    expect(mutationCalls()).toEqual([{ method: 'POST', body: { reaction: '🔥' } }]);
+    expect(activeChips()).toHaveLength(1);
+    expect(activeChips()[0]?.getAttribute('data-reaction-chip')).toBe('🔥');
+
+    // Clicking the now-active chip removes it.
+    await click(chip('🔥')!);
+    expect(mutationCalls()).toHaveLength(2);
+    expect(mutationCalls()[1]).toEqual({ method: 'DELETE' });
+    expect(activeChips()).toHaveLength(0);
+    expect(toggleButton().textContent).toContain('❤️');
+  });
+
+  it('11. counts render as ONE unified set (the ❤️ count IS the like count)', async () => {
     srv = {
       counts: new Map([
-        ['🔥', 12],
-        ['😂', 4],
+        ['❤️', 24],
+        ['🔥', 8],
+        ['😂', 5],
         ['👀', 2],
       ]),
-      mine: new Set(['🔥']),
+      mine: '🔥',
     };
-    await mount(bar({ initialCounts: [{ reaction: '😂', count: 1 }] }));
-    await flush(); // mount-time GET reconciles to 12 / 4 / 2
-    expect(chip('🔥')?.textContent).toContain('12');
-    expect(chip('😂')?.textContent).toContain('4');
+    await mount(bar({ initialCounts: [{ reaction: '😂', count: 1 }], initialMine: null }));
+    await flush(); // mount-time GET reconciles to 24 / 8 / 5 / 2
+    expect(chip('❤️')?.textContent).toContain('24');
+    expect(chip('🔥')?.textContent).toContain('8');
+    expect(chip('😂')?.textContent).toContain('5');
     expect(chip('👀')?.textContent).toContain('2');
-    expect(chips().length).toBe(3);
+    expect(chips()).toHaveLength(4); // one chip per reaction, no duplicates
+
     // Toggling off and on again never produces a second chip.
     await click(chip('🔥')!);
-    await click(chip('🔥')!);
-    expect(chips().length).toBe(3);
-    expect(findAllChipsFor('🔥')).toBe(1);
+    await openPicker();
+    await click(option('🔥')!);
+    expect(chips()).toHaveLength(4);
+    expect(chips().filter((c) => c.getAttribute('data-reaction-chip') === '🔥')).toHaveLength(1);
   });
 
-  function findAllChipsFor(reaction: string): number {
-    return chips().filter((c) => c.getAttribute('data-reaction-chip') === reaction).length;
-  }
-
-  it('11. custom sticker reactions render through StickerImage, never raw tokens', async () => {
+  it('12. sticker chips render through StickerImage, never raw tokens', async () => {
     srv = {
       counts: new Map([
         [':wave:', 3],
         [':dance:', 1],
       ]),
-      mine: new Set<string>(),
+      mine: null,
     };
     await mount(
       bar({
@@ -486,9 +540,10 @@ describe('ReactionBar — reactions against the existing API', () => {
   });
 
   it('fetches the current reaction state on mount and reconciles it', async () => {
-    srv = { counts: new Map([['😮', 2]]), mine: new Set<string>() };
+    srv = { counts: new Map([['😮', 2]]), mine: '😮' };
     await mount(bar()); // SSR had nothing
     expect(chip('😮')?.textContent).toContain('2');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('😮');
     expect(
       fetchMock.mock.calls.filter((c) => String(c[0]).includes(REACTIONS_URL)).length,
     ).toBeGreaterThan(0);
@@ -496,93 +551,125 @@ describe('ReactionBar — reactions against the existing API', () => {
 });
 
 describe('ReactionBar — optimistic UI, failures, click guards', () => {
-  it('12. the UI updates optimistically before the response and reconciles after', async () => {
-    srv = { counts: new Map([['🔥', 12]]), mine: new Set<string>() };
-    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 12 }] }));
+  it('13. replacing a reaction updates optimistically and reconciles after', async () => {
+    srv = { counts: new Map([['❤️', 12], ['🔥', 3]]), mine: '❤️' };
+    await mount(
+      bar({
+        initialCounts: [
+          { reaction: '❤️', count: 12 },
+          { reaction: '🔥', count: 3 },
+        ],
+        initialMine: '❤️',
+      }),
+    );
     let release!: () => void;
-    postGate = new Promise((r) => {
+    mutationGate = new Promise((r) => {
       release = r;
     });
 
     await click(chip('🔥')!);
-    // Optimistic, while the request is still in flight:
-    expect(chip('🔥')?.textContent).toContain('13');
-    expect(chip('🔥')?.getAttribute('aria-pressed')).toBe('true');
+    // Optimistic, while the request is still in flight: ❤️ 12→11, 🔥 3→4,
+    // exactly one selected chip (🔥), toggle already shows 🔥.
+    expect(chip('❤️')?.textContent).toContain('11');
+    expect(chip('🔥')?.textContent).toContain('4');
+    expect(activeChips()).toHaveLength(1);
+    expect(activeChips()[0]?.getAttribute('data-reaction-chip')).toBe('🔥');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('🔥');
 
     await act(async () => {
       release();
     });
     await flush();
-    // Server state (also 13) keeps the chip, now authoritative.
-    expect(chip('🔥')?.textContent).toContain('13');
-    expect(srv.counts.get('🔥')).toBe(13);
+    // Server state agrees — authoritative now.
+    expect(chip('❤️')?.textContent).toContain('11');
+    expect(chip('🔥')?.textContent).toContain('4');
+    expect(srv.counts.get('❤️')).toBe(11);
+    expect(srv.counts.get('🔥')).toBe(4);
   });
 
-  it('13. a failed request rolls the optimistic change back (no stale fake counts)', async () => {
-    srv = { counts: new Map([['🔥', 12]]), mine: new Set(['🔥']) };
-    postMode = 'reject';
-    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 12 }], initialMine: ['🔥'] }));
-    await click(chip('🔥')!); // optimistic remove
+  it('14. a failed request rolls the optimistic change back exactly', async () => {
+    srv = { counts: new Map([['❤️', 12]]), mine: '❤️' };
+    await mount(bar({ initialCounts: [{ reaction: '❤️', count: 12 }], initialMine: '❤️' }));
+
+    // Network failure while switching ❤️ → 🔥.
+    mutationMode = 'reject';
+    await openPicker();
+    await click(option('🔥')!);
     await flush();
-    // Rolled back: chip is present again with the original count + pressed.
-    expect(chip('🔥')?.textContent).toContain('12');
-    expect(chip('🔥')?.getAttribute('aria-pressed')).toBe('true');
+    expect(chip('❤️')?.textContent).toContain('12'); // restored
+    expect(chip('🔥')).toBeNull();
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('❤️');
+    expect(activeChips()).toHaveLength(1);
     expect(container.textContent).toContain('network down');
-    expect(srv.counts.get('🔥')).toBe(12);
 
-    // Server error responses also roll back and surface the server message.
-    postMode = 'fail';
-    await click(chip('🔥')!);
+    // Server error responses also roll back and surface the message.
+    mutationMode = 'fail';
+    await openPicker();
+    await click(option('🔥')!);
     await flush();
-    expect(chip('🔥')?.textContent).toContain('12');
+    expect(chip('❤️')?.textContent).toContain('12');
+    expect(chip('🔥')).toBeNull();
     expect(container.textContent).toContain('Could not update reaction.');
+
+    // Removal failures roll back too.
+    mutationMode = 'reject';
+    await click(chip('❤️')!);
+    await flush();
+    expect(chip('❤️')?.textContent).toContain('12');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('❤️');
   });
 
-  it('14. duplicate/concurrent clicks for the same reaction send exactly one request', async () => {
-    srv = { counts: new Map([['🔥', 12]]), mine: new Set<string>() };
-    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 12 }] }));
+  it('17. concurrent clicks while a request is in flight send exactly one request', async () => {
+    srv = { counts: new Map([['❤️', 12]]), mine: '❤️' };
+    await mount(bar({ initialCounts: [{ reaction: '❤️', count: 12 }], initialMine: '❤️' }));
     let release!: () => void;
-    postGate = new Promise((r) => {
+    mutationGate = new Promise((r) => {
       release = r;
     });
 
-    await click(chip('🔥')!);
-    // Two more clicks while the first is still in flight: no extra
-    // requests and no double-counting.
+    await openPicker();
+    await act(async () => {
+      option('🔥')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await flush();
+    // More clicks while the first is still in flight: no extra requests,
+    // no impossible states (chip clicks + another picker click).
     await act(async () => {
       chip('🔥')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      chip('🔥')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      chip('❤️')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    expect(reactionPosts().length).toBe(1);
-    expect(chip('🔥')?.textContent).toContain('13');
+    expect(mutationCalls()).toHaveLength(1);
 
     await act(async () => {
       release();
     });
     await flush();
-    expect(chip('🔥')?.textContent).toContain('13');
-    expect(reactionPosts().length).toBe(1);
-    expect(srv.counts.get('🔥')).toBe(13);
+    expect(mutationCalls()).toHaveLength(1);
+    expect(chip('❤️')?.textContent).toContain('11');
+    expect(chip('🔥')?.textContent).toContain('1');
+    expect(activeChips()).toHaveLength(1);
+    expect(srv.mine).toBe('🔥');
   });
 
-  it('a mid-session 401 rolls back and uses the register redirect', async () => {
+  it('18. a mid-session 401 rolls back and uses the register redirect', async () => {
     const { hrefs } = stubWindowLocation();
-    srv = { counts: new Map([['🔥', 12]]), mine: new Set<string>() };
-    postMode = '401';
-    await mount(bar({ initialCounts: [{ reaction: '🔥', count: 12 }] }));
-    await click(chip('🔥')!);
+    srv = { counts: new Map([['❤️', 12]]), mine: '❤️' };
+    mutationMode = '401';
+    await mount(bar({ initialCounts: [{ reaction: '❤️', count: 12 }], initialMine: '❤️' }));
+    await click(chip('❤️')!);
     await flush();
     expect(hrefs).toContain(`/register?next=${encodeURIComponent(`/p/${PASTE}`)}`);
-    // The optimistic flip is undone even on the 401 path.
-    expect(chip('🔥')?.getAttribute('aria-pressed')).toBe('false');
-    expect(chip('🔥')?.textContent).toContain('12');
+    // The optimistic removal is undone even on the 401 path.
+    expect(chip('❤️')?.getAttribute('aria-pressed')).toBe('true');
+    expect(chip('❤️')?.textContent).toContain('12');
+    expect(toggleButton().getAttribute('data-current-reaction')).toBe('❤️');
   });
 });
 
 describe('ReactionBar — guest behavior (existing redirect convention)', () => {
-  it('17. guests see counts; attempting to react redirects to /register with the post preserved', async () => {
+  it('19. guests see counts; attempting to react redirects to /register with the post preserved', async () => {
     const { hrefs } = stubWindowLocation();
-    srv = { counts: new Map([['🔥', 7]]), mine: new Set<string>() };
+    srv = { counts: new Map([['🔥', 7]]), mine: null };
     await mount(bar({ initialCounts: [{ reaction: '🔥', count: 7 }], guest: true }));
     // Counts stay readable for guests (display data, like the like count).
     expect(chip('🔥')?.textContent).toContain('7');
@@ -593,38 +680,19 @@ describe('ReactionBar — guest behavior (existing redirect convention)', () => 
     await click(option('🔥')!);
     expect(hrefs).toContain(`/register?next=${encodeURIComponent(`/p/${PASTE}`)}`);
     // Guests never fire reaction writes (no silent fail, no optimistic state).
-    expect(reactionPosts().length).toBe(0);
+    expect(mutationCalls()).toHaveLength(0);
     expect(chip('🔥')?.getAttribute('aria-pressed')).toBe('false');
+    expect(likeCalls).toBe(0);
 
     // Chips are the same flow.
     await click(chip('🔥')!);
     expect(hrefs.length).toBe(2);
-    expect(reactionPosts().length).toBe(0);
+    expect(mutationCalls()).toHaveLength(0);
   });
 });
 
 describe('existing post controls and the Admin Broadcast picker keep working', () => {
-  it('18. the Like button still works unchanged', async () => {
-    await mount(
-      createElement(LikeButton, { pasteId: PASTE, initialCount: likeCount, initialLiked: false }),
-    );
-    const btn = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Like'),
-    )!;
-    expect(btn.textContent).toContain('4');
-    await click(btn);
-    expect(
-      fetchMock.mock.calls.some(
-        (c) =>
-          String(c[0]).includes(`/api/pastes/${PASTE}/like`) &&
-          (c[1] as { method?: string } | undefined)?.method === 'POST',
-      ),
-    ).toBe(true);
-    expect(container.textContent).toContain('Liked');
-    expect(container.textContent).toContain('5');
-  });
-
-  it('19. the Bookmark button still works unchanged', async () => {
+  it('20. the Bookmark button still works unchanged', async () => {
     await mount(createElement(BookmarkButton, { pasteId: PASTE, initialBookmarked: false }));
     const btn = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent?.trim() === 'Save',
@@ -640,7 +708,7 @@ describe('existing post controls and the Admin Broadcast picker keep working', (
     expect(container.textContent).toContain('Saved');
   });
 
-  it('20. the Admin Broadcast StickerPicker component is unaffected', async () => {
+  it('21. the Admin Broadcast StickerPicker component is unaffected', async () => {
     const selected: string[] = [];
     let closeCalls = 0;
     const host = document.createElement('div');
@@ -679,7 +747,7 @@ describe('existing post controls and the Admin Broadcast picker keep working', (
 });
 
 describe('ReactionPicker — standalone contract (used by ReactionBar)', () => {
-  it('reports selection and close without touching the broadcast picker', async () => {
+  it('reports selection and close; exactly one option can be selected', async () => {
     const host = document.createElement('div');
     document.body.appendChild(host);
     const picked: string[] = [];
@@ -690,7 +758,7 @@ describe('ReactionPicker — standalone contract (used by ReactionBar)', () => {
       r.render(
         createElement(ReactionPicker, {
           pack: STICKERS,
-          mine: ['🔥'],
+          mine: '🔥',
           onSelect: (reaction: string) => picked.push(reaction),
           onClose: () => {
             closed += 1;
@@ -699,7 +767,11 @@ describe('ReactionPicker — standalone contract (used by ReactionBar)', () => {
       );
     });
     await flush();
-    expect(findIn(host, 'button', 'data-reaction-option', '🔥')?.getAttribute('aria-pressed')).toBe('true');
+    const pressed = Array.from(host.querySelectorAll('[data-reaction-option]')).filter(
+      (t) => t.getAttribute('aria-pressed') === 'true',
+    );
+    expect(pressed).toHaveLength(1); // ONE reaction — never several selected
+    expect(pressed[0]?.getAttribute('data-reaction-option')).toBe('🔥');
     await act(async () => {
       (findIn(host, 'button', 'data-reaction-option', '👀') as HTMLElement).click();
       (findIn(host, 'button', 'data-reaction-option', ':dance:') as HTMLElement).click();

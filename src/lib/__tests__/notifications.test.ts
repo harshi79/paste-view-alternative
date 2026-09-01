@@ -246,14 +246,14 @@ describe('LIKE notifications', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('creates no notification for a guest like', async () => {
+  it('creates no notification for a guest like attempt (guests get 401 — likes are the unified ❤️ reaction now)', async () => {
     const pasteId = await insertPaste(bob.id);
     cookieJar.clear();
     const res = await likePOST(req(`/api/pastes/${pasteId}/like`), {
       params: Promise.resolve({ id: pasteId }),
     });
-    expect(res.status).toBe(200);
-    expect((await res.json()).liked).toBe(true);
+    expect(res.status).toBe(401);
+    expect((await res.json()).liked).toBeUndefined();
     const rows = (await rowsFor(bob.id)).filter((r) => r.pasteId === pasteId);
     expect(rows).toHaveLength(0);
   });

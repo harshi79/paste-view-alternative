@@ -101,7 +101,9 @@ export const pastes = sqliteTable(
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
     pinned: integer('pinned', { mode: 'boolean' }).notNull().default(false),
     views: integer('views').notNull().default(0),
-    // Denormalized counter — keeps count-only reads off the likes table.
+    // Denormalized counter for the unified reaction system: the number of
+    // ❤️ reactions + retained legacy anonymous likes (keeps count-only
+    // reads off the reactions/likes tables). Maintained by reactions.ts.
     likesCount: integer('likes_count').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
@@ -135,9 +137,19 @@ export const follows = sqliteTable(
 );
 
 // ------------------------------------------------------------------
-// Likes — one per paste per signed-in user OR per anonymous visitor
-// (tracked by a salted IP hash). A paste can be liked OR unliked;
-// there is no dislike. Dedupe is enforced by partial unique indexes.
+// Likes (LEGACY, post-unification) — anonymous visitor hearts only.
+//
+// The Like ❤️ was unified into the `reactions` system: a signed-in
+// user's like IS the ❤️ reaction (one row in `reactions`, primary key
+// (user_id, paste_id)), and `src/lib/likes.ts` is now a compatibility
+// layer that delegates to it. This table only retains the anonymous
+// likes created before unification (salted IP hash, no user id): they
+// cannot be represented per-user and are never written again — they
+// merely keep counting toward the post's ❤️ total so no existing like
+// is silently lost. All signed-in like rows were converted to ❤️
+// reactions by the one-time migration (src/lib/db/migrateReactions.ts)
+// and removed here, so this table is NOT an independent source of
+// truth for anyone's reaction state.
 // ------------------------------------------------------------------
 export const likes = sqliteTable(
   'likes',
@@ -183,24 +195,34 @@ export const bookmarks = sqliteTable(
 );
 
 // ------------------------------------------------------------------
-// Reactions — a signed-in user's emoji / sticker reactions on a post.
+// Reactions — the UNIFIED post reaction system.
 //
-// One row per (user, paste, reaction): the composite primary key is the
-// duplicate guard, so the SAME user can never store the SAME reaction on
-// the SAME post twice, while still holding MULTIPLE DIFFERENT reactions
-// on one post (one row each). Guests can never react (no anonymous/IP
-// actor here — same deliberate difference from likes that bookmarks
+// ONE reaction per user per paste, EVER. The composite primary key on
+// (user_id, paste_id) is the database-level guarantee: a user can hold
+// zero or exactly one reaction on a post, never two. (The previous
+// design keyed on (user_id, paste_id, reaction), which permitted one
+// row per DIFFERENT reaction — that multi-reaction model was wrong and
+// was migrated away; see src/lib/db/migrateReactions.ts.)
+//
+// The former "Like" ❤️ is not a separate system anymore: it is simply
+// one value of this table's `reaction` column. `pastes.likes_count`
+// remains as the denormalized ❤️ counter (❤️ reactions + legacy
+// anonymous likes) so list/profile views keep working unchanged.
+//
+// Guests can never react (no anonymous/IP actor here — the same
+// deliberate difference from the legacy like system that bookmarks
 // make); the API layer resolves the user id from the session only.
 //
 // `reaction` stores the canonical value ONLY — either a single Unicode
-// emoji grapheme ("🔥") or the sticker pack's existing canonical token
-// ("​:wave:"), never rendered HTML, markup or a URL. The sticker system is
-// reused as-is: tokens are validated against the `stickers` table and the
-// existing renderers resolve them at display time.
+// emoji grapheme ("❤️", "🔥") or the sticker pack's existing canonical
+// token (":wave:"), never rendered HTML, markup or a URL. The sticker
+// system is reused as-is: tokens are validated against the `stickers`
+// table and the existing renderers resolve them at display time.
 //
-// Both foreign keys cascade, so deleting a paste or a user removes their
-// reactions automatically; removing a reaction deletes the row
-// permanently (no soft-delete).
+// Both foreign keys cascade, so deleting a paste or a user removes the
+// reaction automatically; removing a reaction deletes the row
+// permanently (no soft-delete). Changing a reaction REPLACES the single
+// row atomically (upsert on the composite primary key).
 // ------------------------------------------------------------------
 export const reactions = sqliteTable(
   'reactions',
@@ -211,12 +233,13 @@ export const reactions = sqliteTable(
     pasteId: text('paste_id')
       .notNull()
       .references(() => pastes.id, { onDelete: 'cascade' }),
-    // Canonical token: ':wave:' (sticker) or a single Unicode emoji.
+    // Canonical token: ':wave:' (sticker) or a single Unicode emoji
+    // ('❤️' is the former Like). Exactly ONE value per user per paste.
     reaction: text('reaction').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    primaryKey({ columns: [t.userId, t.pasteId, t.reaction] }),
+    primaryKey({ columns: [t.userId, t.pasteId] }),
     // Grouped counts for one post ("how many of each reaction").
     index('reactions_paste_reaction_idx').on(t.pasteId, t.reaction),
     // "What did I react with on this post" + cascade lookups.

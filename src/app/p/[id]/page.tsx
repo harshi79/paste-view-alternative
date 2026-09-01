@@ -5,8 +5,6 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db';
 import { pastes, users, profiles, stickers } from '@/lib/db/schema';
 import { getSessionUser, getUserTags } from '@/lib/auth';
-import { getClientIp } from '@/lib/ip';
-import { getLikeState, likeActor } from '@/lib/likes';
 import { isBookmarked } from '@/lib/bookmarks';
 import { getReactionState } from '@/lib/reactions';
 import { purgeExpiredIfDue, incrementPasteViews } from '@/lib/pastes';
@@ -29,7 +27,6 @@ import ExpiryCountdown from '@/components/ExpiryCountdown';
 import CopyButton from '@/components/CopyButton';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import Avatar from '@/components/Avatar';
-import LikeButton from '@/components/LikeButton';
 import BookmarkButton from '@/components/BookmarkButton';
 import ReactionBar from '@/components/ReactionBar';
 
@@ -96,7 +93,7 @@ export default async function PastePage({ params }: Props) {
 
   const locked = !!paste.passwordHash && !isOwner;
 
-  const [authorRows, stickerRows, likeState, bookmarked, reactionState] = await Promise.all([
+  const [authorRows, stickerRows, bookmarked, reactionState] = await Promise.all([
     paste.userId
       ? db
           .select({
@@ -128,14 +125,11 @@ export default async function PastePage({ params }: Props) {
             label: stickers.label,
           })
           .from(stickers),
-    (async () => {
-      const ip = await getClientIp();
-      return getLikeState(paste.id, likeActor(session?.user.id, ip), paste.likesCount ?? 0);
-    })(),
     // Bookmarks are members-only — guests skip the indexed PK read.
     session ? isBookmarked(session.user.id, paste.id) : Promise.resolve(false),
-    // Reaction chips mirror the GET /api/pastes/:id/reactions payload:
-    // public counts + the signed-in user's own reactions (empty for guests).
+    // The unified reaction state mirrors the GET /api/pastes/:id/reactions
+    // payload: public counts (the ❤️ entry IS the like count) + the
+    // signed-in user's ONE reaction (null for guests / none).
     getReactionState(paste.id, session?.user.id ?? null),
   ]);
   const authorRow = authorRows[0] ?? null;
@@ -218,14 +212,15 @@ export default async function PastePage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          <LikeButton pasteId={paste.id} initialCount={likeState.count} initialLiked={likeState.liked} />
-          <BookmarkButton pasteId={paste.id} initialBookmarked={bookmarked} guest={!session} />
+          {/* ONE unified reaction control — the ❤️ Like is its first/default
+              reaction option; there is no separate Like button. */}
           <ReactionBar
             pasteId={paste.id}
             initialCounts={reactionState.counts}
             initialMine={reactionState.mine}
             guest={!session}
           />
+          <BookmarkButton pasteId={paste.id} initialBookmarked={bookmarked} guest={!session} />
           <CopyLinkButton id={paste.id} />
           {!locked && richDoc && <CopyButton text={richDocToPlainText(richDoc)} label="Copy content" className={TOOLBAR_BTN} />}
           {!locked && !isRich && <CopyButton text={paste.content} label="Copy content" className={TOOLBAR_BTN} />}
