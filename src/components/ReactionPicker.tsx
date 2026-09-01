@@ -21,8 +21,11 @@ type Props = {
    * the Admin Broadcast composer passes to StickerPicker.
    */
   pack: StickerEntry[] | null;
-  /** The current user's reactions — options in this set show as selected. */
-  mine: string[];
+  /**
+   * The current user's ONE reaction (or null when they have none) —
+   * exactly one option can ever show as selected.
+   */
+  mine: string | null;
   /** Lets the parent wire outside-click / Escape detection. */
   panelRef?: React.Ref<HTMLDivElement>;
   id?: string;
@@ -44,7 +47,10 @@ const SECTION_LABEL =
  * scrollable, viewport-bounded width).
  *
  * Unlike the broadcast picker there is no text field to insert into:
- * a click selects/toggles the reaction itself and closes the popover.
+ * a click selects the reaction itself and closes the popover. Users hold
+ * ONE reaction per post: selecting a different option replaces the
+ * current one; selecting the active option removes it. The ❤️ (the old
+ * Like) is simply the first standard option.
  */
 export default function ReactionPicker({
   onSelect,
@@ -76,10 +82,11 @@ export default function ReactionPicker({
         </button>
       </div>
 
-      {/* Standard reactions — click to add/toggle, no typing, no codes. */}
+      {/* Standard reactions — click to select/replace, no typing, no codes.
+          ❤️ (the former Like) is the first/default option. */}
       <div className="flex flex-wrap gap-1.5">
         {STANDARD_REACTIONS.map((reaction) => {
-          const active = mine.includes(reaction);
+          const active = mine === reaction;
           return (
             <button
               key={reaction}
@@ -112,7 +119,7 @@ export default function ReactionPicker({
         {items.length > 0 && (
           <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
             {items.map((s) => {
-              const active = mine.includes(s.token);
+              const active = mine === s.token;
               return (
                 <button
                   key={s.token}
@@ -145,7 +152,7 @@ export default function ReactionPicker({
         )}
       </div>
       <p className="mt-2 text-[11px] leading-4 text-zinc-500">
-        Click to react — click an active reaction again to remove it.
+        Pick one reaction — choosing another replaces it; clicking the active one removes it.
       </p>
     </div>
   );

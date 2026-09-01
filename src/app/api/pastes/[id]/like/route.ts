@@ -12,9 +12,27 @@ export const runtime = 'nodejs';
 type Props = { params: Promise<{ id: string }> };
 
 /**
- * Like / unlike endpoint — guests and signed-in members can both
- * participate (one vote per user, or per anonymous IP hash).
- * GET returns the current state, POST likes, DELETE unlikes.
+ * Like / unlike endpoint — TEMPORARY COMPATIBILITY surface.
+ *
+ * The like is no longer an independent system: this endpoint delegates
+ * to the unified reaction model (src/lib/reactions.ts). Liking IS
+ * selecting the ❤️ reaction; unliking IS removing it. No second record
+ * is ever created — `likes` rows are only written for pre-unification
+ * anonymous visitors, and nothing here touches them.
+ *
+ *   GET    → { count, liked } where count is the unified ❤️ count
+ *            (❤️ reactions + retained anonymous likes) and `liked` is
+ *            true when the actor's current reaction is ❤️ (or a
+ *            returning anonymous visitor still holds a legacy row).
+ *   POST   → selects ❤️ (signed-in users only — guests get 401, the
+ *            same members-only rule as the reactions API).
+ *   DELETE → removes ❤️ (only ❤️ — never a user's 🔥/sticker reaction).
+ *
+ * The existing LIKE notification behavior is preserved unchanged:
+ * a notification is created for the paste owner when a signed-in
+ * user's reaction BECOMES ❤️ (first like or a switch from another
+ * reaction), never for self-likes, guest attempts, ownerless pastes or
+ * failed requests, and duplicates stay collapsed by the dedupe key.
  */
 export async function GET(_req: Request, { params }: Props) {
   const { id } = await params;
@@ -37,6 +55,11 @@ export async function GET(_req: Request, { params }: Props) {
 export async function POST(_req: Request, { params }: Props) {
   const { id } = await params;
   const [session, ip] = await Promise.all([getSessionUser(), getClientIp()]);
+  if (!session) {
+    // Anonymous liking ended with the unified reaction system — guests
+    // are redirected to register by the UI (same as every reaction).
+    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  }
   const db = await getDb();
   // owner + title are read here (same indexed row read as before) so the
   // like notification can name the paste without a second query.
@@ -54,13 +77,14 @@ export async function POST(_req: Request, { params }: Props) {
   if (paste.expiresAt && paste.expiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ error: 'This paste has expired.' }, { status: 410 });
   }
-  const actor = likeActor(session?.user.id, ip);
+  const actor = likeActor(session.user.id, ip);
   const result = await likePaste(id, actor);
-  // Notify the paste owner — only for a NEW like by a signed-in user
-  // (`liked` is false when the like already existed). Self-likes, guest
-  // likes and ownerless pastes notify nobody. Runs after the like
-  // transaction committed; a failure never changes the like response.
-  if (result.liked && session) {
+  // Notify the paste owner — only when the user's reaction BECAME ❤️
+  // with this call (`newlyLiked` is false when it already was ❤️).
+  // Self-likes, guest attempts and ownerless pastes notify nobody. Runs
+  // after the reaction transaction committed; a failure never changes
+  // the like response.
+  if (result.newlyLiked && session) {
     await notifySafely(() =>
       notifyLike(
         { id: session.user.id, username: session.user.username },
@@ -68,12 +92,15 @@ export async function POST(_req: Request, { params }: Props) {
       ),
     );
   }
-  return NextResponse.json({ ok: true, ...result });
+  return NextResponse.json({ ok: true, count: result.count, liked: result.liked });
 }
 
 export async function DELETE(_req: Request, { params }: Props) {
   const { id } = await params;
   const [session, ip] = await Promise.all([getSessionUser(), getClientIp()]);
+  if (!session) {
+    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  }
   const db = await getDb();
   const [paste] = await db
     .select({ id: pastes.id, expiresAt: pastes.expiresAt })
@@ -81,7 +108,7 @@ export async function DELETE(_req: Request, { params }: Props) {
     .where(eq(pastes.id, id))
     .limit(1);
   if (!paste) return NextResponse.json({ error: 'Paste not found.' }, { status: 404 });
-  const actor = likeActor(session?.user.id, ip);
+  const actor = likeActor(session.user.id, ip);
   const result = await unlikePaste(id, actor);
   return NextResponse.json({ ok: true, ...result });
 }

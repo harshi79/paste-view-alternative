@@ -3,6 +3,7 @@ import { createClient } from '@libsql/client';
 import { sql } from 'drizzle-orm';
 import * as schema from './schema';
 import { seedIfEmpty } from './seed';
+import { migrateReactionsUnified } from './migrateReactions';
 
 /**
  * VibeBin database layer — Turso/libSQL edition.
@@ -85,22 +86,23 @@ const MIGRATION_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS bookmarks_paste_idx ON bookmarks (paste_id)`,
   `CREATE INDEX IF NOT EXISTS bookmarks_user_created_idx ON bookmarks (user_id, created_at)`,
 
-  // Reactions — a signed-in user's emoji / sticker reactions on a post.
-  // One row per (user, paste, reaction): the composite primary key is the
-  // duplicate guard (the same user can never store the same reaction on
-  // the same post twice) while still allowing MULTIPLE DIFFERENT
-  // reactions from one user on one post. `reaction` holds the canonical
-  // value only — a single Unicode emoji or the sticker pack's existing
-  // canonical token (e.g. ':wave:') — never rendered HTML. Both foreign
-  // keys cascade, so deleting a paste or a user removes their reactions.
-  // The (paste_id, reaction) index backs the grouped per-post counts and
-  // (paste_id, user_id) backs the "my reactions on this post" read.
+  // Reactions — the UNIFIED post reaction system: ONE reaction per user
+  // per paste, enforced by the composite primary key (user_id, paste_id).
+  // The former Like ❤️ is one value of `reaction` (see
+  // src/lib/db/migrateReactions.ts for the one-time unification of the
+  // old likes table and the old multi-reaction table). `reaction` holds
+  // the canonical value only — a single Unicode emoji ('❤️', '🔥') or the
+  // sticker pack's existing canonical token (e.g. ':wave:') — never
+  // rendered HTML. Both foreign keys cascade, so deleting a paste or a
+  // user removes the reaction. The (paste_id, reaction) index backs the
+  // grouped per-post counts and (paste_id, user_id) backs the "my
+  // reaction on this post" read.
   `CREATE TABLE IF NOT EXISTS reactions (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     paste_id TEXT NOT NULL REFERENCES pastes(id) ON DELETE CASCADE,
     reaction TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    PRIMARY KEY (user_id, paste_id, reaction)
+    PRIMARY KEY (user_id, paste_id)
   )`,
   `CREATE INDEX IF NOT EXISTS reactions_paste_reaction_idx ON reactions (paste_id, reaction)`,
   `CREATE INDEX IF NOT EXISTS reactions_paste_user_idx ON reactions (paste_id, user_id)`,
@@ -285,10 +287,12 @@ export async function getDb(): Promise<DB> {
 
       if (exists.length > 0) {
         // Existing deployment: schema already exists — apply the
-        // idempotent additions for newer tables, then seed if needed.
+        // idempotent additions for newer tables, run the one-time
+        // data migrations (marker-guarded), then seed if needed.
         for (const stmt of MIGRATION_STATEMENTS) {
           await db.run(sql.raw(stmt));
         }
+        await migrateReactionsUnified(db);
         await seedIfEmpty(db);
         return db;
       }
@@ -297,6 +301,9 @@ export async function getDb(): Promise<DB> {
       for (const stmt of SCHEMA_STATEMENTS) {
         await db.run(sql.raw(stmt));
       }
+      // Fresh databases are created with the unified schema already;
+      // this only records the migration marker so later boots no-op.
+      await migrateReactionsUnified(db);
       await seedIfEmpty(db);
       return db;
     })();

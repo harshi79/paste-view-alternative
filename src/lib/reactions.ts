@@ -1,50 +1,56 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
 import { getDb, type DB } from './db';
-import { reactions, stickers } from './db/schema';
+import { likes, pastes, reactions, stickers } from './db/schema';
 import { isStickerToken } from './statusEmoji';
 
 // ------------------------------------------------------------------
-// Post reactions — signed-in users reacting to a post with an emoji or
-// a sticker from the EXISTING admin-curated sticker pack.
+// UNIFIED post reactions — ONE reaction (or none) per signed-in user
+// per post. The former Like ❤️ is simply one value of this system, not
+// a separate concept:
 //
-// - One row per (user, paste, reaction). The composite primary key makes
-//   duplicates impossible at the DB level, and inserts use ON CONFLICT DO
-//   NOTHING so a repeated reaction is a safe no-op (same idempotency
-//   pattern as src/lib/likes.ts, src/lib/follows.ts and
-//   src/lib/bookmarks.ts). One user can hold MULTIPLE DIFFERENT reactions
-//   on the same post — one row each.
-// - Guests can never react: there is no anonymous/IP actor here (the same
-//   deliberate difference from likes that bookmarks make). Every function
-//   below is scoped to a user id the API layer took from the session, so
-//   there is no code path that reads or writes another user's reactions.
-// - Only canonical values are stored: either ONE Unicode emoji grapheme
-//   ('🔥') or the sticker pack's existing canonical token (':wave:').
-//   Rendered HTML, markup, URLs and unknown tokens are rejected before
-//   any write — the sticker system is reused, never duplicated: a token
-//   is only accepted when it exists in the `stickers` table, and display
-//   still resolves it through the existing sticker renderers.
+//   ❤️  == the old "Like"
+//   🔥😂😮😢💀👀  == the standard alternatives
+//   :wave:        == any sticker from the EXISTING admin-curated pack
+//
+// - The `reactions` table's composite primary key (user_id, paste_id)
+//   is the single source of truth and the duplicate guard: a user can
+//   never hold two reactions on one post at the DATABASE level.
+//   Selecting a different reaction REPLACES the single row atomically
+//   (INSERT … ON CONFLICT DO UPDATE inside one transaction).
+// - The legacy `likes` table only retains pre-unification ANONYMOUS
+//   likes (ip_hash rows, no user). They are folded into the ❤️ count
+//   by getReactionCounts so no existing like is ever lost; they are
+//   never written again and are nobody's reaction state.
+// - `pastes.likes_count` stays the denormalized ❤️ counter (❤️
+//   reactions + anonymous likes) so dashboard/profile counts keep
+//   working; every mutation recomputes it from the source rows, which
+//   also makes it self-healing (no drift, no double counting).
+// - Guests can never react: there is no anonymous actor here (the same
+//   deliberate difference the bookmark system makes). Every function is
+//   scoped to a user id the API layer took from the session.
+// - Only canonical values are stored: ONE Unicode emoji grapheme
+//   ('🔥') or the sticker pack's canonical token (':wave:'), validated
+//   against the existing `stickers` table. The sticker system is
+//   reused as-is — never duplicated.
 // - Every query goes through Drizzle's parameter binding (no string
 //   interpolation of user input into SQL).
 // ------------------------------------------------------------------
 
+/** The former Like, now one canonical reaction value. */
+export const HEART_REACTION = '❤️';
+
 /** Hard cap on the raw input length accepted for a reaction value. */
 export const REACTION_MAX_LENGTH = 34;
-
-/**
- * Cap on how many DIFFERENT reactions one user may hold on one post.
- * Duplicate prevention is the DB's job; this only bounds fan-out abuse.
- */
-export const MAX_REACTIONS_PER_USER_PER_PASTE = 20;
 
 export type ReactionCount = { reaction: string; count: number };
 
 export type ReactionState = {
   /** Per-reaction totals for the post, most used first. */
   counts: ReactionCount[];
-  /** Sum of all reaction rows on the post. */
+  /** Sum of all reactions (+ retained anonymous likes) on the post. */
   total: number;
-  /** The current user's own reactions (empty for guests). */
-  mine: string[];
+  /** The current user's ONE reaction, or null when they have none. */
+  mine: string | null;
 };
 
 /** True when the value is the sticker pack's canonical token form. */
@@ -58,7 +64,7 @@ export function isReactionStickerToken(value: string): boolean {
  * Returns the canonical form of an accepted reaction:
  *   - a sticker token, lower-cased (':WAVE:' → ':wave:'); existence in the
  *     pack is verified separately by `resolveReaction`,
- *   - a single Unicode emoji grapheme, NFC-normalized ('🔥', '👍🏽', '🇯🇵'),
+ *   - a single Unicode emoji grapheme, NFC-normalized ('🔥', '👍🏽', '🇯🇵', '❤️'),
  * or null when the input is anything else (plain text, HTML, a URL, an
  * over-long string, control characters, several emoji, …).
  */
@@ -103,7 +109,26 @@ export async function resolveReaction(raw: unknown, database?: DB): Promise<stri
   return row?.token ?? null;
 }
 
-/** Grouped counts for a post, most used first (ties broken alphabetically). */
+/**
+ * Retained anonymous (ip_hash) likes on a paste — the pre-unification
+ * guest hearts that cannot become user reactions but must keep counting
+ * toward ❤️ so no existing like is silently lost.
+ */
+async function countAnonymousLikes(pasteId: string, database?: DB): Promise<number> {
+  const db = database ?? (await getDb());
+  const [row] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(likes)
+    .where(and(eq(likes.pasteId, pasteId), isNull(likes.userId)));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Grouped counts for a post, most used first (ties broken
+ * alphabetically). The ❤️ entry is the unified like count: ❤️ reactions
+ * plus retained anonymous likes. There is exactly one entry per distinct
+ * reaction — never duplicates, never a separate "like" total.
+ */
 export async function getReactionCounts(pasteId: string, database?: DB): Promise<ReactionCount[]> {
   const db = database ?? (await getDb());
   const rows = await db
@@ -112,27 +137,41 @@ export async function getReactionCounts(pasteId: string, database?: DB): Promise
     .where(eq(reactions.pasteId, pasteId))
     .groupBy(reactions.reaction)
     .orderBy(desc(sql`count(*)`), asc(reactions.reaction));
-  return rows.map((r) => ({ reaction: r.reaction, count: Number(r.count ?? 0) }));
+
+  const merged = new Map<string, number>(
+    rows.map((r) => [r.reaction, Number(r.count ?? 0)]),
+  );
+  const anonymous = await countAnonymousLikes(pasteId, db);
+  if (anonymous > 0) {
+    merged.set(HEART_REACTION, (merged.get(HEART_REACTION) ?? 0) + anonymous);
+  }
+
+  // Re-sort after the fold: merging the retained anonymous likes into ❤️
+  // can change the ranking (most used first, ties broken alphabetically).
+  return [...merged.entries()]
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([reaction, count]) => ({ reaction, count }));
 }
 
-/** One user's own reactions on a post (oldest first). */
-export async function getUserReactions(
+/** The user's ONE current reaction on a post, or null when they have none. */
+export async function getUserReaction(
   userId: string,
   pasteId: string,
   database?: DB,
-): Promise<string[]> {
+): Promise<string | null> {
   const db = database ?? (await getDb());
-  const rows = await db
+  const [row] = await db
     .select({ reaction: reactions.reaction })
     .from(reactions)
     .where(and(eq(reactions.pasteId, pasteId), eq(reactions.userId, userId)))
-    .orderBy(asc(reactions.createdAt), asc(reactions.reaction));
-  return rows.map((r) => r.reaction);
+    .limit(1);
+  return row?.reaction ?? null;
 }
 
 /**
- * Counts for a post plus the caller's own reactions. `userId` is null for
- * guests, whose `mine` is always empty — the public counts stay readable.
+ * Counts for a post plus the caller's own reaction. `userId` is null for
+ * guests, whose `mine` is always null — the public counts stay readable.
  */
 export async function getReactionState(
   pasteId: string,
@@ -142,7 +181,7 @@ export async function getReactionState(
   const db = database ?? (await getDb());
   const [counts, mine] = await Promise.all([
     getReactionCounts(pasteId, db),
-    userId ? getUserReactions(userId, pasteId, db) : Promise.resolve<string[]>([]),
+    userId ? getUserReaction(userId, pasteId, db) : Promise.resolve<string | null>(null),
   ]);
   return {
     counts,
@@ -151,108 +190,162 @@ export async function getReactionState(
   };
 }
 
-/** Whether the user already holds this exact reaction on this post. */
+/** Whether the user's current reaction on the post is exactly this value. */
 export async function hasReaction(
   userId: string,
   pasteId: string,
   reaction: string,
   database?: DB,
 ): Promise<boolean> {
-  const db = database ?? (await getDb());
-  const [row] = await db
-    .select({ reaction: reactions.reaction })
-    .from(reactions)
-    .where(
-      and(
-        eq(reactions.userId, userId),
-        eq(reactions.pasteId, pasteId),
-        eq(reactions.reaction, reaction),
-      ),
-    )
-    .limit(1);
-  return !!row;
+  return (await getUserReaction(userId, pasteId, database)) === reaction;
 }
 
-export type AddReactionResult =
-  | { ok: true; active: true; created: boolean }
-  | { ok: false; reason: 'limit' };
+/**
+ * Recompute the paste's denormalized ❤️ counter from the source rows
+ * (❤️ reactions + retained anonymous likes). Deriving the value from the
+ * rows — instead of applying a +/- delta — makes it self-healing: a
+ * raced retry can increment nothing twice, so counts can never drift or
+ * double-count.
+ *
+ * Accepts the transaction OR the database (both can execute raw SQL).
+ */
+type SqlExecutor = Pick<DB, 'run'>;
+async function syncLikesCount(db: SqlExecutor, pasteId: string): Promise<void> {
+  await db.run(sql`
+    UPDATE pastes SET likes_count = (
+      (SELECT COUNT(*) FROM reactions
+        WHERE reactions.paste_id = ${pasteId} AND reactions.reaction = ${HEART_REACTION})
+      + (SELECT COUNT(*) FROM likes
+        WHERE likes.paste_id = ${pasteId} AND likes.user_id IS NULL)
+    ) WHERE pastes.id = ${pasteId}
+  `);
+}
+
+export type SetReactionResult = {
+  ok: true;
+  /** Always true — after setReaction the user HAS a reaction. */
+  active: true;
+  /** True when a new row was inserted (no previous reaction existed). */
+  created: boolean;
+  /** The user's previous reaction, or null when they had none. */
+  previous: string | null;
+  /** True when an existing (different) reaction was replaced. */
+  replaced: boolean;
+};
 
 /**
- * Add one reaction. Idempotent: reacting again with the SAME value is a
- * no-op collapsed by the composite primary key + ON CONFLICT DO NOTHING
- * (`created: false`), so a double-tap or raced retry can never create
- * duplicates. Different values from the same user coexist as separate
- * rows. Fails with `reason: 'limit'` past
- * MAX_REACTIONS_PER_USER_PER_PASTE distinct reactions.
+ * Select the user's ONE reaction on a post, replacing any previous
+ * reaction atomically. The database primary key makes a second row for
+ * the same (user, paste) impossible: an existing row is UPDATEd in
+ * place by the upsert, never duplicated.
+ *
+ * Re-selecting the value the user already has is an idempotent no-op
+ * (`created: false`, `replaced: false`, nothing written).
  *
  * `reaction` must already be canonical (see `resolveReaction`).
  */
-export async function addReaction(
+export async function setReaction(
   userId: string,
   pasteId: string,
   reaction: string,
-): Promise<AddReactionResult> {
+): Promise<SetReactionResult> {
   const db = await getDb();
   return db.transaction(async (tx) => {
-    const existing = await tx
+    const [existing] = await tx
       .select({ reaction: reactions.reaction })
       .from(reactions)
-      .where(and(eq(reactions.userId, userId), eq(reactions.pasteId, pasteId)));
-    if (existing.some((r) => r.reaction === reaction)) {
-      return { ok: true, active: true, created: false } as const;
+      .where(and(eq(reactions.userId, userId), eq(reactions.pasteId, pasteId)))
+      .limit(1);
+    if (existing?.reaction === reaction) {
+      return { ok: true, active: true, created: false, previous: reaction, replaced: false };
     }
-    if (existing.length >= MAX_REACTIONS_PER_USER_PER_PASTE) {
-      return { ok: false, reason: 'limit' } as const;
-    }
-    const [row] = await tx
+    await tx
       .insert(reactions)
       .values({ userId, pasteId, reaction, createdAt: new Date() })
-      .onConflictDoNothing()
-      .returning({ reaction: reactions.reaction });
-    return { ok: true, active: true, created: !!row } as const;
+      .onConflictDoUpdate({
+        target: [reactions.userId, reactions.pasteId],
+        set: { reaction, createdAt: new Date() },
+      });
+    await syncLikesCount(tx, pasteId);
+    return {
+      ok: true,
+      active: true,
+      created: !existing,
+      previous: existing?.reaction ?? null,
+      replaced: !!existing,
+    };
   });
 }
 
+export type RemoveReactionResult = {
+  ok: true;
+  /** Always false — after removeReaction the user has NO reaction. */
+  active: false;
+  /** True when a reaction row was actually deleted. */
+  removed: boolean;
+  /** The reaction that was removed, or null when there was none. */
+  previous: string | null;
+};
+
 /**
- * Remove one reaction permanently. Idempotent: removing a reaction that
- * is not there is a no-op (`removed: false`). The WHERE clause is keyed
- * on the caller's own user id, so one user can never delete another
- * user's reaction.
+ * Remove the user's current reaction (whatever it is), permanently.
+ * Idempotent: removing when there is no reaction is a no-op
+ * (`removed: false`). The WHERE clause is keyed on the caller's own
+ * user id, so one user can never delete another user's reaction.
  */
 export async function removeReaction(
   userId: string,
   pasteId: string,
-  reaction: string,
-): Promise<{ active: false; removed: boolean }> {
+): Promise<RemoveReactionResult> {
   const db = await getDb();
-  const removed = await db
-    .delete(reactions)
-    .where(
-      and(
-        eq(reactions.userId, userId),
-        eq(reactions.pasteId, pasteId),
-        eq(reactions.reaction, reaction),
-      ),
-    )
-    .returning({ reaction: reactions.reaction });
-  return { active: false, removed: removed.length > 0 };
+  return db.transaction(async (tx) => {
+    const removed = await tx
+      .delete(reactions)
+      .where(and(eq(reactions.userId, userId), eq(reactions.pasteId, pasteId)))
+      .returning({ reaction: reactions.reaction });
+    if (removed.length > 0) {
+      await syncLikesCount(tx, pasteId);
+    }
+    return {
+      ok: true,
+      active: false,
+      removed: removed.length > 0,
+      previous: removed[0]?.reaction ?? null,
+    };
+  });
 }
 
 export type ToggleReactionResult =
-  | { ok: true; active: boolean; created: boolean; removed: boolean }
-  | { ok: false; reason: 'limit' };
+  | { ok: true; active: true; created: boolean; removed: false; previous: string | null }
+  | { ok: true; active: false; created: false; removed: boolean; previous: string | null };
 
-/** Add the reaction when absent, remove it when present. */
+/**
+ * Toggle one reaction: select it (replacing any other reaction), or —
+ * when it is ALREADY the user's current reaction — remove it. A user
+ * can never end up holding two reactions through this path.
+ */
 export async function toggleReaction(
   userId: string,
   pasteId: string,
   reaction: string,
 ): Promise<ToggleReactionResult> {
-  if (await hasReaction(userId, pasteId, reaction)) {
-    const { removed } = await removeReaction(userId, pasteId, reaction);
-    return { ok: true, active: false, created: false, removed };
+  const current = await getUserReaction(userId, pasteId);
+  if (current === reaction) {
+    const result = await removeReaction(userId, pasteId);
+    return {
+      ok: true,
+      active: false,
+      created: false,
+      removed: result.removed,
+      previous: result.previous,
+    };
   }
-  const added = await addReaction(userId, pasteId, reaction);
-  if (!added.ok) return added;
-  return { ok: true, active: true, created: added.created, removed: false };
+  const result = await setReaction(userId, pasteId, reaction);
+  return {
+    ok: true,
+    active: true,
+    created: result.created,
+    removed: false,
+    previous: result.previous,
+  };
 }

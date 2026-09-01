@@ -1,29 +1,24 @@
 /**
- * Post reaction tests (backend foundation).
+ * UNIFIED post reaction tests (corrected TODO 1 backend).
  *
- * Covers the reaction DB + API contract:
- * - guests cannot add / remove reactions (401); guest GET still returns
- *   public counts with an empty `mine`
- * - the acting user id comes from the SESSION only — a client-supplied
- *   user_id in the body is ignored
- * - add / remove a reaction (remove is permanent and idempotent)
- * - duplicate prevention: the same reaction twice never creates a second
- *   row (API level and DB level)
- * - multiple DIFFERENT reactions by one user on one post coexist
- * - invalid reaction values are rejected server-side (400) and nothing is
- *   written: plain text, HTML, URLs, unknown sticker tokens, several
- *   emoji, empty/missing/non-string values, over-long input
- * - sticker reactions are stored as their existing canonical token
- *   (':wave:'), never rendered HTML
- * - missing post → 404, expired post → 410
- * - user isolation: one user can never remove another user's reaction
- * - counts are correct and grouped per reaction
- * - FK cascades clean reactions up with the paste or the user
+ * ONE reaction per user per post — the ❤️ Like is just one value:
+ * - database: single-row guarantee (PK), replacement, removal,
+ *   multi-user counts, FK cascades
+ * - API: guest reads vs 401 mutations, session-only identity, add ❤️,
+ *   add an alternative, replace ❤️→🔥→😂→sticker, idempotent re-select,
+ *   toggle-off, DELETE removes the current reaction, user isolation,
+ *   invalid sticker rejection, missing/expired posts
+ * - like compatibility: POST /like selects ❤️ (never a second record),
+ *   DELETE /like removes only ❤️, GET /like count === ❤️ count
+ *   (reactions + retained anonymous likes), guests get 401
+ * - notifications: POST /like keeps the existing LIKE notification
+ *   behavior; the reactions API creates none
  *
  * Same harness as the bookmark suite: a throwaway local SQLite database
  * (the libSQL `file:local.db` fallback pointed at a temp dir before the
  * first DB access) seeded by the app's own `seedIfEmpty` (users: demo,
- * nova; sticker pack incl. ':wave:' and ':fire:').
+ * nova; sticker pack incl. ':wave:' and ':fire:'). The likes → ❤️
+ * migration itself has a dedicated suite (reactionsMigration.test.ts).
  */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -58,24 +53,38 @@ vi.mock('next/headers', () => ({
 }));
 
 import { getDb } from '@/lib/db';
-import { pastes, profiles, reactions, users } from '@/lib/db/schema';
+import {
+  likes,
+  notifications,
+  pastes,
+  profiles,
+  reactions,
+  users,
+} from '@/lib/db/schema';
 import { createSession, hashPassword } from '@/lib/auth';
 import {
-  MAX_REACTIONS_PER_USER_PER_PASTE,
-  addReaction,
+  HEART_REACTION,
   getReactionCounts,
   getReactionState,
-  getUserReactions,
+  getUserReaction,
   hasReaction,
   normalizeReactionInput,
   removeReaction,
   resolveReaction,
+  setReaction,
+  toggleReaction,
 } from '@/lib/reactions';
+import { likeActor } from '@/lib/likes';
 import {
   GET as reactionsGET,
   POST as reactionsPOST,
   DELETE as reactionsDELETE,
 } from '@/app/api/pastes/[id]/reactions/route';
+import {
+  GET as likeGET,
+  POST as likePOST,
+  DELETE as likeDELETE,
+} from '@/app/api/pastes/[id]/like/route';
 
 async function createUser(username: string) {
   const db = await getDb();
@@ -148,6 +157,16 @@ async function rowCount(where: ReturnType<typeof eq> | undefined = undefined): P
   return Number(row?.n ?? 0);
 }
 
+async function likesCountOf(pasteId: string): Promise<number> {
+  const db = await getDb();
+  const [row] = await db
+    .select({ likesCount: pastes.likesCount })
+    .from(pastes)
+    .where(eq(pastes.id, pasteId))
+    .limit(1);
+  return Number(row?.likesCount ?? 0);
+}
+
 let demo: { id: string; username: string };
 let nova: { id: string; username: string };
 
@@ -162,11 +181,12 @@ afterAll(() => {
 });
 
 // ------------------------------------------------------------------
-// Validation (pure + sticker-pack backed)
+// Validation (pure + sticker-pack backed) — unchanged contract
 // ------------------------------------------------------------------
 describe('reaction validation', () => {
-  it('accepts a single emoji grapheme and canonicalizes sticker tokens', () => {
+  it('accepts a single emoji grapheme (incl. ❤️) and canonicalizes sticker tokens', () => {
     expect(normalizeReactionInput('🔥')).toBe('🔥');
+    expect(normalizeReactionInput(HEART_REACTION)).toBe('❤️');
     expect(normalizeReactionInput(' 👍 ')).toBe('👍');
     expect(normalizeReactionInput('👍🏽')).toBe('👍🏽'); // skin tone modifier = 1 grapheme
     expect(normalizeReactionInput('🇯🇵')).toBe('🇯🇵'); // flag = 1 grapheme
@@ -212,6 +232,128 @@ describe('reaction validation', () => {
 });
 
 // ------------------------------------------------------------------
+// Unified model — DB level guarantees
+// ------------------------------------------------------------------
+describe('unified reactions — database model', () => {
+  it('stores exactly one reaction row per user per paste', async () => {
+    const paste = await createPaste(nova.id);
+    expect(await setReaction(demo.id, paste.id, HEART_REACTION)).toMatchObject({
+      ok: true,
+      active: true,
+      created: true,
+      previous: null,
+      replaced: false,
+    });
+    expect(
+      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
+    ).toBe(1);
+    expect(await getUserReaction(demo.id, paste.id)).toBe('❤️');
+  });
+
+  it('replaces the previous reaction atomically (never two rows)', async () => {
+    const paste = await createPaste(nova.id);
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+    const result = await setReaction(demo.id, paste.id, '🔥');
+    expect(result).toMatchObject({ created: false, previous: '❤️', replaced: true });
+
+    // ❤️ → 🔥
+    expect(await getUserReaction(demo.id, paste.id)).toBe('🔥');
+    expect(
+      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
+    ).toBe(1);
+    expect(await getReactionCounts(paste.id)).toEqual([{ reaction: '🔥', count: 1 }]);
+
+    // 🔥 → sticker
+    await setReaction(demo.id, paste.id, ':wave:');
+    expect(await getUserReaction(demo.id, paste.id)).toBe(':wave:');
+    expect(
+      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
+    ).toBe(1);
+
+    // The database itself refuses a second row for the same user+paste.
+    const db = await getDb();
+    await expect(
+      db.insert(reactions).values({
+        userId: demo.id,
+        pasteId: paste.id,
+        reaction: '🔥',
+        createdAt: new Date(),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('removes the current reaction permanently and idempotently', async () => {
+    const paste = await createPaste(nova.id);
+    await setReaction(demo.id, paste.id, '😂');
+    const removed = await removeReaction(demo.id, paste.id);
+    expect(removed).toMatchObject({ active: false, removed: true, previous: '😂' });
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
+
+    const again = await removeReaction(demo.id, paste.id);
+    expect(again).toMatchObject({ removed: false, previous: null });
+  });
+
+  it('keeps multiple users independent and counts them together', async () => {
+    const paste = await createPaste(demo.id);
+    const carol = await createUser('reactcarol');
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+    await setReaction(nova.id, paste.id, HEART_REACTION);
+    await setReaction(carol.id, paste.id, '🔥');
+    await setReaction(carol.id, paste.id, '👀'); // replaces carol's 🔥
+
+    expect(await getReactionCounts(paste.id)).toEqual([
+      { reaction: '❤️', count: 2 },
+      { reaction: '👀', count: 1 },
+    ]);
+    expect(await getUserReaction(carol.id, paste.id)).toBe('👀');
+
+    const state = await getReactionState(paste.id, nova.id);
+    expect(state.total).toBe(3);
+    expect(state.mine).toBe('❤️');
+
+    // Reactions on one post never leak into another.
+    const other = await createPaste(demo.id);
+    expect(await getReactionState(other.id, demo.id)).toEqual({
+      counts: [],
+      total: 0,
+      mine: null,
+    });
+  });
+
+  it('toggles: selecting the current reaction removes it, another replaces it', async () => {
+    const paste = await createPaste(nova.id);
+    await setReaction(demo.id, paste.id, '🔥');
+
+    const replace = await toggleReaction(demo.id, paste.id, ':wave:');
+    expect(replace).toMatchObject({ active: true, removed: false, previous: '🔥' });
+    expect(await getUserReaction(demo.id, paste.id)).toBe(':wave:');
+
+    const off = await toggleReaction(demo.id, paste.id, ':wave:');
+    expect(off).toMatchObject({ active: false, removed: true, previous: ':wave:' });
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
+  });
+
+  it('maintains likes_count as the ❤️ count across every transition', async () => {
+    const paste = await createPaste(nova.id);
+    expect(await likesCountOf(paste.id)).toBe(0);
+
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+    expect(await likesCountOf(paste.id)).toBe(1);
+
+    // ❤️ → 🔥: the user un-liked.
+    await setReaction(demo.id, paste.id, '🔥');
+    expect(await likesCountOf(paste.id)).toBe(0);
+
+    // 🔥 → ❤️: they liked again.
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+    expect(await likesCountOf(paste.id)).toBe(1);
+
+    await removeReaction(demo.id, paste.id);
+    expect(await likesCountOf(paste.id)).toBe(0);
+  });
+});
+
+// ------------------------------------------------------------------
 // Auth
 // ------------------------------------------------------------------
 describe('reaction API — authentication', () => {
@@ -227,7 +369,7 @@ describe('reaction API — authentication', () => {
     expect((await post.json()).error).toBeTruthy();
 
     const del = await reactionsDELETE(
-      req(`/api/pastes/${paste.id}/reactions?reaction=%F0%9F%94%A5`, 'DELETE'),
+      req(`/api/pastes/${paste.id}/reactions`, 'DELETE'),
       paramsOf(paste.id),
     );
     expect(del.status).toBe(401);
@@ -235,23 +377,19 @@ describe('reaction API — authentication', () => {
     expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
   });
 
-  it('lets a guest read public counts but never another user’s selections', async () => {
+  it('lets a guest read public counts; mine is null, never another user’s', async () => {
     const paste = await createPaste(nova.id);
-    await addReaction(nova.id, paste.id, '🔥');
-    await addReaction(demo.id, paste.id, '🔥');
-    await addReaction(demo.id, paste.id, ':wave:');
+    await setReaction(nova.id, paste.id, '🔥');
+    await setReaction(demo.id, paste.id, '🔥');
 
     cookieJar.clear();
     const res = await reactionsGET(req(`/api/pastes/${paste.id}/reactions`), paramsOf(paste.id));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.authenticated).toBe(false);
-    expect(body.mine).toEqual([]);
-    expect(body.total).toBe(3);
-    expect(body.counts).toEqual([
-      { reaction: '🔥', count: 2 },
-      { reaction: ':wave:', count: 1 },
-    ]);
+    expect(body.mine).toBeNull();
+    expect(body.total).toBe(2);
+    expect(body.counts).toEqual([{ reaction: '🔥', count: 2 }]);
   });
 
   it('derives the user from the session and ignores a client-supplied user_id', async () => {
@@ -269,7 +407,7 @@ describe('reaction API — authentication', () => {
       paramsOf(paste.id),
     );
     expect(res.status).toBe(200);
-    expect((await res.json()).mine).toEqual(['🔥']);
+    expect((await res.json()).mine).toBe('🔥');
 
     // The row belongs to the SESSION user, not the spoofed one.
     expect(await hasReaction(demo.id, paste.id, '🔥')).toBe(true);
@@ -278,94 +416,91 @@ describe('reaction API — authentication', () => {
 });
 
 // ------------------------------------------------------------------
-// Add / remove / duplicates / multiple
+// The unified select / replace / remove contract
 // ------------------------------------------------------------------
-describe('reaction API — add and remove', () => {
-  it('adds a reaction and reports the new state', async () => {
+describe('reaction API — one reaction per user', () => {
+  it('adds ❤️ (the like) and reports the new state', async () => {
     await loginAs('demo');
     const paste = await createPaste(nova.id);
 
     const res = await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: HEART_REACTION }),
       paramsOf(paste.id),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
-    expect(body.reaction).toBe('🔥');
+    expect(body.reaction).toBe('❤️');
     expect(body.active).toBe(true);
     expect(body.created).toBe(true);
-    expect(body.counts).toEqual([{ reaction: '🔥', count: 1 }]);
+    expect(body.counts).toEqual([{ reaction: '❤️', count: 1 }]);
     expect(body.total).toBe(1);
-    expect(body.mine).toEqual(['🔥']);
+    expect(body.mine).toBe('❤️');
 
     const state = await reactionsGET(req(`/api/pastes/${paste.id}/reactions`), paramsOf(paste.id));
     const view = await state.json();
     expect(view.authenticated).toBe(true);
-    expect(view.mine).toEqual(['🔥']);
+    expect(view.mine).toBe('❤️');
   });
 
-  it('removes a reaction permanently and idempotently', async () => {
+  it('replaces ❤️ with 🔥, 🔥 with 😂, and an emoji with a sticker — never two rows', async () => {
+    await loginAs('demo');
+    const paste = await createPaste(nova.id);
+
+    const heart = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: HEART_REACTION }),
+      paramsOf(paste.id),
+    );
+    expect((await heart.json()).counts).toEqual([{ reaction: '❤️', count: 1 }]);
+
+    // ❤️ → 🔥
+    const fire = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
+      paramsOf(paste.id),
+    );
+    const fireBody = await fire.json();
+    expect(fireBody.replaced ?? fireBody.previous).toBe('❤️');
+    expect(fireBody.mine).toBe('🔥');
+    expect(fireBody.counts).toEqual([{ reaction: '🔥', count: 1 }]);
+    expect(
+      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
+    ).toBe(1);
+
+    // 🔥 → 😂
+    const laugh = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '😂' }),
+      paramsOf(paste.id),
+    );
+    expect((await laugh.json()).counts).toEqual([{ reaction: '😂', count: 1 }]);
+
+    // 😂 → :wave: (canonical sticker token, stored lowercase)
+    const wave = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: ':WAVE:' }),
+      paramsOf(paste.id),
+    );
+    const waveBody = await wave.json();
+    expect(waveBody.mine).toBe(':wave:');
+    expect(waveBody.counts).toEqual([{ reaction: ':wave:', count: 1 }]);
+
+    const db = await getDb();
+    const rows = await db
+      .select({ reaction: reactions.reaction })
+      .from(reactions)
+      .where(eq(reactions.pasteId, paste.id));
+    expect(rows).toEqual([{ reaction: ':wave:' }]);
+    for (const row of rows) {
+      expect(row.reaction).not.toMatch(/[<>]/);
+      expect(row.reaction).not.toMatch(/https?:/i);
+    }
+  });
+
+  it('re-selecting the current reaction is an idempotent no-op', async () => {
     await loginAs('demo');
     const paste = await createPaste(nova.id);
     await reactionsPOST(
       req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
       paramsOf(paste.id),
     );
-    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(1);
-
-    const res = await reactionsDELETE(
-      req(`/api/pastes/${paste.id}/reactions`, 'DELETE', { reaction: '🔥' }),
-      paramsOf(paste.id),
-    );
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.removed).toBe(true);
-    expect(body.active).toBe(false);
-    expect(body.mine).toEqual([]);
-    expect(body.counts).toEqual([]);
-    expect(body.total).toBe(0);
-    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
-
-    // Removing it again is a safe no-op.
-    const again = await reactionsDELETE(
-      req(`/api/pastes/${paste.id}/reactions?reaction=%F0%9F%94%A5`, 'DELETE'),
-      paramsOf(paste.id),
-    );
-    expect(again.status).toBe(200);
-    expect((await again.json()).removed).toBe(false);
-    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
-  });
-
-  it('toggles a reaction off and on with toggle: true', async () => {
-    await loginAs('demo');
-    const paste = await createPaste(nova.id);
-    const on = await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: ':wave:', toggle: true }),
-      paramsOf(paste.id),
-    );
-    expect((await on.json()).active).toBe(true);
-
-    const off = await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: ':wave:', toggle: true }),
-      paramsOf(paste.id),
-    );
-    const offBody = await off.json();
-    expect(offBody.active).toBe(false);
-    expect(offBody.removed).toBe(true);
-    expect(offBody.mine).toEqual([]);
-    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
-  });
-
-  it('never creates duplicate rows for the same reaction', async () => {
-    await loginAs('demo');
-    const paste = await createPaste(nova.id);
-
-    const first = await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
-      paramsOf(paste.id),
-    );
-    expect((await first.json()).created).toBe(true);
 
     for (let i = 0; i < 3; i++) {
       const dup = await reactionsPOST(
@@ -376,84 +511,95 @@ describe('reaction API — add and remove', () => {
       const body = await dup.json();
       expect(body.active).toBe(true); // still reacted…
       expect(body.created).toBe(false); // …but nothing inserted
+      expect(body.previous).toBe('🔥');
       expect(body.counts).toEqual([{ reaction: '🔥', count: 1 }]);
     }
-
     expect(
       await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
     ).toBe(1);
-
-    // Library level too, and casing cannot smuggle a duplicate in.
-    expect((await addReaction(demo.id, paste.id, '🔥')).ok).toBe(true);
-    const canonical = await resolveReaction(':WAVE:');
-    await addReaction(demo.id, paste.id, canonical!);
-    await addReaction(demo.id, paste.id, canonical!);
-    expect(await getUserReactions(demo.id, paste.id)).toEqual(['🔥', ':wave:']);
-
-    // The DB itself refuses a duplicate insert (composite primary key).
-    const db = await getDb();
-    await expect(
-      db.insert(reactions).values({
-        userId: demo.id,
-        pasteId: paste.id,
-        reaction: '🔥',
-        createdAt: new Date(),
-      }),
-    ).rejects.toThrow();
   });
 
-  it('lets one user hold several different reactions on one post', async () => {
+  it('toggle: true removes the current reaction and selects another one', async () => {
     await loginAs('demo');
     const paste = await createPaste(nova.id);
-    for (const reaction of ['🔥', '👍', ':wave:', ':fire:']) {
-      const res = await reactionsPOST(
-        req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction }),
-        paramsOf(paste.id),
-      );
-      expect(res.status).toBe(200);
-      expect((await res.json()).created).toBe(true);
-    }
-    const mine = await getUserReactions(demo.id, paste.id);
-    expect(mine.sort()).toEqual(['fire', 'wave'].map((t) => `:${t}:`).concat(['👍', '🔥']).sort());
-    expect(
-      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
-    ).toBe(4);
 
-    // Removing one leaves the others intact.
-    await reactionsDELETE(
-      req(`/api/pastes/${paste.id}/reactions`, 'DELETE', { reaction: '👍' }),
+    const on = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: ':wave:', toggle: true }),
       paramsOf(paste.id),
     );
-    const left = await getUserReactions(demo.id, paste.id);
-    expect(left).not.toContain('👍');
-    expect(left).toContain('🔥');
-    expect(left).toContain(':wave:');
-    expect(left).toContain(':fire:');
+    expect((await on.json()).active).toBe(true);
+
+    // Toggling a DIFFERENT reaction replaces (never stacks).
+    const swap = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥', toggle: true }),
+      paramsOf(paste.id),
+    );
+    const swapBody = await swap.json();
+    expect(swapBody.active).toBe(true);
+    expect(swapBody.mine).toBe('🔥');
+    expect(swapBody.counts).toEqual([{ reaction: '🔥', count: 1 }]);
+
+    // Toggling the CURRENT reaction removes it.
+    const off = await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥', toggle: true }),
+      paramsOf(paste.id),
+    );
+    const offBody = await off.json();
+    expect(offBody.active).toBe(false);
+    expect(offBody.removed).toBe(true);
+    expect(offBody.mine).toBeNull();
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
   });
 
-  it('caps how many different reactions one user may hold on one post', async () => {
-    const spammer = await createUser('reactspam');
+  it('DELETE removes the user’s current reaction (param tolerated), idempotently', async () => {
+    await loginAs('demo');
     const paste = await createPaste(nova.id);
-    const pool = [
-      '🔥','👍','👎','😀','😎','🥳','🤩','😇','🤠','🫡',
-      '😴','⚡','✨','🌟','💫','🌈','🌊','🙌','👀','💪',
-    ];
-    expect(pool).toHaveLength(MAX_REACTIONS_PER_USER_PER_PASTE);
-    for (const reaction of pool) {
-      expect((await addReaction(spammer.id, paste.id, reaction)).ok).toBe(true);
-    }
-    const overflow = await addReaction(spammer.id, paste.id, '🫶');
-    expect(overflow).toEqual({ ok: false, reason: 'limit' });
-
-    await createSession({ id: spammer.id, username: spammer.username });
-    const res = await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🤝' }),
+    await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
       paramsOf(paste.id),
     );
-    expect(res.status).toBe(409);
-    expect(
-      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, spammer.id))),
-    ).toBe(MAX_REACTIONS_PER_USER_PER_PASTE);
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(1);
+
+    // Without a param.
+    const res = await reactionsDELETE(
+      req(`/api/pastes/${paste.id}/reactions`, 'DELETE'),
+      paramsOf(paste.id),
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.removed).toBe(true);
+    expect(body.previous).toBe('🔥');
+    expect(body.mine).toBeNull();
+    expect(body.counts).toEqual([]);
+    expect(body.total).toBe(0);
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
+
+    // Removing again is a safe no-op (with a legacy-style param too).
+    const again = await reactionsDELETE(
+      req(`/api/pastes/${paste.id}/reactions?reaction=%F0%9F%94%A5`, 'DELETE'),
+      paramsOf(paste.id),
+    );
+    expect(again.status).toBe(200);
+    expect((await again.json()).removed).toBe(false);
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
+  });
+
+  it('counts reconcile when one user switches (❤️ 24 → ❤️ 23, 🔥 +1)', async () => {
+    const paste = await createPaste(nova.id);
+    const others = await Promise.all([
+      createUser('reactm1'),
+      createUser('reactm2'),
+      createUser('reactm3'),
+    ]);
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+    for (const u of others) await setReaction(u.id, paste.id, HEART_REACTION);
+    expect(await getReactionCounts(paste.id)).toEqual([{ reaction: '❤️', count: 4 }]);
+
+    await setReaction(demo.id, paste.id, '🔥');
+    expect(await getReactionCounts(paste.id)).toEqual([
+      { reaction: '❤️', count: 3 },
+      { reaction: '🔥', count: 1 },
+    ]);
   });
 });
 
@@ -506,26 +652,6 @@ describe('reaction API — rejected input', () => {
     expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
   });
 
-  it('stores sticker reactions as the canonical token, never rendered HTML', async () => {
-    await loginAs('demo');
-    const paste = await createPaste(nova.id);
-    await reactionsPOST(
-      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: ':WAVE:' }),
-      paramsOf(paste.id),
-    );
-
-    const db = await getDb();
-    const rows = await db
-      .select({ reaction: reactions.reaction })
-      .from(reactions)
-      .where(eq(reactions.pasteId, paste.id));
-    expect(rows.map((r) => r.reaction)).toEqual([':wave:']);
-    for (const row of rows) {
-      expect(row.reaction).not.toMatch(/[<>]/);
-      expect(row.reaction).not.toMatch(/https?:/i);
-    }
-  });
-
   it('returns 404 for a missing post and 410 for an expired one', async () => {
     await loginAs('demo');
 
@@ -539,7 +665,7 @@ describe('reaction API — rejected input', () => {
         ),
       () =>
         reactionsDELETE(
-          req('/api/pastes/no-such-paste/reactions?reaction=%F0%9F%94%A5', 'DELETE'),
+          req('/api/pastes/no-such-paste/reactions', 'DELETE'),
           paramsOf('no-such-paste'),
         ),
     ]) {
@@ -563,9 +689,9 @@ describe('reaction API — rejected input', () => {
 
     // Removing a reaction from an expired post stays possible (same
     // convention as unlike/unbookmark) so clients can always clean up.
-    await addReaction(demo.id, expired.id, '🔥');
+    await setReaction(demo.id, expired.id, '🔥');
     const del = await reactionsDELETE(
-      req(`/api/pastes/${expired.id}/reactions`, 'DELETE', { reaction: '🔥' }),
+      req(`/api/pastes/${expired.id}/reactions`, 'DELETE'),
       paramsOf(expired.id),
     );
     expect(del.status).toBe(200);
@@ -574,83 +700,184 @@ describe('reaction API — rejected input', () => {
 });
 
 // ------------------------------------------------------------------
-// Isolation + counts
+// Isolation
 // ------------------------------------------------------------------
-describe('reaction API — user isolation and counts', () => {
-  it('one user cannot remove another user’s reaction', async () => {
+describe('reaction API — user isolation', () => {
+  it('one user cannot remove or overwrite another user’s reaction', async () => {
     const paste = await createPaste(nova.id);
-    await addReaction(nova.id, paste.id, '🔥');
+    await setReaction(nova.id, paste.id, '🔥');
     expect(await hasReaction(nova.id, paste.id, '🔥')).toBe(true);
 
     await loginAs('demo');
     const res = await reactionsDELETE(
-      req(`/api/pastes/${paste.id}/reactions`, 'DELETE', { reaction: '🔥' }),
+      req(`/api/pastes/${paste.id}/reactions`, 'DELETE'),
       paramsOf(paste.id),
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.removed).toBe(false); // demo had no such reaction
-    expect(body.mine).toEqual([]);
+    expect(body.removed).toBe(false); // demo had no reaction
+    expect(body.mine).toBeNull();
     expect(body.counts).toEqual([{ reaction: '🔥', count: 1 }]); // nova's row survives
     expect(await hasReaction(nova.id, paste.id, '🔥')).toBe(true);
 
     // …and the library layer is keyed on the caller too.
-    const { removed } = await removeReaction(demo.id, paste.id, '🔥');
+    const { removed } = await removeReaction(demo.id, paste.id);
     expect(removed).toBe(false);
     expect(await hasReaction(nova.id, paste.id, '🔥')).toBe(true);
   });
+});
 
-  it('counts aggregate every user, `mine` stays per-user', async () => {
-    const paste = await createPaste(demo.id);
-    const carol = await createUser('reactcarol');
-
-    await addReaction(demo.id, paste.id, '🔥');
-    await addReaction(nova.id, paste.id, '🔥');
-    await addReaction(carol.id, paste.id, '🔥');
-    await addReaction(nova.id, paste.id, ':wave:');
-    await addReaction(carol.id, paste.id, ':wave:');
-    await addReaction(carol.id, paste.id, '👍');
-
-    expect(await getReactionCounts(paste.id)).toEqual([
-      { reaction: '🔥', count: 3 },
-      { reaction: ':wave:', count: 2 },
-      { reaction: '👍', count: 1 },
-    ]);
-
-    await loginAs('nova');
-    const res = await reactionsGET(req(`/api/pastes/${paste.id}/reactions`), paramsOf(paste.id));
-    const body = await res.json();
-    expect(body.total).toBe(6);
-    expect(body.mine.sort()).toEqual([':wave:', '🔥'].sort());
-
+// ------------------------------------------------------------------
+// Like compatibility — /like delegates to the unified ❤️ reaction
+// ------------------------------------------------------------------
+describe('like compatibility endpoint', () => {
+  it('POST /like selects the ❤️ reaction and creates no second record', async () => {
     await loginAs('demo');
-    const demoView = await reactionsGET(
-      req(`/api/pastes/${paste.id}/reactions`),
+    const paste = await createPaste(nova.id);
+
+    const res = await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.liked).toBe(true);
+    expect(body.count).toBe(1);
+
+    // The ONLY record is the ❤️ reaction row.
+    expect(await getUserReaction(demo.id, paste.id)).toBe('❤️');
+    const db = await getDb();
+    const likeRows = await db
+      .select({ id: likes.id })
+      .from(likes)
+      .where(eq(likes.pasteId, paste.id));
+    expect(likeRows).toHaveLength(0); // no separate like row, ever
+    expect(await likesCountOf(paste.id)).toBe(1);
+
+    // The reactions API and the like API agree.
+    const state = await getReactionState(paste.id, demo.id);
+    expect(state.mine).toBe('❤️');
+    expect(state.counts).toEqual([{ reaction: '❤️', count: 1 }]);
+    const get = await likeGET(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect(await get.json()).toEqual({ count: 1, liked: true });
+  });
+
+  it('POST /like replaces the user’s current reaction with ❤️', async () => {
+    await loginAs('demo');
+    const paste = await createPaste(nova.id);
+    await setReaction(demo.id, paste.id, '🔥');
+
+    const res = await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    const body = await res.json();
+    expect(body.liked).toBe(true);
+    expect(body.count).toBe(1);
+    expect(await getUserReaction(demo.id, paste.id)).toBe('❤️');
+    expect(await getReactionCounts(paste.id)).toEqual([{ reaction: '❤️', count: 1 }]);
+  });
+
+  it('repeated POST /like is idempotent', async () => {
+    await loginAs('demo');
+    const paste = await createPaste(nova.id);
+    for (let i = 0; i < 3; i++) {
+      const res = await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+      expect(res.status).toBe(200);
+    }
+    expect(
+      await rowCount(and(eq(reactions.pasteId, paste.id), eq(reactions.userId, demo.id))),
+    ).toBe(1);
+    expect(await likesCountOf(paste.id)).toBe(1);
+  });
+
+  it('DELETE /like removes ❤️ — and only ❤️', async () => {
+    await loginAs('demo');
+    const paste = await createPaste(nova.id);
+    await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+
+    const res = await likeDELETE(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, count: 0, liked: false });
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(0);
+
+    // Unlike never touches a non-❤️ reaction.
+    await setReaction(demo.id, paste.id, '🔥');
+    const keep = await likeDELETE(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect((await keep.json()).liked).toBe(false);
+    expect(await getUserReaction(demo.id, paste.id)).toBe('🔥');
+  });
+
+  it('guests: GET works (read-only, legacy ip like still reported), mutations are 401', async () => {
+    const paste = await createPaste(nova.id);
+    await setReaction(demo.id, paste.id, HEART_REACTION);
+
+    cookieJar.clear();
+    // The mocked headers() is empty, so getClientIp() resolves to the
+    // '0.0.0.0' fallback — hash THAT, exactly like the route will.
+    const ip = '0.0.0.0';
+    const actor = likeActor(undefined, ip);
+    // A pre-unification anonymous like by this visitor.
+    const db = await getDb();
+    await db.insert(likes).values({
+      id: randomUUID(),
+      pasteId: paste.id,
+      userId: null,
+      ipHash: actor.ipHash ?? null,
+      createdAt: new Date(),
+    });
+
+    // GET with that visitor's IP: liked (legacy row) and the unified count
+    // (❤️ reaction + retained anonymous like) — never two truths.
+    const get = new Request(`http://localhost/api/pastes/${paste.id}/like`);
+    const state = await likeGET(get, paramsOf(paste.id));
+    expect(await state.json()).toEqual({ count: 2, liked: true });
+    expect(await getReactionCounts(paste.id)).toEqual([{ reaction: '❤️', count: 2 }]);
+
+    const post = await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect(post.status).toBe(401);
+    const del = await likeDELETE(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    expect(del.status).toBe(401);
+    expect(await rowCount(eq(reactions.pasteId, paste.id))).toBe(1); // only demo's ❤️
+  });
+});
+
+// ------------------------------------------------------------------
+// Notifications — existing LIKE behavior preserved, none added
+// ------------------------------------------------------------------
+describe('reactions and like notifications', () => {
+  it('POST /like still notifies the owner exactly once (existing behavior)', async () => {
+    const paste = await createPaste(nova.id);
+    await loginAs('demo');
+    for (let i = 0; i < 2; i++) {
+      await likePOST(req(`/api/pastes/${paste.id}/like`), paramsOf(paste.id));
+    }
+    const db = await getDb();
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.pasteId, paste.id), eq(notifications.type, 'LIKE')));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].recipientUserId).toBe(nova.id);
+    expect(rows[0].actorUserId).toBe(demo.id);
+  });
+
+  it('the reactions API creates NO notifications (TODO 3 is out of scope)', async () => {
+    const paste = await createPaste(nova.id);
+    await loginAs('demo');
+    await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: '🔥' }),
       paramsOf(paste.id),
     );
-    expect((await demoView.json()).mine).toEqual(['🔥']);
-
-    // Counts drop by exactly one when a single user withdraws.
-    await removeReaction(carol.id, paste.id, '🔥');
-    const after = await getReactionState(paste.id, carol.id);
-    expect(after.counts).toEqual(
-      expect.arrayContaining([
-        { reaction: '🔥', count: 2 },
-        { reaction: ':wave:', count: 2 },
-        { reaction: '👍', count: 1 },
-      ]),
+    await reactionsPOST(
+      req(`/api/pastes/${paste.id}/reactions`, 'POST', { reaction: HEART_REACTION }),
+      paramsOf(paste.id),
     );
-    expect(after.total).toBe(5);
-    expect(after.mine.sort()).toEqual([':wave:', '👍'].sort());
-
-    // Reactions on one post never leak into another.
-    const other = await createPaste(demo.id);
-    expect(await getReactionCounts(other.id)).toEqual([]);
-    expect(await getReactionState(other.id, demo.id)).toEqual({
-      counts: [],
-      total: 0,
-      mine: [],
-    });
+    await reactionsDELETE(
+      req(`/api/pastes/${paste.id}/reactions`, 'DELETE'),
+      paramsOf(paste.id),
+    );
+    const db = await getDb();
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.pasteId, paste.id));
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -661,19 +888,19 @@ describe('reaction cascades', () => {
   it('removes reactions when the paste is deleted', async () => {
     const db = await getDb();
     const doomed = await createPaste(nova.id);
-    await addReaction(demo.id, doomed.id, '🔥');
-    await addReaction(nova.id, doomed.id, ':wave:');
+    await setReaction(demo.id, doomed.id, '🔥');
+    await setReaction(nova.id, doomed.id, ':wave:');
     expect(await rowCount(eq(reactions.pasteId, doomed.id))).toBe(2);
 
     await db.delete(pastes).where(eq(pastes.id, doomed.id));
     expect(await rowCount(eq(reactions.pasteId, doomed.id))).toBe(0);
   });
 
-  it('removes a user’s reactions when the user is deleted', async () => {
+  it('removes a user’s reaction when the user is deleted', async () => {
     const db = await getDb();
     const temp = await createUser('reacttemp');
     const target = await createPaste(nova.id, { title: 'Survivor' });
-    await addReaction(temp.id, target.id, '🔥');
+    await setReaction(temp.id, target.id, '🔥');
     expect(await rowCount(eq(reactions.userId, temp.id))).toBe(1);
 
     await db.delete(users).where(eq(users.id, temp.id));

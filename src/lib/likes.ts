@@ -1,17 +1,33 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
-import { getDb } from './db';
+import { createHash } from 'node:crypto';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { getDb, type DB } from './db';
 import { likes, pastes } from './db/schema';
+import {
+  HEART_REACTION,
+  getReactionCounts,
+  getUserReaction,
+  removeReaction,
+  setReaction,
+} from './reactions';
 
 // ------------------------------------------------------------------
-// Like / unlike (there is no dislike).
+// Like compatibility layer (the Like is now the ❤️ reaction).
 //
-// - Signed-in users: one like per user per paste (user_id).
-// - Guests: one like per browser per paste, tracked via a salted
-//   SHA-256 hash of their IP (ip_hash) — the raw IP is never stored.
+// The `likes` table is NO LONGER a source of truth for anyone's like
+// state. All authoritative state lives in `reactions` with ONE row per
+// (user_id, paste_id): liking a paste IS selecting the ❤️ reaction,
+// unliking IS removing it, and the like count IS the ❤️ count (❤️
+// reactions + retained anonymous likes — see src/lib/reactions.ts).
 //
-// The count doubles as a denormalized counter on `pastes.likes_count`
-// so list/profile queries never aggregate the likes table.
+// What remains of the legacy table:
+//   - ANONYMOUS likes (ip_hash rows, no user id) created before the
+//     unification. They cannot be represented as per-user reactions,
+//     are never written again, and only keep counting toward ❤️ so no
+//     existing like is silently lost. getLikeState still reports one
+//     back to a returning anonymous visitor (read-only).
+//   - Signed-in like rows were converted to ❤️ reactions and removed
+//     from this table by the one-time migration
+//     (src/lib/db/migrateReactions.ts) — a like is never stored twice.
 // ------------------------------------------------------------------
 
 export type LikeActor = { userId?: string; ipHash?: string | null };
@@ -35,108 +51,116 @@ export function likeActor(userId: string | undefined | null, ip: string): LikeAc
   return { ipHash: ipHashOf(ip) };
 }
 
-function actorWhere(actor: LikeActor) {
-  if (actor.userId) return eq(likes.userId, actor.userId);
-  return eq(likes.ipHash, actor.ipHash ?? '');
+/**
+ * The unified ❤️ count for a paste: ❤️ reactions plus retained anonymous
+ * likes. This is THE like count — identical to what the reaction chips
+ * and the reactions API report for ❤️.
+ */
+export async function getHeartCount(pasteId: string, database?: DB): Promise<number> {
+  const counts = await getReactionCounts(pasteId, database);
+  return counts.find((c) => c.reaction === HEART_REACTION)?.count ?? 0;
+}
+
+/** Whether this anonymous actor still holds a retained legacy like row. */
+async function hasAnonymousLike(
+  pasteId: string,
+  ipHash: string | null | undefined,
+  database?: DB,
+): Promise<boolean> {
+  if (!ipHash) return false;
+  const db = database ?? (await getDb());
+  const [row] = await db
+    .select({ id: likes.id })
+    .from(likes)
+    .where(
+      and(eq(likes.pasteId, pasteId), isNull(likes.userId), eq(likes.ipHash, ipHash)),
+    )
+    .limit(1);
+  return !!row;
 }
 
 /**
- * Current state for the paste — idempotent read used on page render.
- * Pass `countOverride` when the caller already loaded the paste row
- * (the paste page does) to avoid a duplicate indexed read.
+ * Current like state for the paste — idempotent read used by the
+ * compatibility endpoint. Delegates to the unified reaction system:
+ * `count` is the ❤️ count and `liked` is true when the actor's reaction
+ * is ❤️ (for a signed-in user) or when a returning anonymous visitor
+ * still holds a retained legacy like row (read-only archive).
  */
 export async function getLikeState(
   pasteId: string,
   actor: LikeActor,
-  countOverride?: number,
 ): Promise<{ count: number; liked: boolean }> {
   const db = await getDb();
-  let count = countOverride ?? 0;
-  if (countOverride === undefined) {
-    const [paste] = await db
-      .select({ likesCount: pastes.likesCount })
-      .from(pastes)
-      .where(eq(pastes.id, pasteId))
-      .limit(1);
-    count = Math.max(0, paste?.likesCount ?? 0);
+  if (actor.userId) {
+    const [count, mine] = await Promise.all([
+      getHeartCount(pasteId, db),
+      getUserReaction(actor.userId, pasteId, db),
+    ]);
+    return { count, liked: mine === HEART_REACTION };
   }
-  const [row] = await db
-    .select({ id: likes.id })
-    .from(likes)
-    .where(and(eq(likes.pasteId, pasteId), actorWhere(actor)))
-    .limit(1);
-  return { count, liked: !!row };
+  const [count, liked] = await Promise.all([
+    getHeartCount(pasteId, db),
+    hasAnonymousLike(pasteId, actor.ipHash, db),
+  ]);
+  return { count, liked };
 }
 
 /**
- * Like a paste. Idempotent: if the actor already liked it, nothing
- * changes. A race between two requests is collapsed by the partial
- * unique index — the counter is only incremented by the winner.
+ * Like a paste — delegates to the unified reaction system by selecting
+ * the ❤️ reaction (creating it, or replacing the actor's current
+ * reaction). No second record is ever written: there is no insert into
+ * `likes`. Signed-in actors only; anonymous liking ended with the
+ * unification (the API layer rejects guests with 401 — the same
+ * members-only rule as the reactions API).
+ *
+ * `newlyLiked` is true when the actor's reaction BECAME ❤️ with this
+ * call (first like, or a switch from another reaction) — the signal the
+ * caller uses for the existing like notification.
  */
 export async function likePaste(
   pasteId: string,
   actor: LikeActor,
-): Promise<{ count: number; liked: boolean }> {
+): Promise<{ count: number; liked: boolean; newlyLiked: boolean }> {
   const db = await getDb();
-  return db.transaction(async (tx) => {
-    const exists = await tx
-      .select({ id: likes.id })
-      .from(likes)
-      .where(and(eq(likes.pasteId, pasteId), actorWhere(actor)))
-      .limit(1);
-    if (exists.length > 0) {
-      const [paste] = await tx
-        .select({ likesCount: pastes.likesCount })
-        .from(pastes)
-        .where(eq(pastes.id, pasteId))
-        .limit(1);
-      return { count: paste?.likesCount ?? 0, liked: true };
-    }
-    // ON CONFLICT DO NOTHING collapses double-tap races without raising
-    // an error (a failed statement would poison the whole transaction).
-    const [row] = await tx
-      .insert(likes)
-      .values({ id: randomUUID(), pasteId, userId: actor.userId ?? null, ipHash: actor.ipHash ?? null, createdAt: new Date() })
-      .onConflictDoNothing()
-      .returning({ id: likes.id });
-    const inserted = !!row;
-    if (inserted) {
-      await tx
-        .update(pastes)
-        .set({ likesCount: sql`${pastes.likesCount} + 1` })
-        .where(eq(pastes.id, pasteId));
-    }
-    const [paste] = await tx
-      .select({ likesCount: pastes.likesCount })
-      .from(pastes)
-      .where(eq(pastes.id, pasteId))
-      .limit(1);
-    return { count: paste?.likesCount ?? 0, liked: inserted };
-  });
+  if (!actor.userId) {
+    const count = await getHeartCount(pasteId, db);
+    return { count, liked: false, newlyLiked: false };
+  }
+  const result = await setReaction(actor.userId, pasteId, HEART_REACTION);
+  const [paste] = await db
+    .select({ likesCount: pastes.likesCount })
+    .from(pastes)
+    .where(eq(pastes.id, pasteId))
+    .limit(1);
+  return {
+    count: Math.max(0, paste?.likesCount ?? 0),
+    liked: true,
+    newlyLiked: result.previous !== HEART_REACTION,
+  };
 }
 
-/** Unlike a paste. Idempotent; the counter never goes below zero. */
+/**
+ * Unlike a paste — delegates to the unified reaction system by removing
+ * the actor's ❤️ reaction. When the actor's current reaction is NOT ❤️
+ * (e.g. they switched to 🔥), unliking does nothing to it: an unlike
+ * only ever removes ❤️. Signed-in actors only.
+ */
 export async function unlikePaste(
   pasteId: string,
   actor: LikeActor,
 ): Promise<{ count: number; liked: boolean }> {
   const db = await getDb();
-  return db.transaction(async (tx) => {
-    const removed = await tx
-      .delete(likes)
-      .where(and(eq(likes.pasteId, pasteId), actorWhere(actor)))
-      .returning({ id: likes.id });
-    if (removed.length > 0) {
-      await tx
-        .update(pastes)
-        .set({ likesCount: sql`MAX(${pastes.likesCount} - 1, 0)` })
-        .where(eq(pastes.id, pasteId));
-    }
-    const [paste] = await tx
-      .select({ likesCount: pastes.likesCount })
-      .from(pastes)
-      .where(eq(pastes.id, pasteId))
-      .limit(1);
-    return { count: paste?.likesCount ?? 0, liked: false };
-  });
+  if (!actor.userId) {
+    const count = await getHeartCount(pasteId, db);
+    return { count, liked: false };
+  }
+  if ((await getUserReaction(actor.userId, pasteId, db)) === HEART_REACTION) {
+    await removeReaction(actor.userId, pasteId);
+  }
+  const [paste] = await db
+    .select({ likesCount: pastes.likesCount })
+    .from(pastes)
+    .where(eq(pastes.id, pasteId))
+    .limit(1);
+  return { count: Math.max(0, paste?.likesCount ?? 0), liked: false };
 }
