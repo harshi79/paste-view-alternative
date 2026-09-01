@@ -183,6 +183,48 @@ export const bookmarks = sqliteTable(
 );
 
 // ------------------------------------------------------------------
+// Reactions — a signed-in user's emoji / sticker reactions on a post.
+//
+// One row per (user, paste, reaction): the composite primary key is the
+// duplicate guard, so the SAME user can never store the SAME reaction on
+// the SAME post twice, while still holding MULTIPLE DIFFERENT reactions
+// on one post (one row each). Guests can never react (no anonymous/IP
+// actor here — same deliberate difference from likes that bookmarks
+// make); the API layer resolves the user id from the session only.
+//
+// `reaction` stores the canonical value ONLY — either a single Unicode
+// emoji grapheme ("🔥") or the sticker pack's existing canonical token
+// ("​:wave:"), never rendered HTML, markup or a URL. The sticker system is
+// reused as-is: tokens are validated against the `stickers` table and the
+// existing renderers resolve them at display time.
+//
+// Both foreign keys cascade, so deleting a paste or a user removes their
+// reactions automatically; removing a reaction deletes the row
+// permanently (no soft-delete).
+// ------------------------------------------------------------------
+export const reactions = sqliteTable(
+  'reactions',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    pasteId: text('paste_id')
+      .notNull()
+      .references(() => pastes.id, { onDelete: 'cascade' }),
+    // Canonical token: ':wave:' (sticker) or a single Unicode emoji.
+    reaction: text('reaction').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.pasteId, t.reaction] }),
+    // Grouped counts for one post ("how many of each reaction").
+    index('reactions_paste_reaction_idx').on(t.pasteId, t.reaction),
+    // "What did I react with on this post" + cascade lookups.
+    index('reactions_paste_user_idx').on(t.pasteId, t.userId),
+  ],
+);
+
+// ------------------------------------------------------------------
 // Notifications — one row per recipient per event.
 //
 // `type` is a stable internal identifier (FOLLOW | LIKE | NEW_POST |
@@ -335,6 +377,7 @@ export type UsernameReservation = typeof usernameReservations.$inferSelect;
 export type Paste = typeof pastes.$inferSelect;
 export type Like = typeof likes.$inferSelect;
 export type Bookmark = typeof bookmarks.$inferSelect;
+export type Reaction = typeof reactions.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Follow = typeof follows.$inferSelect;
 export type Sticker = typeof stickers.$inferSelect;
