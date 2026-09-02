@@ -33,7 +33,7 @@ const FEATURES = [
 
 export default function HomePage() {
   return (
-    <div className="animate-fade-up relative pb-6 pt-10 sm:pt-16 lg:pt-24">
+    <div className="animate-fade-up relative pb-6 pt-6 sm:pt-10 lg:pt-14">
       {/* Decorative watermark — pure CSS, aria-hidden, no content meaning. */}
       <p
         aria-hidden
@@ -66,10 +66,13 @@ export default function HomePage() {
           <Link href="/paste" className="btn-primary w-full !px-7 !py-3.5 text-base uppercase tracking-wide sm:w-auto">
             Create paste
           </Link>
-          <span className="font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">
-            Free · No account required
-          </span>
+          <Link href="/latest" className="btn-ghost w-full !px-7 !py-3.5 text-base sm:w-auto">
+            Browse latest
+          </Link>
         </div>
+        <p className="mt-4 font-mono text-xs uppercase tracking-[0.18em] text-zinc-500">
+          Free · No account required
+        </p>
       </section>
 
       <section className="mx-auto mt-16 max-w-6xl sm:mt-24">

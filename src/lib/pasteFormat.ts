@@ -96,6 +96,21 @@ export function richDocToPlainText(doc: RichDoc): string {
 }
 
 /**
+ * Short, plain-text excerpt for feed cards. Not a second renderer —
+ * reuses parsePasteContent + richDocToPlainText, then collapses
+ * whitespace and truncates. Password-protected bodies must not be
+ * passed here (the Latest listing excludes them before previewing).
+ */
+export function pastePreview(format: string, content: string, maxChars = 200): string {
+  const parsed = parsePasteContent(format, content);
+  const text = typeof parsed === 'string' ? parsed : richDocToPlainText(parsed);
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  if (!collapsed) return '';
+  if (collapsed.length <= maxChars) return collapsed;
+  return `${collapsed.slice(0, maxChars).trimEnd()}…`;
+}
+
+/**
  * True when a doc carries actual rich formatting — a per-line font, size,
  * color, or a sticker/emoji token mark. Auto-detected link marks do NOT
  * count: the plain viewer auto-links URLs too, so a paste that merely
