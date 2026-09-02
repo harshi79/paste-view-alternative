@@ -28,8 +28,8 @@ export function LogoMark({ className = 'h-8 w-8' }: { className?: string }) {
       />
       <defs>
         <linearGradient id={id} x1="20.5" y1="19.5" x2="43.5" y2="44.5" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#22c55e" />
-          <stop offset="1" stopColor="#4ade80" />
+          <stop stopColor="#8b5cf6" />
+          <stop offset="1" stopColor="#22d3ee" />
         </linearGradient>
       </defs>
     </svg>
@@ -43,7 +43,7 @@ export default function Logo({ compact = false }: { compact?: boolean }) {
       <span
         className={`font-black uppercase tracking-tight text-white ${compact ? 'text-sm' : 'text-[17px] leading-none'}`}
       >
-        Vibe<span className="text-brand-500">Bin</span>
+        Vibe<span className="text-brand-400">Bin</span>
       </span>
     </span>
   );

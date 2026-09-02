@@ -6,14 +6,14 @@
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
     "Courier New", monospace;
 
-  --color-night-950: #050505;
-  --color-night-900: #0a0a0a;
-  --color-night-800: #121212;
-  --color-night-700: #1a1a1a;
-  --color-brand-300: #86efac;
-  --color-brand-400: #4ade80;
-  --color-brand-500: #22c55e;
-  --color-brand-600: #16a34a;
+  --color-night-950: #06060c;
+  --color-night-900: #0a0a14;
+  --color-night-800: #10101d;
+  --color-night-700: #181829;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
 
   /* Brutalist radius scale — sharpens every rounded-* utility app-wide
      so the whole skin reads as controlled geometry, not soft bubbles. */
@@ -43,18 +43,15 @@
 /* borders, hard offset shadows. Pure presentation variables.          */
 /* ------------------------------------------------------------------ */
 :root {
-  --vb-bg: #050505;        /* page base — near black */
-  --vb-panel: #0c0c0c;     /* major surface */
-  --vb-panel-2: #121212;   /* raised surface */
-  --vb-inset: #080808;     /* recessed surface (inputs, code wells) */
-  --vb-line: #222222;      /* strong border */
-  --vb-line-soft: #1a1a1a; /* quiet border */
-  --vb-accent: #22c55e;    /* green accent */
-  --vb-accent-2: #4ade80;  /* brighter green for hover/focus */
-  --vb-ink: #000000;       /* hard-shadow ink */
-  --vb-sidebar: 15.5rem;   /* desktop application sidebar */
-  --vb-header: 3.5rem;     /* compact application header */
-  --vb-bottom-nav: 4rem;   /* mobile bottom navigation */
+  --vb-bg: #0a0a0f;        /* page base */
+  --vb-panel: #101016;     /* major surface */
+  --vb-panel-2: #14141c;   /* raised surface */
+  --vb-inset: #0c0c11;     /* recessed surface (inputs, code wells) */
+  --vb-line: #2b2b36;      /* strong border */
+  --vb-line-soft: #1d1d26; /* quiet border */
+  --vb-accent: #8b5cf6;    /* VibeBin violet */
+  --vb-accent-2: #22d3ee;  /* VibeBin cyan */
+  --vb-ink: #050508;       /* hard-shadow ink */
 }
 
 html {
@@ -1403,7 +1400,7 @@ body::before {
 .input:focus {
   border-color: var(--vb-accent);
   box-shadow:
-    3px 3px 0 0 rgba(22, 163, 74, 0.35),
+    3px 3px 0 0 rgba(124, 58, 237, 0.35),
     inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
@@ -1411,90 +1408,6 @@ body::before {
 :focus-visible {
   outline: 2px solid var(--vb-accent-2);
   outline-offset: 2px;
-}
-
-/* Application shell — sidebar + compact header + mobile bottom nav.
-   Black is dominant; green is an accent for active/focus/actions. */
-.app-sidebar {
-  border-right: 1px solid var(--vb-line);
-  background: var(--vb-panel);
-}
-
-.app-header {
-  border-bottom: 1px solid var(--vb-line);
-  background: var(--vb-bg);
-}
-
-.app-nav-link {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.75rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 650;
-  color: #b4b4b4;
-  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
-}
-
-.app-nav-link:hover {
-  background: rgba(255, 255, 255, 0.04);
-  color: #f4f4f5;
-}
-
-.app-nav-link[aria-current="page"] {
-  border-color: rgba(34, 197, 94, 0.28);
-  background: rgba(34, 197, 94, 0.1);
-  color: #ecfdf3;
-  box-shadow: inset 3px 0 0 var(--vb-accent);
-}
-
-.app-bottom-nav {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  border-top: 1px solid var(--vb-line);
-  background: var(--vb-panel);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.app-bottom-item {
-  display: flex;
-  min-width: 0;
-  min-height: 44px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  padding: 0.4rem 0.2rem;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #a1a1aa;
-}
-
-.app-bottom-item[aria-current="page"] {
-  color: #bbf7d0;
-}
-
-.app-skip-link {
-  position: absolute;
-  left: 0.75rem;
-  top: 0.75rem;
-  z-index: 80;
-  border-radius: 8px;
-  background: var(--vb-accent);
-  padding: 0.5rem 0.85rem;
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #052e16;
-  transform: translateY(-200%);
-}
-
-.app-skip-link:focus {
-  transform: translateY(0);
 }
 } /* @layer components */
 
